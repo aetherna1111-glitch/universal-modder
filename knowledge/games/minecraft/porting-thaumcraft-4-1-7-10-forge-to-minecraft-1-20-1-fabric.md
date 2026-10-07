@@ -134,6 +134,17 @@ tags: [porting, legacy, 1.7.10, forge-to-fabric, gametest, worldgen, dimension, 
       notes" list was never cleared.
     - **Fix:** set `instrument` in the test, and clear the list at `END_WORLD_TICK`.
 
+13. **A 1.7.10 multiblock's faces changed with their neighbours (connected textures), and 1.20 models cannot read
+    neighbours.**
+    - **Cause:** 1.7.10 picked icons at render time (`getIcon(IBlockAccess, x, y, z, side)`).
+    - **Fix:** inside a formed structure those inputs never change. Compute them once when it forms, store them as
+      block-state properties, and generate one model per state with a script that ports `getIcon`. For TC4's
+      infernal furnace that was 231 states, and it keeps vanilla culling and AO.
+14. **A screenshot harness reported success, but the picture was from an older run.**
+    - **Cause:** the harness's own compile failed, and the wrapper script still exited 0 while the previous PNG
+      stayed on disk.
+    - **Fix:** fail when no new file is written, and compare the PNG's hash with the last run before looking at it.
+
 ## Assets
 The original mod's own textures and sounds are used; no generated assets.
 
