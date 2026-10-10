@@ -58,6 +58,15 @@ Verified on Minecraft 1.20.1, Fabric API 0.92 (Indigo renderer), Loom 1.7.4.
   `HeldItemRenderer.renderFirstPersonItem` at HEAD for that item and replay the 1.7.10 `renderItemInFirstPerson`
   sequence: both versions start in the same camera space after the arm-sway rotations, `ModelPart.rotate` is Z-Y-X like
   `ModelRenderer`, and `PlayerEntityRenderer.renderRightArm` is the old `renderFirstPersonArm`.
+- **`GL_LIGHTING` off.** In 1.7.10 it only removed the directional diffuse; the lightmap (texture unit 1) still
+  applied. Every 1.20 entity shader runs `minecraft_mix_light` and has no switch for it. Register a copy of the
+  entity vertex shader with `vertexColor = Color` (namespaced json; the vanilla `rendertype_entity_cutout_no_cull`
+  fragment stage can stay, the translucent one is identical) and build cutout / translucent / culled layers on it.
+  Faces drawn with `RenderBlocks.renderFace*` inside a TESR also take their UVs from the render bounds (top and bottom
+  u = x, v = z; sides v = 16 - y), so a small liquid box must not stretch the whole icon.
+- **A Tessellator draw without `setBrightness`** is not full bright: it uses the lightmap coordinates the dispatcher
+  set for the tile entity or entity. For such lit billboards the vanilla particle shader fits
+  (`POSITION_TEXTURE_COLOR_LIGHT`, alpha test on texture x colour, colour x lightmap).
 - **`renderItemIn2D`** (pixel-extruded sprites: quills, valve wheels, wand ornaments): port the 1.7.10 routine as is
   (front, back at -thickness, one strip per texel column and row sampling the texel centre); a flat quad loses the
   stepped edges and usually gets the (maxU, minV, minU, maxV) UV order wrong.
@@ -83,7 +92,15 @@ Verified on Minecraft 1.20.1, Fabric API 0.92 (Indigo renderer), Loom 1.7.4.
    not rebuild the section. **Fix:** `world.updateListeners` on the client after reading.
 7. **Light engine and block entities.** A per-instance light opacity read from a block entity does not work: the
    light engine runs off-thread, where `World.getBlockEntity` returns null.
+8. **`IllegalStateException: Not filled all elements of the vertex` after switching a layer.** **Cause:**
+   `BufferBuilder` writes elements in the format's order and skips a call whose element is not the current one, so
+   `vertex().color().texture()` against a position-texture-colour format leaves the vertex short. **Fix:** order the
+   calls as the new format lists its elements.
+9. **Waves or flicker identical on every copy of an effect.** **Cause:** the old code phased a sine by the world
+   position (`x % 16`); the port passes coordinates relative to the matrix origin. **Fix:** keep relative coordinates
+   for geometry and pass the world position separately for the phase.
 
 ## Seen in
 - `games/minecraft/porting-thaumcraft-4-1-7-10-forge-to-minecraft-1-20-1-fabric.md` (on its own branch) - thaumometer,
-  infused ores, warded glass / blocks, nodes, wisps, mind spider, research table, valve.
+  infused ores, warded glass / blocks, nodes, wisps, mind spider, research table, valve, jar / reservoir liquids,
+  hover harness, floaty lines.
