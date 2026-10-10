@@ -85,6 +85,7 @@ tags: [porting, legacy, 1.7.10, forge-to-fabric, gametest, worldgen, dimension, 
   - a failing then passing GameTest: biome reads, enchanting power, entity cancel, note hook;
   - a client run: flat layer, experimental warning, dimension;
   - bytecode reading with `javap`: `BiomeAccess`, the `EnchantmentScreenHandler` lambda.
+- **Gotchas 19-21** were verified the same day with GameTests on the real jars (and a client start).
 - **Gotchas 15-18 were verified on 2026-10-10** on a seed-12345 normal world (Windows 10, client window, no Xvfb):
   the log line counts before and after each fix, inspected screenshots, and a GameTest for gotcha 15 (313 passing).
 - **Not verified:**
@@ -168,6 +169,21 @@ tags: [porting, legacy, 1.7.10, forge-to-fabric, gametest, worldgen, dimension, 
       `getStructureStarts()` children for `PoolStructurePiece`s. 81 cells took about 12 s.
     - **Gotcha:** match the piece by its template id (`getPoolElement().toString()` contains it). Element identity
       maps break for starts read back from a saved chunk, where the elements are new instances.
+19. **"Mod was built with a newer version of Loom (1.7.413), you are using Loom (1.6.12)" when adding a dependency.**
+    - **Cause:** Loom refuses to remap a mod jar whose manifest `Fabric-Loom-Version` is newer than the build's Loom.
+    - **Fix:** raise Loom to at least that minor (1.6.12 -> 1.7.4 worked on Gradle 8.8 with no other change; 314 tests
+      unchanged). Patching the jar's manifest also works but leaves a modified third-party jar to maintain.
+20. **`NoClassDefFoundError: net/fabricmc/mapping/tree/TinyMappingFactory` at launch after adding cloth-config.**
+    - **Cause:** cloth-config 11.1.118's pom depends on fabric-loader 0.14.21 and an old Fabric API; Gradle pulled them
+      onto the dev runtime next to the project's loader.
+    - **Fix:** declare such mod dependencies with `{ transitive = false }`.
+21. **Trinkets and the Accessories "Trinkets compat layer" in one pack (1.20.1).**
+    - **Fact:** accessories-tc-layer 3.8.1+beta.14 declares `"provides": ["trinkets"]` and ships the Trinkets API
+      classes. With Trinkets 3.7.2 also installed, Fabric Loader 0.16.14 keeps the layer (higher version) as
+      `trinkets` and silently drops real Trinkets: it is not in the loaded-mod list.
+    - **Consequence:** an Accessories-based mod needs no Trinkets adapter; Trinkets-API mods see its items through the
+      layer (`TrinketsApi.getTrinketComponent(player).isEquipped(item)` was true for items worn in Accessories slots).
+      With real Trinkets and no layer, the two inventories are separate and that call returns false.
 
 ## Assets
 The original mod's own textures and sounds are used; no generated assets.
