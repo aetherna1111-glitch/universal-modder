@@ -88,8 +88,11 @@ tags: [porting, legacy, 1.7.10, forge-to-fabric, gametest, worldgen, dimension, 
 - **Gotchas 19-21** were verified the same day with GameTests on the real jars (and a client start).
 - **Gotchas 15-18 were verified on 2026-10-10** on a seed-12345 normal world (Windows 10, client window, no Xvfb):
   the log line counts before and after each fix, inspected screenshots, and a GameTest for gotcha 15 (313 passing).
+- **Verified later (2026-10-10):** the real-client click path. A screenshot-harness scenario drives
+  `ClientPlayerInteractionManager.interactBlock` / `interactItem` in survival (packets, then the server's use path)
+  for the wand triggers, the research table, three screens and the infusion altar (refused without its research,
+  formed with it): 9 of 9 checks passed. GameTests alone call the item logic directly and cannot show this.
 - **Not verified:**
-  - the real-client click path through `UseBlockCallback` (tests call the item logic directly);
   - whether patching only one of the two experimental-warning checks would be enough (both were patched together).
 
 ## Gotchas
