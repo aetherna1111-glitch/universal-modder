@@ -2134,6 +2134,51 @@
   ]
  },
  {
+  "path": "games/minecraft/porting-thaumcraft-4-1-7-10-forge-to-minecraft-1-20-1-fabric.md",
+  "kind": "game",
+  "title": "Porting Thaumcraft 4 (1.7.10 Forge) to Minecraft 1.20.1 Fabric",
+  "game": "Minecraft",
+  "games_also": [],
+  "game_version": "Minecraft Java 1.20.1, Fabric Loader 0.16.14, Fabric API 0.92.12+1.20.1, Yarn 1.20.1+build.10",
+  "platform": "linux",
+  "engine": "java",
+  "route": "loader-api",
+  "tools": [
+   "Fabric Loom 1.6.12 / 1.7.4",
+   "Gradle 8.8",
+   "Java 17",
+   "Fabric GameTest API",
+   "Vineflower",
+   "CFR",
+   "javap",
+   "Python data extractors",
+   "Xvfb"
+  ],
+  "anti_cheat": "none (single-player mod; nothing touches multiplayer anti-cheat)",
+  "status": "in-progress",
+  "agents": [
+   "Claude Code (Opus 5.5)"
+  ],
+  "humans": [],
+  "date": "2026-10-10",
+  "links": [],
+  "tags": [
+   "porting",
+   "legacy",
+   "1.7.10",
+   "forge-to-fabric",
+   "gametest",
+   "worldgen",
+   "dimension",
+   "mixin",
+   "biome",
+   "rendering",
+   "accessories",
+   "baubles",
+   "fidelity"
+  ]
+ },
+ {
   "path": "games/minecraft/resident-evil-2-s-live-picture-composited-into-minecraft-wit.md",
   "kind": "game",
   "title": "Resident Evil 2's live picture composited into Minecraft with depth",
