@@ -609,6 +609,16 @@ def test_kb_check_rejects_secrets_and_dumps(tmp_path):
     assert any("code block" in f for f in fails) and any("FAL_KEY" in f for f in fails)
 
 
+def test_kb_without_pyyaml_says_what_to_install(tmp_path, monkeypatch, capsys):
+    # run from a clone without `pip install -e .`: a hint, not a ModuleNotFoundError traceback
+    note = tmp_path / "n.md"
+    note.write_text("---\ntitle: t\n---\n# t\n", encoding="utf-8")
+    monkeypatch.setitem(sys.modules, "yaml", None)
+    with pytest.raises(SystemExit):
+        kb.parse(note)
+    assert "pip install pyyaml" in capsys.readouterr().err
+
+
 def test_kb_impossible_date_is_reported_not_raised(tmp_path):
     # YAML turns an unquoted YYYY-MM-DD into a date; a day that doesn't exist raises ValueError, not YAMLError
     root = tmp_path / "knowledge"
