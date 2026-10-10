@@ -211,6 +211,27 @@ tags: [porting, legacy, 1.7.10, forge-to-fabric, gametest, worldgen, dimension, 
       cooldown is 0 ms and failed for a reason unrelated to the change.
     - **Fix:** choose inputs so the old behaviour gives a different answer (30 repeats: old 0, new 1), and read the
       reference values the test depends on before writing it.
+26. **Systematic renderer drift that per-feature tests never catch.**
+    - **Symptom:** every gameplay test passed, yet the thaumometer was invisible, infused ores were solid tinted
+      cubes, glows were cut into hard blobs and many item icons faced the wrong way.
+    - **Fix:** a read-only audit per renderer group (tile, block / ISBRH, entity, item), each comparing the port's
+      code with the original renderer line by line (GL state, matrix sequence, brightness, UVs) and returning
+      findings ranked by visibility; then one harness scenario that places every flagged object and is re-run after
+      each fix. About 60 differences surfaced in one pass; none was TC5-derived. Details of the GL11 to 1.20 mapping:
+      `techniques/porting-1-7-10-gl11-render-states-and-iitemrenderer-frames-t.md` (its own branch).
+27. **Item icons of TESR-drawn blocks a quarter-turn off.**
+    - **Symptom:** chests showed their back, tables and the bore base faced away; adding TC4's own
+      renderInventoryBlock rotations did not help.
+    - **Cause:** the shared `builtin/entity` item model used vanilla 1.20's GUI rotation (30, 225, 0); 1.7.10's
+      INVENTORY_BLOCK frame works out to (30, -45, 0) (RenderItem's z flip, 210 X, 45 Y, -90 Y).
+    - **Fix:** give the shared builtin model the 1.7.10 frame; then each item replays the original's own turns
+      exactly.
+28. **A visual check that "found nothing" because of the camera, not the code.**
+    - **Symptom:** a 1-in-20 random overlay never appeared in screenshots; forcing it on every face showed it.
+    - **Cause:** the creative player fell after the teleport, so the "overview" was a close-up containing none of
+      the predicted positions. The positions were confirmed with jshell (java.util.Random), then in the game log.
+    - **Fix:** for random decorations, compute the expected positions with the original RNG first and aim the
+      camera at them (and remember a teleported creative player does not keep flying).
 
 ## Assets
 The original mod's own textures and sounds are used; no generated assets.
