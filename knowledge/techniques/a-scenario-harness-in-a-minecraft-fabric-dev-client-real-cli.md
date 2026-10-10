@@ -71,6 +71,29 @@ Verified on Minecraft 1.20.1, Fabric Loader 0.16.14, Loom 1.7.4, Windows 10 and 
    - **Cause:** `checkDespawn`, or entities left over from other scenarios or tests nearby.
    - **Fix:** `setPersistent()` and clear same-type entities in range at the start.
 
+7. **A short-lived effect is missing from its screenshot.**
+   - **Cause:** the capture waits for the terrain to finish building; a beam or bolt has expired by then.
+   - **Fix:** let the terrain build first (about 100 ticks after a teleport), then trigger the effect right before
+     the capture.
+8. **A scripted "throw the item in" step failed.**
+   - **Cause:** the selected-slot change had not reached the server before the drop key was pressed, and a throw
+     from the ground landed short.
+   - **Fix:** change slots at least a tick before dropping, and throw from a block beside the target.
+9. **A real-click scenario failed in one run of two.**
+   - **Cause:** the original's own random failure path (infusion instability scattering the items).
+   - **Fix:** build the original's stabilising setup in the scenario so the chance is 0, rather than changing the
+     code under test.
+10. **The dev runtime hid release-only problems.**
+    - **Fix:** a production-style launch. Build the classpath as a launcher does: Mojang's client jar and libraries
+      from the version JSON, Fabric Loader's production `KnotClient` from its loader profile, Loom's cached assets
+      and the real dependency jars. Run it 80-90 s and fail on ERROR lines or missing models and textures.
+    - Filter the expected offline profile-key 401. The server-side twin is the official Fabric server launcher
+      with the remapped jar in `mods/`.
+    - It found the atlas mip-level cap ("limits mip level from 4 to 1") that no dev run reported.
+11. **Error dialogs on the user's screen.** Harness clients open real windows, so loader or Sodium error dialogs
+    appear on the user's desktop. Run under `xvfb-run` where available. A Linux container with Xvfb and Mesa
+    (software OpenGL) needs no physical display.
+
 ## Seen in
 - `games/minecraft/porting-thaumcraft-4-1-7-10-forge-to-minecraft-1-20-1-fabric.md`: natural villages, biomes and
   features on a seed-12345 world; 9 of 9 real-click progression checks; two clients; a 100-node / 40-golem load probe.
