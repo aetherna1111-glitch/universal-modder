@@ -91,7 +91,10 @@ Verified on Minecraft 1.20.1, Fabric API 0.92 (Indigo renderer), Loom 1.7.4.
 6. **`readNbt` updated the data but the chunk still shows the old block.** **Cause:** block-entity update packets do
    not rebuild the section. **Fix:** `world.updateListeners` on the client after reading.
 7. **Light engine and block entities.** A per-instance light opacity read from a block entity does not work: the
-   light engine runs off-thread, where `World.getBlockEntity` returns null.
+   light engine runs off-thread, where `World.getBlockEntity` returns null. **Fix:** an `IntProperty` (0-15) on the
+   block, set from the stored block when the block entity is filled, and `getOpacity` returning it (the same way
+   luminance is usually carried); check it with a GameTest that waits ~20 ticks and reads the sky light in a walled
+   pocket under the block.
 8. **`IllegalStateException: Not filled all elements of the vertex` after switching a layer.** **Cause:**
    `BufferBuilder` writes elements in the format's order and skips a call whose element is not the current one, so
    `vertex().color().texture()` against a position-texture-colour format leaves the vertex short. **Fix:** order the
