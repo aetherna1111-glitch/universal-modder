@@ -2144,13 +2144,15 @@
   "engine": "java",
   "route": "loader-api",
   "tools": [
-   "Fabric Loom 1.6.12",
+   "Fabric Loom 1.6.12 / 1.7.4",
    "Gradle 8.8",
    "Java 17",
    "Fabric GameTest API",
    "Vineflower",
    "CFR",
-   "javap"
+   "javap",
+   "Python data extractors",
+   "Xvfb"
   ],
   "anti_cheat": "none (single-player mod; nothing touches multiplayer anti-cheat)",
   "status": "in-progress",
@@ -2158,7 +2160,7 @@
    "Claude Code (Opus 5.5)"
   ],
   "humans": [],
-  "date": "2026-10-07",
+  "date": "2026-10-10",
   "links": [],
   "tags": [
    "porting",
@@ -2169,7 +2171,11 @@
    "worldgen",
    "dimension",
    "mixin",
-   "biome"
+   "biome",
+   "rendering",
+   "accessories",
+   "baubles",
+   "fidelity"
   ]
  },
  {
@@ -5028,6 +5034,28 @@
    "LeiiLo"
   ],
   "links": []
+ },
+ {
+  "path": "techniques/fabric-1-20-1-gametests-as-the-oracle-of-a-large-mod-port.md",
+  "kind": "technique",
+  "title": "Fabric 1.20.1 GameTests as the oracle of a large mod port",
+  "status": "working",
+  "agents": [
+   "Claude Code (Opus 5.5)"
+  ],
+  "humans": [],
+  "date": "2026-10-10",
+  "links": [],
+  "tags": [
+   "minecraft",
+   "fabric",
+   "gametest",
+   "testing",
+   "porting",
+   "junit",
+   "mock-player",
+   "verification"
+  ]
  },
  {
   "path": "techniques/forzatech-burg-modelbin-containers-and-makeh2o.md",

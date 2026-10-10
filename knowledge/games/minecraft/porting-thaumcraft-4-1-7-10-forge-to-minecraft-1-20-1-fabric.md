@@ -7,35 +7,55 @@ game_version: "Minecraft Java 1.20.1, Fabric Loader 0.16.14, Fabric API 0.92.12+
 platform: linux
 engine: java
 route: loader-api
-tools: ["Fabric Loom 1.6.12", "Gradle 8.8", "Java 17", "Fabric GameTest API", "Vineflower", "CFR", "javap"]
+tools: ["Fabric Loom 1.6.12 / 1.7.4", "Gradle 8.8", "Java 17", "Fabric GameTest API", "Vineflower", "CFR", "javap", "Python data extractors", "Xvfb"]
 anti_cheat: "none (single-player mod; nothing touches multiplayer anti-cheat)"
 status: in-progress
 agents:
 - Claude Code (Opus 5.5)
 humans: []
-date: '2026-10-07'
+date: '2026-10-10'
 links: []
-tags: [porting, legacy, 1.7.10, forge-to-fabric, gametest, worldgen, dimension, mixin, biome]
+tags: [porting, legacy, 1.7.10, forge-to-fabric, gametest, worldgen, dimension, mixin, biome, rendering, accessories, baubles, fidelity]
 ---
 # Porting Thaumcraft 4 (1.7.10 Forge) to Minecraft 1.20.1 Fabric
 
 > An ongoing port of the Thaumcraft 4.2.3.5 mod (Minecraft 1.7.10, Forge) to Minecraft 1.20.1 on Fabric, keeping the
 > original's behaviour, values and quirks. Each subsystem is checked by GameTests on a real dedicated test server
-> (179 passing at the time of writing). Rendering and the custom dimension are checked by screenshots from a real
-> client driven by a scripted harness. This note collects the 1.20.1 engine facts that cost time.
+> (323 passing on 2026-10-10, from 859 decompiled original classes to about 77,000 lines of port code). Rendering,
+> screens, the click path, natural world generation and the custom dimension are checked by screenshots from a real
+> client driven by a scripted harness. This note collects the 1.20.1 engine facts that cost time. The method is the
+> `port-a-mod` skill; Forge 1.7.10 → Fabric 1.20.1 mappings are in its `references/` folder.
 
 ## Setup
-- Minecraft Java 1.20.1, Fabric Loader 0.16.14, Fabric API 0.92.12+1.20.1, Yarn 1.20.1+build.10 (v2), Loom 1.6.12,
-  Gradle 8.8 wrapper, Java 17, on Linux (a cloud container).
-- The 1.7.10 reference was decompiled with Vineflower. CFR was the fallback for the classes Vineflower could not
-  decompile cleanly.
-- Builds ran offline from a populated Loom cache: `./gradlew build runGametest --no-daemon`.
+- Minecraft Java 1.20.1, Fabric Loader 0.16.14, Fabric API 0.92.12+1.20.1, Yarn 1.20.1+build.10 (v2), Loom 1.6.12
+  (1.7.4 since 2026-10-10, see gotcha 19), Gradle 8.8 wrapper, Java 17 (`release 17`; JDK 21 ran Gradle), on Linux
+  cloud containers and on Windows 10 (Git Bash).
+- The 1.7.10 reference: the Thaumcraft-1.7.10-4.2.3.5 jar (SHA-1 recorded), decompiled with Vineflower and remapped
+  SRG → MCP `stable_12-1.7.10` with a token-replacing script (859 classes, 7 not decompilable). CFR was the fallback
+  for the classes Vineflower could not decompile cleanly. The decompile and the original assets live in the port's
+  **private** repository, so every fresh session can read them; they are never shipped.
+- Target modpack pieces loaded in tests: Accessories 1.0.0-beta.48+1.20.1, cloth-config 11.1.118, Trinkets 3.7.2,
+  accessories-tc-layer 3.8.1-beta.14, Cardinal Components.
+- Builds ran offline from a populated Loom cache: `./gradlew build runGametest --no-daemon`. A fresh cloud container
+  needs `maven.fabricmc.net`, `piston-meta.mojang.com`, `piston-data.mojang.com`, `libraries.minecraft.net`,
+  `resources.download.minecraft.net` and each dependency's Maven allowed first.
 
 ## Route and why
 - Route: Fabric loader API plus Mixin, with the original's behaviour re-implemented class by class against its
   decompiled source.
 - Forge 1.20.1 was not chosen; the project targets Fabric.
 - Data-driven features (dimension, biomes, worldgen, loot, tags) are datapack JSON; everything else is code.
+- **How the port is organised** (details in the `port-a-mod` skill):
+  - one source of truth: TC 4.2.3.5 only. The project had started from Thaumcraft 5 and switched; TC5 is never a
+    reference (gotcha 24 shows what that cost);
+  - an adaptation matrix (keep / adapt / replace / remove per area) and a status log with a section per unit:
+    original classes, "quirks kept", deviations with their 1.20 reason, tests, "not ported";
+  - the original's data (48 aspects, 457 object-aspect registrations, research tree, recipes) extracted from the
+    decompiled `Config*` classes by Python tokenizers into JSON, never retyped;
+  - one commit per unit; a handoff file for new sessions; completion graded by evidence level (implemented /
+    GameTested / visually verified / unverified), not by commit count;
+  - audits by layer (event handlers, packets, items, blocks, entities, GUIs, worldgen, loot, research, recipes,
+    config, renderers) after the features existed.
 
 ## How the game works (what we had to learn)
 - **GameTest server:** it builds its world from the flat preset with only the vanilla dimensions, so datapack
@@ -92,8 +112,15 @@ tags: [porting, legacy, 1.7.10, forge-to-fabric, gametest, worldgen, dimension, 
   `ClientPlayerInteractionManager.interactBlock` / `interactItem` in survival (packets, then the server's use path)
   for the wand triggers, the research table, three screens and the infusion altar (refused without its research,
   formed with it): 9 of 9 checks passed. GameTests alone call the item logic directly and cannot show this.
+- **Gotchas 31-58** were each found by a failing GameTest, a harness screenshot, a log check of the production
+  client, or an audit against the decompiled original, as recorded per unit in the project's migration log. The
+  full suite stood at 323 / 323 on 2026-10-10. The real-client progression scenario passed 28 / 28 (Thaumonomicon,
+  crucible, worktable, research table, research note solved by dragging aspects, infusion, a golem placed and
+  cored by hand).
 - **Not verified:**
-  - whether patching only one of the two experimental-warning checks would be enough (both were patched together).
+  - whether patching only one of the two experimental-warning checks would be enough (both were patched together);
+  - Sodium / Indium with the port's FRAPI models (the dev runtime cannot run Sodium, gotcha 52);
+  - a full survival playthrough, a full modpack instance, and multiplayer beyond a two-client smoke test.
 
 ## Gotchas
 1. **A dimension GameTest finds no world.**
@@ -249,6 +276,106 @@ tags: [porting, legacy, 1.7.10, forge-to-fabric, gametest, worldgen, dimension, 
       `useKey.setPressed(true)` plus `interactItem` (the client re-uses every 4 ticks while it is held, as a
       player's would). Pick targets the setup commands do not already unlock: a "give research" command that grants
       parents recursively had unlocked the first choice, so its "learned" check passed for the wrong reason.
+
+31. **Every block in the game lost its mipmaps ("limits mip level from 4 to 1").**
+    - **Cause:** a handful of 1.7.10 textures 6 or 8 px wide (animated strips, one leftover 8 x 8) in the block atlas
+      cap the mip level of the whole atlas.
+    - **Fix:** upscale them by whole factors with nearest-neighbour (8 → 16, 6 → 48 px); they look the same. Found
+      only by checking the log of a production-style client launch.
+32. **AI checks fire every 10 ticks instead of every 15.**
+    - **Cause:** 1.20's `GoalSelector` tries to start goals every 2nd tick; 1.7.10's task list every 3rd. Delay counters
+      inside a start condition scale with it.
+    - **Fix:** documented as a platform deviation; scale the counter if exact timing matters.
+33. **A mob sent to an exact block stops a block short.**
+    - **Cause:** `startMovingTo` treats arriving within about a block as done; 1.7.10's pathfinder walked onto a solid
+      target.
+    - **Fix:** path to the exact point, or to the air above a solid target.
+34. **Ported biomes appear but have no features, ores or spawns.**
+    - **Cause:** Fabric API 0.92 (1.20.1) has no overworld biome injection, and `BiomeModifications`'
+      `foundInOverworld()` is evaluated against the overworld biome source's list in the `MinecraftServer` constructor,
+      before any lifecycle event.
+    - **Fix:** a `MultiNoiseBiomeSource` mixin that rolls ~256-block regions at the original odds and adds the biomes to
+      the source's list (entries from `DynamicRegistrySetupCallback`). TerraBlender is the library alternative.
+35. **Ported biomes have no lakes, dungeons, geodes, ores or carvers.**
+    - **Cause:** 1.7.10's shared `BiomeDecorator` gave every biome these; a 1.20 biome JSON has only what it lists. It
+      also has no 1.7.10 default spawn list, `topBlock` or computed sky colour.
+    - **Fix:** copy vanilla's carvers and non-vegetation features into each biome, write the default spawns in, store
+      the sky colour from the 1.7.10 formula, sample the real surface instead of `topBlock`.
+36. **Underground logic sees a cave biome.** 1.7.10 biomes were per column; 1.20 cells are 3D. Ported logic (node and
+    infused-stone placement) should read the column's surface biome.
+37. **A ported structure never generates (0 mounds in 4225 chunks).**
+    - **Cause:** the original's site test (five points of a 19 x 19 area within one block of the corner height) almost
+      never passes on 1.20 terrain; a third of the rolls also land in ocean.
+    - **Fix:** count rolls against placements with a temporary counter before assuming generation is broken. Relaxing
+      the check is a fidelity decision for the user.
+38. **Ported trees have leaves that decay, or a tree test keeps 733 of 734 leaves.** Schedule a block tick for every
+    leaf a generator places so 1.20 computes `DISTANCE`; checks must tolerate a cut-off leaf.
+39. **1.7.10 village houses as jigsaw pieces.**
+    - **How:** a script replays each `StructureVillagePieces` component's build code into structure templates (desert
+      variants through the 1.7.10 block-swap functions). The templates go into the vanilla house pools at
+      `SERVER_STARTING` with weights scaled to the pool. A `StructurePoolGenerator` mixin enforces the per-village
+      limit.
+    - **Check:** 150 villages gave 73 towers and 74 banker homes, never two of a kind.
+    - **Gotcha:** profession villagers with 0 experience and no job site lose their profession
+      (`LoseJobOnSiteLossTask`); give them 1 experience.
+40. **A client with default config can't break a block on a server with another config.**
+    - **Cause:** the original read the config inside `getBlockHardness`; 1.20 bakes hardness into
+      `AbstractBlock.Settings`, so client mining prediction disagrees.
+    - **Fix:** a mixin on the state's hardness returning the live config value (synced by a config packet sent last
+      on join).
+41. **Holding a toggle key toggles repeatedly.** `KeyBinding.wasPressed()` counts OS key repeats; drive toggles from
+    press edges. 1.20 vanilla also owns F (swap hands), which 1.7.10 did not: swallow it while the mod's item is held.
+42. **Special item entities shoot up in water and lava.**
+    - **Cause:** in liquids 1.20 applies item buoyancy instead of gravity; the 1.7.10 counter-gravity lift adds to it.
+    - **Fix:** add the lift only on ticks that apply gravity.
+43. **A sneak-click with an item never reaches the block.** In 1.20 a sneaking player holding an item does not get to
+    `Block.onUse`; the port documented it (the action needs an empty hand).
+44. **Wand on a table: the screen of the new block did not open.** In 1.7.10 one click ran the item hook and then the
+    activation of the block the hook had just placed; open the new block's screen explicitly after converting.
+45. **Recipes changed shape or lost entries after conversion.**
+    - **Causes:** 1.20 trims blank pattern rows and columns; in 1.7.10 registration a bare Block ingredient meant every
+      variant and a bare Item meant meta 0; lookups were first-match in registration order; one research entry adds
+      the same aspect twice (ESSENTIARESERVOIR: VOID twice = 8), which an extractor that overwrites map keys loses.
+    - **Fix:** encode the rules in the extractor, keep the original order, accumulate instead of overwriting, and check
+      every cross-reference resolves. An audit found 17 recipes silently skipped at load; logging the skip count drove
+      it to 0.
+46. **NBT outputs, strict NBT inputs, and smelting into two items** have no vanilla 1.20.1 JSON: custom serializers
+    (`shaped_nbt`, `shapeless_nbt`, `smelting_count`) and Fabric's `fabric:nbt` ingredient.
+47. **Assets from the 1.7.10 jar fail to load.** Paths were mixed case (`Bore.png`) and the jar held junk
+    (`es_i_1 - Copy.png`); lower-case every path and reference, skip non-identifiers, namespace `sounds.json`, and
+    convert `.lang` to JSON keeping the old keys.
+48. **Additive particles turned black while a lightning bolt was alive.**
+    - **Cause:** CUSTOM-sheet particles flushed just before render layers whose lightmap phase switches the lightmap
+      off.
+    - **Fix:** each custom particle sheet turns the lightmap back on in `begin()`.
+49. **OBJ meshes from the original: textures on the wrong faces, seams at edges.** Forge 1.7.10's `WavefrontObject`
+    read `vt u v` as (u, 1 - v) and inset each UV 0.0005 towards the face average. Flip V and apply the inset.
+50. **1.7.10 post-effect shaders (warp screen effects).** Run them as `PostEffectProcessor`s at HUD time; port custom
+    programs from GLSL 120 to 150 and move global-initialiser work into `main()`. The warp mist's `GL_EXP` fog became a
+    linear fog ending at 3 / density.
+51. **A 16-pass texgen "starfield" (end-portal style).** 1.20 has no texgen; one core shader computes all layers, and
+    its formula was checked against a numeric emulation of the 1.7.10 GL pipeline (difference < 1e-11).
+52. **Sodium cannot be tested in the dev runtime.** Sodium 0.5.11 refuses the dev LWJGL snapshot
+    (`-Dsodium.checks.issue2561=false` gets past it), then fails with `NoSuchFieldError CommonVertexAttribute.COUNT`;
+    2025 Sodium / Indium jars also need Loom 1.9. FRAPI block models need Indium under Sodium: check in a real pack.
+53. **Zombie subclasses gained drowned conversion and reinforcements.** A 1.20 superclass adds behaviour 1.7.10 lacked;
+    list it and switch off what the original did not have. The 1.7.10 zombie-villager variant was part of `EntityZombie`
+    (inherited by subclasses); in 1.20 it is a separate entity, so the port reimplemented it in the subclass.
+54. **Behaviour inherited from 1.7.10 vanilla changed.** Big-oak trees, slime hops, the old flight movement, the
+    villager model and the zombie box (0.6 x 1.8) all differ in 1.20; port the 1.7.10 versions.
+55. **Damage that ignored armour, magic, fire.** 1.7.10 `DamageSource` flags are 1.20 damage-type tags
+    (`#bypasses_armor`, `#witch_resistant_to`, `#is_fire`...); custom sources are new damage types. Forge's
+    `ISpecialArmor` was ported as is and runs from a mixin on `applyArmorToDamage` only for wearers of a special piece.
+56. **Baubles on Fabric.** Accessories' default slots (`necklace` x1, `ring` x2, `belt` x1) are Baubles' AMULET, RING,
+    RING, BELT. A thin `BaublesApi` facade keeps every reader unchanged; Accessories is a compile-only, `suggests`
+    compat module; each wearable is registered with `AccessoriesAPI.registerAccessory` and
+    `AccessoriesRendererRegistry.registerNoRenderer` (TC4 drew nothing worn).
+57. **Ore-dictionary compat ("for each metal found").** Use `c:<metal>_ores` / `c:raw_<metal>_ores` /
+    `c:<metal>_ingots`, rebuild lookups on `TAGS_LOADED`, gate recipes with `fabric:item_tags_populated`, and
+    resolve "the first ingot" results from the tag when used (tags are synced to clients). 1.20 ores drop raw metal and
+    have deepslate variants: extend ore-processing tables to both.
+58. **Dead code in the original.** 7 FX classes were never called and 3 packets never sent in TC4 4.2.3.5; check call
+    and send sites in the decompile before porting, and record what was skipped.
 
 ## Assets
 The original mod's own textures and sounds are used; no generated assets.
