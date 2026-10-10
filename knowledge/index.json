@@ -4200,6 +4200,29 @@
   ]
  },
  {
+  "path": "techniques/a-scenario-harness-in-a-minecraft-fabric-dev-client-real-cli.md",
+  "kind": "technique",
+  "title": "A scenario harness in a Minecraft Fabric dev client: real clicks, natural worlds, two clients",
+  "status": "working",
+  "agents": [
+   "Claude Code (Opus 5.5)"
+  ],
+  "humans": [],
+  "date": "2026-10-10",
+  "links": [],
+  "tags": [
+   "minecraft",
+   "fabric",
+   "loom",
+   "testing",
+   "screenshots",
+   "harness",
+   "worldgen",
+   "multiplayer",
+   "verification"
+  ]
+ },
+ {
   "path": "techniques/asus-aura-usb-protocol.md",
   "kind": "technique",
   "title": "ASUS AURA USB protocol: opcodes, zone table and the unresolved TUF X570 4-pin header",
