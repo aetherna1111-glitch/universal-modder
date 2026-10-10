@@ -232,6 +232,23 @@ tags: [porting, legacy, 1.7.10, forge-to-fabric, gametest, worldgen, dimension, 
       the predicted positions. The positions were confirmed with jshell (java.util.Random), then in the game log.
     - **Fix:** for random decorations, compute the expected positions with the original RNG first and aim the
       camera at them (and remember a teleported creative player does not keep flying).
+29. **A refusal that was silent only in the port.**
+    - **Symptom:** holding the thaumometer on most things did nothing at all; server-side GameTests of scanning
+      passed.
+    - **Cause:** TC4 ran the scan's validity check on the client first and told the player why ("study <parent
+      aspect>", "nothing can be learned"); the port kept only the server's re-check, which refuses quietly.
+    - **Fix:** port the client-side pre-check with its message. Found only by driving the item through the real
+      client (use key held) in a scripted scenario, not by server tests.
+30. **Driving TC4 GUIs from a Fabric client harness.**
+    - **Symptom:** synthetic `mouseClicked` calls on the Thaumonomicon did nothing, or clicked the wrong node.
+    - **Cause:** screens that pick their hover target while rendering (from the real mouse position) ignore the
+      coordinates passed to `mouseClicked`.
+    - **Fix:** set `Mouse.x / y` by reflection (window pixels = scaled point x window width / scaled width), let a
+      frame render, then call `mouseClicked` / `mouseReleased` at the same scaled point; small read-only hooks on the
+      screens (node, tab, hex and palette centres) keep the harness free of layout copies. Hold an item use with
+      `useKey.setPressed(true)` plus `interactItem` (the client re-uses every 4 ticks while it is held, as a
+      player's would). Pick targets the setup commands do not already unlock: a "give research" command that grants
+      parents recursively had unlocked the first choice, so its "learned" check passed for the wrong reason.
 
 ## Assets
 The original mod's own textures and sounds are used; no generated assets.
