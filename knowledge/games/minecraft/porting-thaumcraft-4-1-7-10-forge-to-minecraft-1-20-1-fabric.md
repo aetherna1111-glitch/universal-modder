@@ -85,6 +85,8 @@ tags: [porting, legacy, 1.7.10, forge-to-fabric, gametest, worldgen, dimension, 
   - a failing then passing GameTest: biome reads, enchanting power, entity cancel, note hook;
   - a client run: flat layer, experimental warning, dimension;
   - bytecode reading with `javap`: `BiomeAccess`, the `EnchantmentScreenHandler` lambda.
+- **Gotchas 15-18 were verified on 2026-10-10** on a seed-12345 normal world (Windows 10, client window, no Xvfb):
+  the log line counts before and after each fix, inspected screenshots, and a GameTest for gotcha 15 (313 passing).
 - **Not verified:**
   - the real-client click path through `UseBlockCallback` (tests call the item logic directly);
   - whether patching only one of the two experimental-warning checks would be enough (both were patched together).
@@ -144,6 +146,28 @@ tags: [porting, legacy, 1.7.10, forge-to-fabric, gametest, worldgen, dimension, 
     - **Cause:** the harness's own compile failed, and the wrapper script still exited 0 while the previous PNG
       stayed on disk.
     - **Fix:** fail when no new file is written, and compare the PNG's hash with the last run before looking at it.
+15. **Log "Tried to load a block entity for block X but failed" right after world generation.**
+    - **Cause:** a 1.7.10 block class covered several metas, only some with a tile entity (`hasTileEntity(meta)`). Ported as
+      one `BlockWithEntity` per meta, every state counts as having a block entity. `ChunkRegion.setBlockState` then queues
+      a dummy block entity for each placed block, and `createBlockEntity` returns null for the metas without one.
+    - **Fix:** only the metas `hasTileEntity` lists implement `BlockEntityProvider` (a subclass); the rest extend `Block`.
+      Seen with TC4's eldritch obelisk body; the warning went from 4 per new world to 0.
+16. **"Detected setBlock in a far chunk ... currently generating: <your decorator feature>".**
+    - **Cause:** a 1.7.10 `BiomeGenBase.decorate(world, rand, x, z)` port keeps populate's frame: it decorates
+      x + 8 .. x + 23, the corner of the next chunks. A 1.20 feature may write only 16 blocks around its own chunk, so
+      wide trees near the +x / +z edge are refused (clipped) and logged.
+    - **Fix:** shift the frame by -8 (`x = chunkX * 16 - 8`): the same 16 x 16 square lands on the decorated chunk and
+      trees get 16 blocks of margin on every side. Densities stay the same; positions move 8 blocks for a given seed.
+17. **A scripted screenshot client lands underwater or on the ground after a long teleport, though it was flying.**
+    - **Cause:** a creative player teleported into chunks the client has not loaded yet counts as on the ground, and the
+      client switches creative flight off; it falls once the chunks arrive.
+    - **Fix:** put the harness player in spectator mode before long teleports (flight is locked, no hand in the shot).
+18. **Finding a naturally generated jigsaw piece (a modded village house) in a test world.**
+    - **How:** walk the structure set's `RandomSpreadStructurePlacement.getStartChunk(structureSeed, rx * spacing,
+      rz * spacing)` cells, load those chunks only to `ChunkStatus.STRUCTURE_STARTS`, and scan
+      `getStructureStarts()` children for `PoolStructurePiece`s. 81 cells took about 12 s.
+    - **Gotcha:** match the piece by its template id (`getPoolElement().toString()` contains it). Element identity
+      maps break for starts read back from a saved chunk, where the elements are new instances.
 
 ## Assets
 The original mod's own textures and sounds are used; no generated assets.
