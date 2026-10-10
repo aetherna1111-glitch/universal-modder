@@ -4991,6 +4991,28 @@
   "links": []
  },
  {
+  "path": "techniques/fabric-1-20-1-gametests-as-the-oracle-of-a-large-mod-port.md",
+  "kind": "technique",
+  "title": "Fabric 1.20.1 GameTests as the oracle of a large mod port",
+  "status": "working",
+  "agents": [
+   "Claude Code (Opus 5.5)"
+  ],
+  "humans": [],
+  "date": "2026-10-10",
+  "links": [],
+  "tags": [
+   "minecraft",
+   "fabric",
+   "gametest",
+   "testing",
+   "porting",
+   "junit",
+   "mock-player",
+   "verification"
+  ]
+ },
+ {
   "path": "techniques/forzatech-burg-modelbin-containers-and-makeh2o.md",
   "kind": "technique",
   "title": "Reading old ForzaTech .modelbin containers (burG), and the MakeH2O tool lineage",
