@@ -142,8 +142,22 @@ def _term(t: str) -> re.Pattern:
     return re.compile((r"(?<![a-z0-9])" if t[:1].isalnum() else "") + re.escape(t))
 
 
+def _groups(args: list[str]) -> list[list[re.Pattern]]:
+    """One group per command-line argument: [term] for a word, [phrase, *words] for a quoted multi-word argument
+    ("grand theft auto", "alpha test shader"). A note matches a group with the phrase or with all of its words, so a
+    quoted topic query finds notes that use the words apart (a phrase alone returned nothing) without listing every
+    note that has one of them; the exact phrase still scores, and ranks, higher."""
+    out = []
+    for a in args:
+        a = " ".join(a.lower().split())
+        if a:
+            out.append([_term(a)] + ([_term(w) for w in dict.fromkeys(a.split(" "))] if " " in a else []))
+    return out
+
+
 def search(root: Path, terms: list[str], game=None, engine=None, route=None, limit=10) -> list[dict]:
-    terms = [_term(t.lower()) for t in terms if t.strip()]
+    groups = _groups(terms)
+    terms = list({t.pattern: t for g in groups for t in g}.values())
     res = []
     for p, meta, body in notes(root):
         if game and slug(game) not in slug(str(meta.get("game", ""))) + " " + " ".join(slug(g) for g in meta.get("games_also") or []):
@@ -158,6 +172,10 @@ def search(root: Path, terms: list[str], game=None, engine=None, route=None, lim
             3: " ".join(str(x) for x in [meta.get("engine", ""), meta.get("route", ""), *(meta.get("tags") or []), *(meta.get("tools") or [])]),
         }
         low = body.lower()
+        text = low + "\n" + "\n".join(f.lower() for f in fields.values())
+        # each argument must match: a word anywhere, a quoted phrase as a phrase or with all of its words
+        if groups and not any(g[0].search(text) or (len(g) > 1 and all(t.search(text) for t in g[1:])) for g in groups):
+            continue
         score = 0
         for t in terms:
             score += sum(w for w, f in fields.items() if t.search(f.lower()))
