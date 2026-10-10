@@ -103,6 +103,42 @@ Verified on Minecraft 1.20.1, Fabric API 0.92 (Indigo renderer), Loom 1.7.4.
    position (`x % 16`); the port passes coordinates relative to the matrix origin. **Fix:** keep relative coordinates
    for geometry and pass the world position separately for the phase.
 
+10. **Every additive particle turned black while one special particle was alive.** **Cause:** a CUSTOM-sheet
+    particle (a lightning bolt, a shield dome) is flushed just before render layers whose lightmap phase switches the
+    lightmap off, and the next sheet inherited that. **Fix:** register each 1.7.10 particle layer (`particles.png`
+    layers 0-3) as its own `ParticleTextureSheet` (an accessor mixin adds it to the particle manager) and turn the
+    lightmap on in its `begin()`; never assume GL state left by an earlier sheet.
+11. **OBJ meshes from the original have textures on the wrong faces and seams at their edges.** **Cause:** Forge
+    1.7.10's `WavefrontObject` read `vt u v` as (u, 1 - v) and moved every UV 0.0005 towards the face's average UV
+    (`addFaceForRender(.., 0.0005F)`). **Fix:** flip V by default in the OBJ loader and apply the same inset.
+12. **"limits mip level from 4 to 1": every block lost its mipmaps.** **Cause:** a few 6 or 8 px wide original
+    textures in the block atlas cap the mip level of the whole atlas. **Fix:** upscale them by whole factors with
+    nearest-neighbour (8 → 16, 6 → 48 px).
+13. **1.7.10 `ShaderGroup` post effects.** Run them as `PostEffectProcessor`s at HUD time (created when the effect
+    starts, closed when it ends, resized with the window; drawing at HUD time also covers the hotbar, as the 1.7.10
+    overlay did). The original post JSONs carry over; custom programs need GLSL 120 → 150, lower-case identifiers and
+    1.20's `sobel` vertex stage, and work done in a global initialiser must move into `main()`.
+14. **A texgen starfield (16 passes with `GL_TEXTURE_GEN` planes and texture-matrix rotations).** 1.20 has no texgen.
+    One core shader computes all layers from the face axis and the world position (view-rotation matrix and a
+    camera-position uniform), so renderers keep plain positions. Check the formula against a numeric emulation of
+    the old pipeline for all six faces before looking at screenshots (difference < 1e-11 here).
+15. **An item drawn additively** (`glBlendFunc(SRC_ALPHA, ONE)`): 1.20's item renderer picks its own layers; pass it
+    a wrapped `VertexConsumerProvider` that maps every requested layer to an additive layer on the same texture.
+16. **`GL_EXP` fog with a density** (a mist effect): a `BackgroundRenderer` mixin with a linear fog ending at
+    3 / density.
+17. **Block hit particles, crack overlays, block highlights.** `Block.addHitEffects` → a mixin on
+    `ParticleManager.addBlockBreakingParticles`; a crack stage from your own progress →
+    `WorldRenderer.setBlockBreakingInfo`; Forge's highlight event → `WorldRenderEvents.BEFORE_BLOCK_OUTLINE`, which
+    can cancel vanilla's outline. World overlays drawn at `WorldRenderEvents.LAST` through `ctx.consumers()` never
+    appear: draw at `AFTER_ENTITIES`.
+18. **Water drawn with the vanilla sprite looks grey.** The 1.20 water sprite is greyscale and tinted by the biome
+    water colour (1.7.10's was already blue); apply the tint in renderers and GUIs.
+19. **An emitter's unshaded faces are one light level darker than in 1.7.10.** In the 1.20 chunk mesh a face takes its
+    light from the neighbour position; `renderFace*` used the block's own brightness. Accepted as a platform
+    difference.
+20. **LWJGL2 GUI idioms.** `Mouse.isButtonDown` → a GLFW poll; depth-buffer clipping tricks → a scissor. The
+    standard galactic font is `minecraft:alt`, forced unicode is `minecraft:uniform`.
+
 ## Seen in
 - `games/minecraft/porting-thaumcraft-4-1-7-10-forge-to-minecraft-1-20-1-fabric.md` (on its own branch) - thaumometer,
   infused ores, warded glass / blocks, nodes, wisps, mind spider, research table, valve, jar / reservoir liquids,
