@@ -184,6 +184,16 @@ tags: [porting, legacy, 1.7.10, forge-to-fabric, gametest, worldgen, dimension, 
     - **Consequence:** an Accessories-based mod needs no Trinkets adapter; Trinkets-API mods see its items through the
       layer (`TrinketsApi.getTrinketComponent(player).isEquipped(item)` was true for items worn in Accessories slots).
       With real Trinkets and no layer, the two inventories are separate and that call returns false.
+22. **"No data fixer registered for <modid>:<entity>" ERROR lines at every start, also on a production server.**
+    - **Cause:** `EntityType.Builder.build(id)` calls `Util.getChoiceType` only to validate the id against vanilla's
+      data fixer schema and drops the result; mod ids are never in it.
+    - **Fix:** a `@Redirect` of that call in `EntityType.Builder.build` returning null for your namespace (or build the
+      types without the vanilla builder). Saving and loading do not depend on it; all 318 tests still passed.
+23. **Testing the release jar, not the dev runtime.**
+    - **How:** the official server launcher `https://meta.fabricmc.net/v2/versions/loader/<mc>/<loader>/<installer>/server/jar`,
+      the remapped jar plus real dependency jars in `mods/`, `eula=true`, pipe `stop` once the log says `Done (`, then
+      fail on `/ERROR]` lines or stack-trace lines. Do not fail on every line mentioning "Exception": Accessories logs a
+      WARN with `ClassNotFoundException` for its client-only mixin target on servers.
 
 ## Assets
 The original mod's own textures and sounds are used; no generated assets.
