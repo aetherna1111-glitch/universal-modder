@@ -25,7 +25,7 @@ import time
 import urllib.request
 from pathlib import Path
 
-from um.common import data_dir, die
+from um.common import data_dir, die, need
 
 REPO = os.environ.get("UM_KB_REPO", "rehan-remade/universal-modder")
 BRANCH = os.environ.get("UM_KB_BRANCH", "main")
@@ -111,7 +111,7 @@ def parse(path: Path) -> tuple[dict, str]:
     m = re.match(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", text, re.S)
     if not m:
         return {}, text
-    import yaml
+    yaml = need("yaml", "pyyaml")
     try:
         meta = yaml.safe_load(m.group(1)) or {}
     except (yaml.YAMLError, ValueError) as e:  # ValueError: a date YAML can't build, e.g. 2026-09-31
@@ -304,7 +304,7 @@ def build_index(root: Path) -> tuple[str, list[dict]]:
 
 def new_note(root: Path, game: str | None, title: str, kind: str = "game", from_scan: str | None = None,
              engine: str | None = None, route: str | None = None, agent: str | None = None, out: str | None = None) -> Path:
-    import yaml
+    yaml = need("yaml", "pyyaml")
     meta, body = parse(root / "TEMPLATE.md")
     meta = {k: v for k, v in meta.items()}
     meta.update(kind=kind, title=title, date=dt.date.today().isoformat(), agents=[agent or os.environ.get("UM_AGENT", "FILL IN: agent (model)")],
