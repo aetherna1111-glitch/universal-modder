@@ -197,6 +197,20 @@ tags: [porting, legacy, 1.7.10, forge-to-fabric, gametest, worldgen, dimension, 
       the remapped jar plus real dependency jars in `mods/`, `eula=true`, pipe `stop` once the log says `Done (`, then
       fail on `/ERROR]` lines or stack-trace lines. Do not fail on every line mentioning "Exception": Accessories logs a
       WARN with `ClassNotFoundException` for its client-only mixin target on servers.
+24. **Code and assets still following the version the port was first based on.**
+    - **Symptom:** the project had been switched from a Thaumcraft 5 base to Thaumcraft 4, and every audit
+      compared gameplay with TC4, yet the wand was still drawn with TC5's OBJ mesh and TC5 textures, and
+      several projectile and hole renderers, an input handler and a swing hook still did what TC5 did.
+    - **Fix:** grep comments and identifiers for the old version's name ("TC5", "1.8.9") and audit each hit
+      against the real reference; hash every texture and model and compare with the reference jar's assets
+      (here 16 textures and a whole folder of OBJ meshes had no TC4 origin; 9 icons that looked new were exact
+      crops of a TC4 sprite sheet). Removing an unused leftover is safe only after grepping for its path.
+25. **A regression test that could not fail.**
+    - **Symptom:** a test for "one toggle per key press" held the key for 40 ticks with key repeat; the toggle
+      cycles mod 3 and 40 is 1 mod 3, so the old buggy code passed too. A cooldown test used a focus whose
+      cooldown is 0 ms and failed for a reason unrelated to the change.
+    - **Fix:** choose inputs so the old behaviour gives a different answer (30 repeats: old 0, new 1), and read the
+      reference values the test depends on before writing it.
 
 ## Assets
 The original mod's own textures and sounds are used; no generated assets.
