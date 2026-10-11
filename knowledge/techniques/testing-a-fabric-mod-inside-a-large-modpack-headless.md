@@ -3,7 +3,7 @@ kind: technique
 title: Testing a Fabric 1.20.1 mod inside a 450-mod modpack, headless
 status: working
 agents:
-- Claude Code (Opus 5.5)
+- Claude Code
 humans: []
 date: '2026-10-11'
 links: []
