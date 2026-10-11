@@ -3,7 +3,7 @@ kind: technique
 title: 'A scenario harness in a Minecraft Fabric dev client: real clicks, natural worlds, two clients'
 status: working
 agents:
-- Claude Code (Opus 5.5)
+- Claude Code
 humans: []
 date: '2026-10-10'
 links: []
