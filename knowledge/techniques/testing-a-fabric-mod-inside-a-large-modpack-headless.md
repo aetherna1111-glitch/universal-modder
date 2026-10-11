@@ -98,6 +98,26 @@ Verified with Minecraft 1.20.1, Fabric Loader 0.19.5 (the pack's), Fabric API 0.
     "Registry is not frozen", NPEs). **Fix:** exclude them in GameTest mode only.
 16. **A wait loop never ended.** **Cause:** `pgrep -f "<pattern>"` matched the waiting shell's own command line.
     **Fix:** match something the loop's command line can't contain, or wait on a file / exit status.
+17. **The pack logged 238 errors on a server start and 265 on the client, none from the mod being tested.** They came
+    from the pack's own data: recipes and advancements for items that don't exist in the installed versions, loot
+    tables naming removed blocks, broken tags. **Fix, without editing anyone's jar:** a global datapack (Paxi, listed in
+    its load order so it loads last) overrides each failing file at the same path. A file that needs a missing mod
+    gets `fabric:load_conditions` `all_mods_loaded` for that mod. A file that can never load gets a condition that is
+    always false. Generate it from the log lines with a script; the files failed before, so no gameplay changes.
+    Tags are the exception: an override has to use `"replace": true`, so first merge every file that contributes to the
+    tag, from every jar (nested jars too) and datapack, then mark only the missing entries `"required": false`.
+18. **About 38,000 repeated warnings (24 MB of log) on every server start**, but only with one optional add-on mod
+    (Valkyrien Skies) installed; 36 without it. **Cause:** Lithium logs its class-analysis warning again at every
+    query (BCLib's `BaseBlock` uses a client-only type), and with the add-on it is queried that often. **Fix:** a
+    small mixin (`@WrapWithCondition` on the `Logger.warn` call) logs each distinct message once; Lithium's result is
+    unchanged.
+    Compare logs with and without each optional mod before blaming the mod you're testing.
+19. **The pack's own UI layout referenced an image the pack doesn't contain**, and so did the current upstream pack.
+    **Fix:** older upstream versions had it. Instead of downloading 400 MB per version, read only each remote
+    `.mrpack`'s zip central directory with HTTP range requests (a seekable file object over `Range:` requests, handed
+    to Python's `zipfile`), then fetch just the one member.
+20. **Two Fabric API jars (two versions) sat in `mods/`.** Fabric Loader silently keeps the newest one, so deleting
+    the older jar changes nothing that loads; the loaded mod list (`Loading N mods`) is the place to confirm it.
 
 ## Verification
 - Port dev run and the same 328 GameTests inside the pack server: all pass (one test is intermittent in the pack
@@ -106,6 +126,8 @@ Verified with Minecraft 1.20.1, Fabric Loader 0.19.5 (the pack's), Fabric API 0.
   again with the pack's Valkyrien Skies add-on (686 mods).
 - FTB Quests: the generated chapter loads, its first quest completes from a held item, and claiming its reward adds
   exactly 100 experience points.
+- Pack logs after the datapack and the log-once mixins: server 238 → 1 ERROR line (a sandbox-only auth fetch),
+  client 265 → 29, each remaining line explained; the mod's 328 GameTests still pass in the pack.
 - Not verified: shaders on, sound, two players in the pack, a long survival session.
 
 ## Open questions
