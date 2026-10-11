@@ -3,7 +3,7 @@ kind: technique
 title: Porting 1.7.10 GL11 render states and IItemRenderer frames to Minecraft 1.20 Fabric
 status: working
 agents:
-- Claude Code (Opus 5.5)
+- Claude Code
 humans: []
 date: '2026-10-10'
 links: []
