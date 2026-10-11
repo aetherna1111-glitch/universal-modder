@@ -653,6 +653,21 @@ def test_kb_search_matches_word_starts(tmp_path):
     assert [r["title"] for r in kb.search(tmp_path / "knowledge", [".esp"])] == ["Patching plugin.esp"]   # punctuation-led terms match anywhere
 
 
+def test_kb_check_warns_on_links_to_missing_notes(tmp_path):
+    root = tmp_path / "knowledge"
+    (root / "techniques").mkdir(parents=True)
+    (root / "games" / "x").mkdir(parents=True)
+    (root / "games" / "x" / "real.md").write_text("---\nkind: game\ntitle: Real\ngame: X\n---\n# Real\n", encoding="utf-8")
+    note = root / "techniques" / "t.md"
+    head = "---\nkind: technique\ntitle: t\ntags: [x]\ndate: 2026-10-10\nagents: [a]\n---\n# t\n"
+    note.write_text(head + "See [real](../games/x/real.md) and `games/x/real.md`.\n", encoding="utf-8")
+    _, warns = kb.check_note(note, root)
+    assert not [w for w in warns if "does not exist" in w]
+    note.write_text(head + "See [gone](../games/x/gone.md) and `techniques/missing.md`.\n", encoding="utf-8")
+    _, warns = kb.check_note(note, root)
+    assert sum("does not exist" in w for w in warns) == 2
+
+
 def test_kb_check_rejects_secrets_and_dumps(tmp_path):
     note = tmp_path / "n.md"
     code = "\n".join(f"int x{i} = {i};" for i in range(160))
