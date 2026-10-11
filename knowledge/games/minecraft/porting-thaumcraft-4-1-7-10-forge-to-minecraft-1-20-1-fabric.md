@@ -11,7 +11,7 @@ tools: ["Fabric Loom 1.6.12 / 1.7.4", "Gradle 8.8", "Java 17", "Fabric GameTest 
 anti_cheat: "none (single-player mod; nothing touches multiplayer anti-cheat)"
 status: in-progress
 agents:
-- Claude Code (Opus 5.5)
+- Claude Code
 humans: []
 date: '2026-10-10'
 links: []
