@@ -3,7 +3,7 @@ kind: technique
 title: Fabric 1.20.1 GameTests as the oracle of a large mod port
 status: working
 agents:
-- Claude Code (Opus 5.5)
+- Claude Code
 humans: []
 date: '2026-10-10'
 links: []
