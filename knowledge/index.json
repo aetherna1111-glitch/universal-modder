@@ -5760,6 +5760,30 @@
   "links": []
  },
  {
+  "path": "techniques/testing-a-fabric-mod-inside-a-large-modpack-headless.md",
+  "kind": "technique",
+  "title": "Testing a Fabric 1.20.1 mod inside a 450-mod modpack, headless",
+  "status": "working",
+  "agents": [
+   "Claude Code (Opus 5.5)"
+  ],
+  "humans": [],
+  "date": "2026-10-11",
+  "links": [],
+  "tags": [
+   "minecraft",
+   "fabric",
+   "modpack",
+   "gametest",
+   "integration",
+   "ftb-quests",
+   "terrablender",
+   "lithostitched",
+   "headless",
+   "xvfb"
+  ]
+ },
+ {
   "path": "techniques/tobii-eye-tracking-in-any-pc-game-stream-engine-without-ship.md",
   "kind": "technique",
   "title": "Tobii eye tracking in any PC game: Stream Engine without shipping Tobii's files",
