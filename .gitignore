@@ -13,3 +13,5 @@ dist/
 .pytest_cache/
 # the parent repo ignores bin/ (build output); the CLI launcher lives here
 !bin/
+# luminary backend local data (database, signing key, uploaded textures)
+luminary/backend/data/
