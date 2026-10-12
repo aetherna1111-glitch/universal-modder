@@ -1,0 +1,23 @@
+name: luminary
+on:
+  push:
+    paths: ["luminary/**", ".github/workflows/luminary.yml"]
+  pull_request:
+    paths: ["luminary/**", ".github/workflows/luminary.yml"]
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Qt and C# build dependencies
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3 mono-mcs libmono-system-windows-forms4.0-cil
+      - name: Backend tests
+        working-directory: luminary/backend
+        run: uv run --python 3.11 --with fastapi --with uvicorn --with argon2-cffi --with cryptography --with pillow --with httpx --with pytest pytest -q
+      - name: Launcher tests (headless Qt)
+        working-directory: luminary/launcher
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: uv run --python 3.11 --with PySide6==6.11.2 --with mcstatus==14.2.0 --with pillow --with fastapi --with uvicorn --with argon2-cffi --with cryptography --with httpx --with pytest pytest -q tests

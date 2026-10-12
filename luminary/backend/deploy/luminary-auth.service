@@ -1,0 +1,30 @@
+# /etc/systemd/system/luminary-auth.service
+[Unit]
+Description=Luminary accounts, skins and Yggdrasil API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=luminary
+Group=luminary
+EnvironmentFile=/etc/luminary-auth.env
+WorkingDirectory=/opt/luminary-auth
+ExecStart=/opt/luminary-auth/venv/bin/python -m luminary_auth --host 127.0.0.1 --port 8080
+Restart=on-failure
+RestartSec=3
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/luminary-auth
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

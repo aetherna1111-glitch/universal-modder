@@ -163,3 +163,15 @@ def test_sql_injection_attempts_are_inert(client):
     token = client.post("/api/v1/auth/login", json={"username": "Steve", "password": "correct horse battery"}).json()["access_token"]
     r = client.get("/api/v1/users/search", params={"q": "%' OR 1=1 --"}, headers=auth(token))
     assert r.status_code == 400
+
+
+def test_signing_key_is_private_and_reused(tmp_path):
+    import os
+    import stat
+    from luminary_auth.signing import Signer
+    path = tmp_path / "k" / "signing_key.pem"
+    a = Signer.load_or_create(path)
+    assert stat.S_IMODE(os.stat(path).st_mode) == 0o600
+    b = Signer.load_or_create(path)
+    assert a.public_pem() == b.public_pem()
+    assert not list(path.parent.glob(".*.tmp"))

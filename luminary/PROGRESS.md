@@ -29,15 +29,29 @@ Single source of truth for resuming this work. Keep it short; update at mileston
   CREATE_NO_WINDOW, logs to files).
 - 3D preview: QPainter affine-textured box renderer, no new client dependency.
 
-## Status
-- [x] Baseline import commit, backend + 47 tests passing
-- [ ] Launcher core (settings, modpack sync, launch pipeline, API client, logging)
-- [ ] UI redesign + all screens
-- [ ] Skin 3D preview
-- [ ] GUI stub exe / console fixes verified
-- [ ] Docs (deploy, server cutover), CI workflow
+## Status (2026-10-12)
+- [x] Baseline import commit
+- [x] Backend: accounts, skins, friends, presence, news, Yggdrasil API, admin CLI, deploy files (50 tests)
+- [x] Launcher core: profiles, settings, hardened modpack sync, two-step launch, API client, logging (unit tests)
+- [x] UI redesign: all six pages functional, 3D skin preview, dialogs, shortcuts (91 launcher tests total)
+- [x] GUI-only start: Luminary.exe starter (verified PE GUI subsystem via Mono), CREATE_NO_WINDOW everywhere
+- [x] Real-server verification: vanilla + Fabric 1.20.1 with authlib-injector, two protocol clients, and a
+      real 1.20.1 client rendering another player's skin
+- [x] Docs: docs/DEPLOYMENT.md, docs/SECURITY.md, docs/TESTING.md; CI workflow luminary.yml
 
-## Blocked / not verifiable here
-- GitHub downloads are blocked by this environment's egress policy; building third-party code was refused
-  by the session's safety policy (PortableMC not run here).
-- No Windows, no GPU Minecraft client, no access to the real server.
+## Owner actions (blocking production use)
+1. Rent a VPS + domain for the accounts service; deploy per docs/DEPLOYMENT.md §1.
+2. Reserve existing player names from usercache.json (§2).
+3. Publish the modpack manifest to servarium (currently 404).
+4. Build Luminary.exe on Windows (`build_starter.bat`), set `accounts.api_url`, ship the launcher.
+5. Cutover: authlib-injector `-javaagent` + `online-mode=true` + `enforce-secure-profile=false` (§5) -
+   needs the hosting panel to accept a JVM argument.
+6. Run the Windows manual test procedure (docs/TESTING.md).
+
+## Next steps if work continues
+- Optional: launcher self-update (none existed in 1.x; distribution is a manual zip today).
+- Optional: lazy page construction if startup time matters (measured 0.61 s vs 0.35 s in 1.x).
+
+## Not verifiable here
+- Windows-only behaviour, real PortableMC output, the production server and pack (see docs/TESTING.md).
+- GitHub downloads are blocked by this environment's egress policy; building third-party code was refused.

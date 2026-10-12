@@ -1,0 +1,17 @@
+# /etc/caddy/Caddyfile - Caddy obtains and renews the TLS certificate automatically.
+auth.example.org {
+	encode gzip
+	# Uploads are small; refuse anything big before it reaches the app.
+	request_body {
+		max_size 256KB
+	}
+	reverse_proxy 127.0.0.1:8080
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+	log {
+		output file /var/log/caddy/luminary-auth.log
+		format json
+	}
+}

@@ -28,10 +28,20 @@ class Signer:
             serialization.PrivateFormat.PKCS8,
             serialization.NoEncryption(),
         )
-        # Create with 0600 from the start; never world-readable.
-        fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        # Write to a private temp file (0600 from the start), then link it into place atomically.
+        # If another worker created the key meanwhile, use theirs.
+        tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+        fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(fd, "wb") as f:
             f.write(pem)
+            f.flush()
+            os.fsync(f.fileno())
+        try:
+            os.link(tmp, path)
+        except FileExistsError:
+            os.unlink(tmp)
+            return cls.load_or_create(path)
+        os.unlink(tmp)
         return cls(key)
 
     def public_pem(self) -> str:
