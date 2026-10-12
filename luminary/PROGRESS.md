@@ -113,6 +113,10 @@ Single source of truth for resuming this work. Keep it short; update at mileston
 - Rehearsed: the committed 2.1.1 code updated itself to 2.1.2 from a local host with servarium's layout
   (8 changed files, applied on restart). Launcher tests: 170 passed.
 
+- 2026-10-12: the owner uploaded 2.1.2 to servarium. `publish_launcher.py verify`: version 2.1.2, signature
+  valid, 56 files, 0 errors. Live check: 2.1.0 and 2.1.1 launchers are offered 2.1.2. `manifest.json` is
+  still 404 until the full client pack is published.
+
 ## Owner actions (blocking production use)
 1. Rent a VPS + domain for the accounts service; deploy per docs/DEPLOYMENT.md §1.
 2. Reserve existing player names from usercache.json (§2).
