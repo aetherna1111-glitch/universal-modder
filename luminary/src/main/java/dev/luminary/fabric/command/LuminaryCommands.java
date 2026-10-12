@@ -23,6 +23,9 @@ import dev.luminary.core.npc.NpcDialogueService;
 import dev.luminary.core.npc.NpcRoster;
 import dev.luminary.fabric.npc.LuminaryNpcEntity;
 import dev.luminary.fabric.npc.NpcService;
+import dev.luminary.core.npc.task.NpcAction;
+import dev.luminary.core.npc.task.NpcTask;
+import net.minecraft.command.argument.BlockPosArgumentType;
 import dev.luminary.fabric.LuminaryRuntime;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.command.argument.EntityArgumentType;
@@ -64,6 +67,9 @@ import java.util.UUID;
  * /luminary npc follow &lt;npc&gt; &lt;player&gt; | stop           (op 3)
  * /luminary npc talk &lt;npc&gt;                             (op 2)  talk without clicking (needs a player executor and a present body)
  * /luminary npc provider &lt;scripted|disabled&gt;           (op 4)  swap the dialogue provider until restart
+ * /luminary npc container allow|deny &lt;npc&gt; &lt;pos&gt;       (op 3)  authorize a deposit container (persisted)
+ * /luminary npc task gather &lt;npc&gt; &lt;log pos&gt; &lt;container pos&gt; [maxLogs]   (op 3)  validated gather-wood task
+ * /luminary npc task status &lt;npc&gt; | cancel &lt;npc&gt;        (op 2 / op 3)
  * </pre>
  */
 public final class LuminaryCommands {
@@ -148,7 +154,77 @@ public final class LuminaryCommands {
 						.then(CommandManager.literal("provider")
 								.requires(src -> src.hasPermissionLevel(4))
 								.then(CommandManager.argument("provider", com.mojang.brigadier.arguments.StringArgumentType.word())
-										.executes(LuminaryCommands::npcProvider)))));
+										.executes(LuminaryCommands::npcProvider)))
+						.then(CommandManager.literal("container")
+								.requires(src -> src.hasPermissionLevel(3))
+								.then(CommandManager.literal("allow")
+										.then(CommandManager.argument("id", IdentifierArgumentType.identifier())
+												.then(CommandManager.argument("pos", BlockPosArgumentType.blockPos()).executes(ctx -> container(ctx, true)))))
+								.then(CommandManager.literal("deny")
+										.then(CommandManager.argument("id", IdentifierArgumentType.identifier())
+												.then(CommandManager.argument("pos", BlockPosArgumentType.blockPos()).executes(ctx -> container(ctx, false))))))
+						.then(CommandManager.literal("task")
+								.then(CommandManager.literal("status")
+										.then(CommandManager.argument("id", IdentifierArgumentType.identifier()).executes(LuminaryCommands::taskStatus)))
+								.then(CommandManager.literal("cancel")
+										.requires(src -> src.hasPermissionLevel(3))
+										.then(CommandManager.argument("id", IdentifierArgumentType.identifier()).executes(LuminaryCommands::taskCancel)))
+								.then(CommandManager.literal("gather")
+										.requires(src -> src.hasPermissionLevel(3))
+										.then(CommandManager.argument("id", IdentifierArgumentType.identifier())
+												.then(CommandManager.argument("target", BlockPosArgumentType.blockPos())
+														.then(CommandManager.argument("container", BlockPosArgumentType.blockPos())
+																.executes(ctx -> taskGather(ctx, 4))
+																.then(CommandManager.argument("maxLogs", IntegerArgumentType.integer(1))
+																		.executes(ctx -> taskGather(ctx, IntegerArgumentType.getInteger(ctx, "maxLogs")))))))))));
+	}
+
+	private static int container(CommandContext<ServerCommandSource> ctx, boolean allow) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+		LuminaryId id = parseId(ctx);
+		BlockPos pos = BlockPosArgumentType.getLoadedBlockPos(ctx, "pos");
+		return runtime(ctx.getSource()).map(rt -> {
+			if (allow) {
+				rt.npc().authorizeContainer(id, pos.asLong());
+				ctx.getSource().sendFeedback(() -> Text.translatable("luminary.command.container_allowed", id.toString(), pos.toShortString()), true);
+			} else {
+				rt.npc().revokeContainer(id, pos.asLong());
+				ctx.getSource().sendFeedback(() -> Text.translatable("luminary.command.container_denied", id.toString(), pos.toShortString()), true);
+			}
+			return 1;
+		}).orElse(0);
+	}
+
+	private static int taskGather(CommandContext<ServerCommandSource> ctx, int maxLogs) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+		LuminaryId id = parseId(ctx);
+		BlockPos target = BlockPosArgumentType.getLoadedBlockPos(ctx, "target");
+		BlockPos container = BlockPosArgumentType.getLoadedBlockPos(ctx, "container");
+		return runtime(ctx.getSource()).map(rt -> {
+			Result r = rt.npc().assign(id, new NpcAction.GatherWood(target.asLong(), container.asLong(), maxLogs));
+			return report(ctx.getSource(), r, "luminary.command.task_assigned", id);
+		}).orElse(0);
+	}
+
+	private static int taskStatus(CommandContext<ServerCommandSource> ctx) {
+		return runtime(ctx.getSource()).map(rt -> {
+			LuminaryId id = parseId(ctx);
+			Optional<NpcTask> task = rt.npc().roster().get(id).flatMap(NpcRoster.NpcRecord::task);
+			if (task.isEmpty()) {
+				ctx.getSource().sendFeedback(() -> Text.translatable("luminary.command.task_none", id.toString()), false);
+				return 0;
+			}
+			NpcTask t = task.get();
+			ctx.getSource().sendFeedback(() -> Text.literal(t.action().type() + " " + t.state() + t.failureReason().map(f -> " (" + f + ")").orElse("")
+					+ "  broken=" + t.ledger().blocksBroken() + " collected=" + t.ledger().collected() + " deposited=" + t.ledger().deposited()
+					+ "  containers=" + rt.npc().roster().get(id).map(r -> r.authorizedContainers().size()).orElse(0)), false);
+			return 1;
+		}).orElse(0);
+	}
+
+	private static int taskCancel(CommandContext<ServerCommandSource> ctx) {
+		return runtime(ctx.getSource()).map(rt -> {
+			LuminaryId id = parseId(ctx);
+			return report(ctx.getSource(), rt.npc().cancelTask(id), "luminary.command.task_cancelled", id);
+		}).orElse(0);
 	}
 
 	private static int npcList(CommandContext<ServerCommandSource> ctx) {

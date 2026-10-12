@@ -9,6 +9,8 @@ import net.minecraft.entity.ai.goal.SwimGoal;
 import net.minecraft.entity.ai.goal.WanderAroundGoal;
 import net.minecraft.entity.mob.PathAwareEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.inventory.SimpleInventory;
+import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.ActionResult;
@@ -27,8 +29,12 @@ public class LuminaryNpcEntity extends PathAwareEntity {
 	static final String NBT_NPC = "LuminaryNpc";
 	static final String NBT_FOLLOW = "LuminaryFollow";
 
+	static final String NBT_HELD = "LuminaryHeld";
+
 	private LuminaryId npcId;
 	private UUID followTarget;
+	/** Items the NPC physically carries (collected drops not yet deposited). Saved with the entity. */
+	private final SimpleInventory heldItems = new SimpleInventory(9);
 
 	public LuminaryNpcEntity(EntityType<? extends PathAwareEntity> type, World world) {
 		super(type, world);
@@ -39,6 +45,7 @@ public class LuminaryNpcEntity extends PathAwareEntity {
 	@Override
 	protected void initGoals() {
 		goalSelector.add(0, new SwimGoal(this));
+		goalSelector.add(1, new TaskGoal(this));
 		goalSelector.add(2, new FollowPlayerGoal(this));
 		goalSelector.add(5, new LookAtEntityGoal(this, PlayerEntity.class, 8.0f));
 		goalSelector.add(6, new WanderAroundGoal(this, 0.6));
@@ -59,6 +66,31 @@ public class LuminaryNpcEntity extends PathAwareEntity {
 
 	public Optional<UUID> followTargetId() {
 		return Optional.ofNullable(followTarget);
+	}
+
+	public SimpleInventory heldItems() {
+		return heldItems;
+	}
+
+	/** Total items the NPC carries, for accounting. */
+	public int heldCount() {
+		int n = 0;
+		for (int i = 0; i < heldItems.size(); i++) {
+			n += heldItems.getStack(i).getCount();
+		}
+		return n;
+	}
+
+	public boolean hasActiveTask() {
+		return npcId != null && LuminaryRuntime.get().map(rt -> rt.npc().roster().get(npcId).map(r -> r.hasActiveTask()).orElse(false)).orElse(false);
+	}
+
+	@Override
+	protected void mobTick() {
+		super.mobTick();
+		if (!getWorld().isClient && npcId != null) {
+			LuminaryRuntime.get().ifPresent(rt -> rt.npc().tickTask(this));
+		}
 	}
 
 	/** The follow target if it is present in this world; null otherwise (the goal then idles). */
@@ -111,6 +143,7 @@ public class LuminaryNpcEntity extends PathAwareEntity {
 		if (followTarget != null) {
 			nbt.putUuid(NBT_FOLLOW, followTarget);
 		}
+		nbt.put(NBT_HELD, heldItems.toNbtList());
 	}
 
 	@Override
@@ -124,5 +157,9 @@ public class LuminaryNpcEntity extends PathAwareEntity {
 			}
 		}
 		followTarget = nbt.containsUuid(NBT_FOLLOW) ? nbt.getUuid(NBT_FOLLOW) : null;
+		heldItems.clear();
+		if (nbt.contains(NBT_HELD, NbtElement.LIST_TYPE)) {
+			heldItems.readNbtList(nbt.getList(NBT_HELD, NbtElement.COMPOUND_TYPE));
+		}
 	}
 }

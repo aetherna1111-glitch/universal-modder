@@ -12,21 +12,23 @@ slice**; design and research live in `../docs/research/luminary-2026-10-11/` (st
 | Pure-Java core: ids, event bus, Catalog rules (observe / evidence / verify / applied), JSON codec, schema migrations (v1→v2) | **implemented, unit-tested** |
 | Pure-Java core: Progression — eras, technologies, prerequisites (era / verified discovery / unlocked technology / signal), automatic cascading unlocks, era advancement, admin override, capabilities | **implemented, unit-tested** |
 | Pure-Java core: Story — ordered phases (admin-controlled; opt-in auto-advance on explicit conditions), strategic branches, authored clues with reveal conditions and no override, full phase history; schema v3 | **implemented, unit-tested** |
-| Pure-Java core: NPC — definitions, data-driven dialogue scripts with story conditions and clue lines, `DialogueProvider` abstraction with `scripted` (default) and `disabled` providers, roster (one body per NPC, per-player memory), own persisted state `luminary_npc.dat` | **implemented, unit-tested** (43 tests in total) |
+| Pure-Java core: NPC — definitions, data-driven dialogue scripts with story conditions and clue lines, `DialogueProvider` abstraction with `scripted` (default) and `disabled` providers, roster (one body per NPC, per-player memory), own persisted state `luminary_npc.dat` | **implemented, unit-tested** |
+| Pure-Java core: NPC tasks — typed `NpcAction` (`GatherWood`), validator chain, explicit task states, item ledger, authorized containers, persisted in-flight task | **implemented, unit-tested** (51 tests in total) |
 | Fabric layer: mod init, `PersistentState` (`<world>/data/luminary.dat`), data-pack loader (discoveries, eras, technologies, story phases/clues/branches, npcs, dialogues), `/luminary catalog`, `/luminary progression`, `/luminary story`, `/luminary npc` commands, en/ru lang | **implemented**; covered by 9 GameTests |
 | Fabric layer: NPC entity (`luminary:npc`, persistent, never despawns, right-click to talk), roster reconciliation on entity load/unload (duplicates discarded, missing bodies forgotten), follow goal, `config/luminary.json` (`dialogueProvider`), placeholder client renderer (default player model) | **implemented**; entity + dialogue covered by GameTests; **client rendering not verified** (no client in CI) |
-| Gameplay enforcement of capabilities (recipe/item gates), City (facilities), NPC tasks (gathering, furnaces), model-backed dialogue provider, GeckoLib model, mod integrations | **designed, not implemented** — see the research set |
+| Fabric layer: task executor — real block breaking (`ServerWorld.breakBlock`, loot tables), item-entity collection into the NPC's own inventory, insertion into the authorized container's `Inventory`, per-step re-validation, resume after reload; `/luminary npc task` and `/luminary npc container` commands | **implemented**; covered by 8 GameTests incl. item accounting |
+| Gameplay enforcement of capabilities (recipe/item gates), City (facilities), further NPC tasks (furnaces, milking, withdraw), model-backed dialogue/planning provider, GeckoLib model, mod integrations | **designed, not implemented** — see the research set |
 | Thaumcraft 4 port bridge (`dev.luminary.api` plugin entrypoint) | **proposed**, needs the port maintainers |
 
 Nothing here grants items, unlocks recipes or changes gameplay yet. The slice proves the architecture: a Minecraft-free
 core, server-side rules, persistence with migrations, admin commands, and an in-world test harness.
 
-## Last recorded verification (2026-10-12, slice 4, JDK 21 runtime, `release 17`)
+## Last recorded verification (2026-10-12, slice 5, JDK 21 runtime, `release 17`)
 
 | Check | Result |
 |---|---|
-| `./gradlew build` (compile main/test/gametest, 43 unit tests, jar) | passed; `build/libs/luminary-0.1.0.jar` (190 KB) |
-| `./gradlew runGametest` (headless 1.20.1 server, Fabric API 0.92.12, Loader 0.19.5) | "All 9 required tests passed" |
+| `./gradlew build` (compile main/test/gametest, 51 unit tests, jar) | passed; `build/libs/luminary-0.1.0.jar` (226 KB) |
+| `./gradlew runGametest` (headless 1.20.1 server, Fabric API 0.92.12, Loader 0.19.5) | "All 17 required tests passed" (see the slice 5 section for the stability runs) |
 | `um publish check luminary` | 0 failures (1 warning in the ignored `.gradle/` cache) |
 | Not verified | a real dedicated server with players; the integrated client and the NPC renderer; any other mod loaded alongside |
 
@@ -71,6 +73,10 @@ cd luminary
 /luminary npc follow <npc> <player> | stop      [3]  follow order (walks to within ~2.5 blocks, repaths once per second)
 /luminary npc talk <npc>                        [2]  talk without clicking (player executor, body must be present)
 /luminary npc provider <scripted|disabled>      [4]  swap the dialogue provider until restart
+/luminary npc container allow|deny <npc> <pos>  [3]  authorize (persisted) a container the NPC may deposit into
+/luminary npc task gather <npc> <log pos> <container pos> [maxLogs]   [3]  validated gather-wood task
+/luminary npc task status <npc>                 [2]  state, failure reason, ledger (broken / collected / deposited)
+/luminary npc task cancel <npc>                 [3]  marks the task FAILED(cancelled); carried items stay with the NPC
 ```
 Players talk by right-clicking the NPC. Lines arrive in chat as `<NPC name> line`.
 Ids are Minecraft identifiers: always write the namespace (`luminary:material/first_trace_ore`).
@@ -164,15 +170,50 @@ position and memory live in `<world>/data/luminary_npc.dat` (own schema, version
 reconciles: a second body for the same NPC is discarded, a body whose registered predecessor no longer exists takes
 over, a body whose definition was removed from the data packs stays but only says the fallback line (logged).
 
+## NPC physical tasks (slice 5)
+
+An NPC task is a typed `NpcAction` with plain-data arguments (`GatherWood(targetPos, containerPos, maxLogs)`),
+validated **before** it is recorded and re-checked by the executor on every step. Validators (in order): supported
+action, arguments (1 ≤ maxLogs ≤ 16, target ≠ container), permission (the body's own world), both positions in loaded
+chunks, both within 32 blocks, target is a block in `#minecraft:logs`, container explicitly authorized for this NPC,
+container is an `Inventory` with at least one free slot. Any failure returns a stable reason key and records nothing.
+
+Lifecycle (one state per server tick, persisted in `luminary_npc.dat`):
+
+```
+VALIDATED → MOVING_TO_TARGET → BREAKING → (next log up: MOVING_TO_TARGET → BREAKING)* → COLLECTING
+          → MOVING_TO_CONTAINER → DEPOSITING → COMPLETED | FAILED(reason)
+```
+- **Breaking** is `ServerWorld.breakBlock(pos, true, npc)` after 20 ticks within 3 blocks: the loot table produces the
+  drops as item entities. Nothing is ever granted directly.
+- **Collecting** walks to each log item entity in a 6-block radius around the target and absorbs it into the NPC's own
+  9-slot inventory (saved in the entity's NBT) once it is within a vanilla-style pickup box; the phase ends when no
+  drops have been visible for 10 ticks or after 400 ticks.
+- **Depositing** inserts the carried stacks into the authorized container's `Inventory` (merge, then empty valid
+  slots). A full container fails the task with `container_full` and the items **stay with the NPC**; the next task
+  that reaches a deposit empties them too.
+- The **ledger** counts blocks broken, items collected and items deposited, each incremented only by the world
+  mutation that just happened, so `deposited ≤ collected ≤ broken` holds and tests assert
+  `chest + carried + on-ground == broken`.
+- Terminal states are final; a new task gets a new id; an NPC never runs two tasks at once. Extra ticks on a terminal
+  task are no-ops. On reload the same task resumes from its persisted state and re-validates the world first.
+
+Failure reasons: validator keys (above) plus `target_changed`, `unreachable` (600 ticks), `container_invalid`,
+`container_full`, `nothing_collected`, `cancelled`.
+
+Known limitations: one action type; the NPC does not open doors or climb; drops that roll out of the 6-block radius are
+left on the ground (visible as `collected < broken` in `/luminary npc task status`); the follow order is ignored while a
+task runs.
+
 ## Layout
 
 ```
 src/main/java/dev/luminary/core/        pure Java (no net.minecraft / net.fabricmc imports; enforced by a test)
-  ids/ events/ catalog/ progression/ story/ npc/ persistence/
-src/main/java/dev/luminary/fabric/      Minecraft-facing: Luminary (init), LuminaryRuntime, state/, command/, definitions/, npc/, config/, client/
+  ids/ events/ catalog/ progression/ story/ npc/ npc/task/ persistence/
+src/main/java/dev/luminary/fabric/      Minecraft-facing: Luminary (init), LuminaryRuntime, state/, command/, definitions/, npc/, npc/task/, config/, client/
 src/test/java/                          JUnit 5
 src/gametest/java/                      Fabric GameTests (second Loom mod "luminary-gametest", never shipped)
-src/gametest/resources/data/            test-only data pack (test NPCs, a clue gated by a test-only signal)
+src/gametest/resources/data/            test-only data pack (test NPCs, a clue gated by a test-only signal, the 13x6x13 "arena" SNBT template)
 docs/decisions/                         ADRs
 ```
 

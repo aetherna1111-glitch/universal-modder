@@ -76,5 +76,21 @@
   "dialogue.luminary.ai.ore_verified": "Значит, Люминарий это записал. Камень, я имею в виду. Хорошо. Бумага помнит лучше меня.",
   "dialogue.luminary.ai.branch_investigation": "Исследовать, сказали они. Да. Измерь это дважды, прежде чем оно измерит тебя.",
   "dialogue.luminary.ai.branch_containment": "Стены. Ладно. Стены честны. Только помни, кто с какой стороны.",
-  "dialogue.luminary.ai.branch_exploitation": "Выкопать и продать, значит. Прошу лишь одного: считайте, что возвращается наверх."
+  "dialogue.luminary.ai.branch_exploitation": "Выкопать и продать, значит. Прошу лишь одного: считайте, что возвращается наверх.",
+  "luminary.command.container_allowed": "NPC %s теперь может складывать в контейнер на %s",
+  "luminary.command.container_denied": "NPC %s больше не может складывать в контейнер на %s",
+  "luminary.command.task_assigned": "Задача назначена %s",
+  "luminary.command.task_cancelled": "Задача %s отменена (переносимые предметы остаются у NPC)",
+  "luminary.command.task_none": "У %s нет записанной задачи",
+  "luminary.task.unsupported_action": "Неподдерживаемое действие",
+  "luminary.task.bad_arguments": "Некорректные аргументы задачи (число вне диапазона или цель совпадает с контейнером)",
+  "luminary.task.out_of_range": "Цель или контейнер вне радиуса действия NPC",
+  "luminary.task.not_loaded": "Цель или контейнер в незагруженном чанке",
+  "luminary.task.target_not_log": "Целевой блок — не бревно",
+  "luminary.task.container_not_inventory": "У блока контейнера нет инвентаря",
+  "luminary.task.container_unauthorized": "NPC не уполномочен складывать в этот контейнер (/luminary npc container allow)",
+  "luminary.task.container_full": "В контейнере нет свободного слота",
+  "luminary.task.not_permitted": "NPC не может действовать в этом контексте",
+  "luminary.task.already_active": "У NPC уже есть активная задача",
+  "luminary.task.none_active": "У NPC нет активной задачи"
 }

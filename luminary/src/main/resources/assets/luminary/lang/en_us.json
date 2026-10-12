@@ -76,5 +76,21 @@
   "dialogue.luminary.ai.ore_verified": "So the Luminarium wrote it down. The stone, I mean. Good. Paper remembers better than I do.",
   "dialogue.luminary.ai.branch_investigation": "Investigate, they said. Yes. Measure it twice before it measures you.",
   "dialogue.luminary.ai.branch_containment": "Walls. Fine. Walls are honest. Just remember who is on which side.",
-  "dialogue.luminary.ai.branch_exploitation": "Dig it up and sell it, then. I only ask that you count what comes back out."
+  "dialogue.luminary.ai.branch_exploitation": "Dig it up and sell it, then. I only ask that you count what comes back out.",
+  "luminary.command.container_allowed": "NPC %s may now deposit into the container at %s",
+  "luminary.command.container_denied": "NPC %s may no longer deposit into the container at %s",
+  "luminary.command.task_assigned": "Task assigned to %s",
+  "luminary.command.task_cancelled": "Task of %s cancelled (carried items stay with the NPC)",
+  "luminary.command.task_none": "%s has no task on record",
+  "luminary.task.unsupported_action": "Unsupported action",
+  "luminary.task.bad_arguments": "Invalid task arguments (count out of range or target equals container)",
+  "luminary.task.out_of_range": "Target or container is out of the NPC's range",
+  "luminary.task.not_loaded": "Target or container is not in a loaded chunk",
+  "luminary.task.target_not_log": "The target block is not a log",
+  "luminary.task.container_not_inventory": "The container block has no inventory",
+  "luminary.task.container_unauthorized": "The NPC is not authorized to deposit into that container (/luminary npc container allow)",
+  "luminary.task.container_full": "The container has no free slot",
+  "luminary.task.not_permitted": "The NPC may not act in this context",
+  "luminary.task.already_active": "The NPC already has an active task",
+  "luminary.task.none_active": "The NPC has no active task"
 }

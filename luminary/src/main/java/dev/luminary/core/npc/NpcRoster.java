@@ -1,13 +1,16 @@
 package dev.luminary.core.npc;
 
 import dev.luminary.core.ids.LuminaryId;
+import dev.luminary.core.npc.task.NpcTask;
 
 import java.time.Instant;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.UUID;
 
 /**
@@ -30,6 +33,22 @@ public final class NpcRoster {
 		private long lastPosPacked;
 		private Instant lastSeen;
 		private final Map<UUID, PlayerMemory> players = new TreeMap<>();
+		private final Set<Long> authorizedContainers = new TreeSet<>();
+		private NpcTask task;
+
+		/** Containers (packed block positions) this NPC may deposit into. Set by administrators only. */
+		public Set<Long> authorizedContainers() {
+			return Collections.unmodifiableSet(authorizedContainers);
+		}
+
+		/** The current task (active) or the last one (terminal); empty when the NPC never had a task. */
+		public Optional<NpcTask> task() {
+			return Optional.ofNullable(task);
+		}
+
+		public boolean hasActiveTask() {
+			return task != null && task.isActive();
+		}
 
 		public Optional<UUID> entityUuid() {
 			return Optional.ofNullable(entityUuid);
@@ -110,6 +129,28 @@ public final class NpcRoster {
 		}
 	}
 
+	public void authorizeContainer(LuminaryId npc, long pos) {
+		ensure(npc).authorizedContainers.add(pos);
+	}
+
+	public boolean revokeContainer(LuminaryId npc, long pos) {
+		NpcRecord r = records.get(npc);
+		return r != null && r.authorizedContainers.remove(pos);
+	}
+
+	/**
+	 * Installs a new task. Refused while another task is active: an NPC never runs two tasks at once, and a terminal
+	 * task is replaced (its ledger is still readable until then).
+	 */
+	public boolean startTask(LuminaryId npc, NpcTask task) {
+		NpcRecord r = ensure(npc);
+		if (r.task != null && r.task.isActive()) {
+			return false;
+		}
+		r.task = task;
+		return true;
+	}
+
 	public PlayerMemory remember(LuminaryId npc, UUID player, String playerName, Instant now, String lineKey) {
 		NpcRecord r = ensure(npc);
 		PlayerMemory m = r.players.get(player);
@@ -133,6 +174,14 @@ public final class NpcRoster {
 
 		public static void player(NpcRoster roster, LuminaryId npc, UUID player, PlayerMemory memory) {
 			roster.ensure(npc).players.put(player, memory);
+		}
+
+		public static void container(NpcRoster roster, LuminaryId npc, long pos) {
+			roster.ensure(npc).authorizedContainers.add(pos);
+		}
+
+		public static void task(NpcRoster roster, LuminaryId npc, NpcTask task) {
+			roster.ensure(npc).task = task;
 		}
 	}
 }

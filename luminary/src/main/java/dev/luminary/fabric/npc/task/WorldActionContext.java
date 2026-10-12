@@ -1,0 +1,82 @@
+package dev.luminary.fabric.npc.task;
+
+import dev.luminary.core.npc.NpcRoster;
+import dev.luminary.core.npc.task.ActionContext;
+import dev.luminary.core.npc.task.NpcAction;
+import dev.luminary.fabric.npc.LuminaryNpcEntity;
+import net.minecraft.block.BlockState;
+import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.inventory.Inventory;
+import net.minecraft.registry.tag.BlockTags;
+import net.minecraft.server.world.ServerWorld;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Vec3d;
+
+/** Answers validator questions from the live server world. Reads only; never loads chunks. */
+public final class WorldActionContext implements ActionContext {
+	private final ServerWorld world;
+	private final LuminaryNpcEntity npc;
+	private final NpcRoster.NpcRecord record;
+
+	public WorldActionContext(ServerWorld world, LuminaryNpcEntity npc, NpcRoster.NpcRecord record) {
+		this.world = world;
+		this.npc = npc;
+		this.record = record;
+	}
+
+	@Override
+	public boolean isLoaded(long pos) {
+		BlockPos p = BlockPos.fromLong(pos);
+		return world.isChunkLoaded(p.getX() >> 4, p.getZ() >> 4);
+	}
+
+	@Override
+	public BlockKind kindAt(long pos) {
+		return kindAt(world, BlockPos.fromLong(pos));
+	}
+
+	public static BlockKind kindAt(ServerWorld world, BlockPos pos) {
+		BlockState state = world.getBlockState(pos);
+		if (state.isAir()) {
+			return BlockKind.AIR;
+		}
+		if (state.isIn(BlockTags.LOGS)) {
+			return BlockKind.LOG;
+		}
+		if (world.getBlockEntity(pos) instanceof Inventory) {
+			return BlockKind.CONTAINER;
+		}
+		return BlockKind.OTHER;
+	}
+
+	@Override
+	public double distanceSq(long pos) {
+		return npc.squaredDistanceTo(Vec3d.ofCenter(BlockPos.fromLong(pos)));
+	}
+
+	@Override
+	public boolean containerAuthorized(long pos) {
+		return record != null && record.authorizedContainers().contains(pos);
+	}
+
+	@Override
+	public int containerFreeSlots(long pos) {
+		BlockEntity be = world.getBlockEntity(BlockPos.fromLong(pos));
+		if (!(be instanceof Inventory inv)) {
+			return -1;
+		}
+		int free = 0;
+		for (int i = 0; i < inv.size(); i++) {
+			if (inv.getStack(i).isEmpty()) {
+				free++;
+			}
+		}
+		return free;
+	}
+
+	@Override
+	public boolean permitted(NpcAction action) {
+		// This slice: the NPC may act in the world its body is in. Region/dimension rules plug in here.
+		return npc.getWorld() == world;
+	}
+}

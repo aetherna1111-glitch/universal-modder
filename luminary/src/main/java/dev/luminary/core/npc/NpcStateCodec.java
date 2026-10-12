@@ -6,7 +6,13 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.luminary.core.ids.LuminaryId;
+import dev.luminary.core.npc.task.NpcAction;
+import dev.luminary.core.npc.task.NpcTask;
+import dev.luminary.core.npc.task.TaskLedger;
+import dev.luminary.core.npc.task.TaskState;
 import dev.luminary.core.persistence.SchemaMigrations;
+import com.google.gson.JsonArray;
+import java.util.TreeMap;
 
 import java.time.Instant;
 import java.util.Map;
@@ -52,10 +58,63 @@ public final class NpcStateCodec {
 				players.add(pid.toString(), p);
 			});
 			o.add("players", players);
+			JsonArray containers = new JsonArray();
+			r.authorizedContainers().forEach(containers::add);
+			o.add("containers", containers);
+			r.task().ifPresent(t -> o.add("task", taskToJson(t)));
 			npcs.add(id.toString(), o);
 		});
 		root.add("npcs", npcs);
 		return GSON.toJson(root);
+	}
+
+	static JsonObject taskToJson(NpcTask t) {
+		JsonObject o = new JsonObject();
+		o.addProperty("id", t.id().toString());
+		o.addProperty("createdAt", t.createdAt().toString());
+		o.addProperty("state", t.state().name());
+		t.failureReason().ifPresent(r -> o.addProperty("failure", r));
+		JsonObject action = new JsonObject();
+		action.addProperty("type", t.action().type());
+		if (t.action() instanceof NpcAction.GatherWood g) {
+			action.addProperty("target", g.targetPos());
+			action.addProperty("container", g.containerPos());
+			action.addProperty("maxLogs", g.maxLogs());
+		}
+		o.add("action", action);
+		JsonObject ledger = new JsonObject();
+		ledger.addProperty("blocksBroken", t.ledger().blocksBroken());
+		JsonObject collected = new JsonObject();
+		t.ledger().collected().forEach(collected::addProperty);
+		ledger.add("collected", collected);
+		JsonObject deposited = new JsonObject();
+		t.ledger().deposited().forEach(deposited::addProperty);
+		ledger.add("deposited", deposited);
+		o.add("ledger", ledger);
+		o.addProperty("currentTarget", t.currentTarget());
+		o.addProperty("phaseTicks", t.phaseTicks());
+		o.addProperty("idleTicks", t.idleTicks());
+		return o;
+	}
+
+	static NpcTask taskFromJson(JsonObject o) {
+		JsonObject a = o.getAsJsonObject("action");
+		String type = a.get("type").getAsString();
+		NpcAction action;
+		if ("gather_wood".equals(type)) {
+			action = new NpcAction.GatherWood(a.get("target").getAsLong(), a.get("container").getAsLong(), a.get("maxLogs").getAsInt());
+		} else {
+			throw new IllegalArgumentException("unknown task action type '" + type + "'");
+		}
+		JsonObject l = o.getAsJsonObject("ledger");
+		Map<String, Integer> collected = new TreeMap<>();
+		l.getAsJsonObject("collected").entrySet().forEach(e -> collected.put(e.getKey(), e.getValue().getAsInt()));
+		Map<String, Integer> deposited = new TreeMap<>();
+		l.getAsJsonObject("deposited").entrySet().forEach(e -> deposited.put(e.getKey(), e.getValue().getAsInt()));
+		return new NpcTask(UUID.fromString(o.get("id").getAsString()), action, Instant.parse(o.get("createdAt").getAsString()),
+				TaskState.valueOf(o.get("state").getAsString()), o.has("failure") ? o.get("failure").getAsString() : null,
+				TaskLedger.restore(l.get("blocksBroken").getAsInt(), collected, deposited),
+				o.get("currentTarget").getAsLong(), o.get("phaseTicks").getAsInt(), o.get("idleTicks").getAsInt());
 	}
 
 	public NpcRoster decode(String json) {
@@ -76,6 +135,14 @@ public final class NpcStateCodec {
 					o.has("dimension") ? o.get("dimension").getAsString() : null,
 					o.has("pos") ? o.get("pos").getAsLong() : 0L,
 					o.has("lastSeen") ? Instant.parse(o.get("lastSeen").getAsString()) : null);
+			if (o.has("containers")) {
+				for (JsonElement c : o.getAsJsonArray("containers")) {
+					NpcRoster.Restore.container(roster, id, c.getAsLong());
+				}
+			}
+			if (o.has("task")) {
+				NpcRoster.Restore.task(roster, id, taskFromJson(o.getAsJsonObject("task")));
+			}
 			if (o.has("players")) {
 				for (Map.Entry<String, JsonElement> pe : o.getAsJsonObject("players").entrySet()) {
 					JsonObject p = pe.getValue().getAsJsonObject();

@@ -5,6 +5,13 @@ import dev.luminary.core.ids.LuminaryId;
 import dev.luminary.core.npc.NpcDefinition;
 import dev.luminary.core.npc.NpcDialogueService;
 import dev.luminary.core.npc.NpcRoster;
+import dev.luminary.core.npc.task.ActionContext;
+import dev.luminary.core.npc.task.ActionValidator;
+import dev.luminary.core.npc.task.NpcAction;
+import dev.luminary.core.npc.task.NpcTask;
+import dev.luminary.core.npc.task.TaskRules;
+import dev.luminary.fabric.npc.task.TaskExecutor;
+import dev.luminary.fabric.npc.task.WorldActionContext;
 import dev.luminary.fabric.Luminary;
 import dev.luminary.fabric.state.NpcWorldState;
 import net.minecraft.entity.Entity;
@@ -35,12 +42,87 @@ public final class NpcService {
 	private final NpcWorldState state;
 	private final NpcDialogueService dialogue;
 	private final Clock clock;
+	private final TaskExecutor executor;
 
 	public NpcService(MinecraftServer server, NpcWorldState state, NpcDialogueService dialogue, Clock clock) {
 		this.server = server;
 		this.state = state;
 		this.dialogue = dialogue;
 		this.clock = clock;
+		this.executor = new TaskExecutor(TaskRules.DEFAULTS, state::markDirty);
+	}
+
+	public TaskExecutor executor() {
+		return executor;
+	}
+
+	// ------------------------------------------------------------------ tasks
+
+	public void authorizeContainer(LuminaryId npc, long pos) {
+		state.roster().authorizeContainer(npc, pos);
+		state.markDirty();
+	}
+
+	public boolean revokeContainer(LuminaryId npc, long pos) {
+		boolean removed = state.roster().revokeContainer(npc, pos);
+		state.markDirty();
+		return removed;
+	}
+
+	/**
+	 * Validates and installs a task. Everything the executor will later do was checked here against the live world;
+	 * the executor re-checks on every step. Untrusted callers (commands, future planners) only ever reach this method.
+	 */
+	public Result assign(LuminaryId npc, NpcAction action) {
+		if (dialogue.definitions().npc(npc).isEmpty()) {
+			return Result.fail(REASON_UNKNOWN_NPC);
+		}
+		Optional<LuminaryNpcEntity> body = body(npc);
+		if (body.isEmpty()) {
+			return Result.fail(ActionValidator.REASON_NO_BODY);
+		}
+		NpcRoster.NpcRecord record = state.roster().get(npc).orElseThrow();
+		if (record.hasActiveTask()) {
+			return Result.fail(ActionValidator.REASON_TASK_ACTIVE);
+		}
+		ActionContext ctx = new WorldActionContext((ServerWorld) body.get().getWorld(), body.get(), record);
+		Result validation = ActionValidator.validateAll(executor.validators(), action, ctx);
+		if (!validation.ok()) {
+			return validation;
+		}
+		NpcTask task = new NpcTask(UUID.randomUUID(), action, clock.instant());
+		if (!state.roster().startTask(npc, task)) {
+			return Result.fail(ActionValidator.REASON_TASK_ACTIVE);
+		}
+		state.markDirty();
+		return Result.OK;
+	}
+
+	public Result cancelTask(LuminaryId npc) {
+		Optional<NpcRoster.NpcRecord> record = state.roster().get(npc);
+		if (record.isEmpty() || !record.get().hasActiveTask()) {
+			return Result.fail("luminary.task.none_active");
+		}
+		record.get().task().orElseThrow().fail(NpcTask.FAIL_CANCELLED);
+		body(npc).ifPresent(b -> b.getNavigation().stop());
+		state.markDirty();
+		return Result.OK;
+	}
+
+	/** Called every server tick by the body. No-op without an active task. */
+	public void tickTask(LuminaryNpcEntity body) {
+		if (body.npcId().isEmpty()) {
+			return;
+		}
+		LuminaryId id = body.npcId().get();
+		if (!state.roster().isBody(id, body.getUuid())) {
+			return;   // a duplicate body awaiting discard must never execute the task
+		}
+		state.roster().get(id).ifPresent(record -> {
+			if (record.hasActiveTask()) {
+				executor.tick(body, record);
+			}
+		});
 	}
 
 	public NpcDialogueService dialogue() {
