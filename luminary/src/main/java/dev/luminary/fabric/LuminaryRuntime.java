@@ -44,6 +44,7 @@ public final class LuminaryRuntime {
 	private final LlmService llm;
 	private final Duration dialogueTimeout;
 	private final String intentPlannerId;
+	private final LuminaryConfig config;
 	private CatalogService catalog;
 	private ProgressionService progression;
 	private StoryController story;
@@ -56,6 +57,7 @@ public final class LuminaryRuntime {
 		this.llm = new LlmService(server, config.llm(), config.llmLogContent());
 		this.dialogueTimeout = config.dialogueTimeout();
 		this.intentPlannerId = config.intentPlanner();
+		this.config = config;
 		this.dialogueProvider = providerFor(config.dialogueProvider()).orElseGet(() -> {
 			Luminary.LOGGER.warn("[luminary] unknown dialogueProvider '{}' in config; dialogue disabled", config.dialogueProvider());
 			return new DisabledDialogueProvider();
@@ -81,6 +83,7 @@ public final class LuminaryRuntime {
 				dialogueProvider, Clock.systemUTC(), npcState::markDirty, server);
 		new NpcMemoryObserver(() -> definitions.npcs().npcs(), npcState.roster(), npcState::markDirty).subscribe(bus);
 		this.npc = new NpcService(server, npcState, dialogue, Clock.systemUTC());
+		this.npc.configureAutonomy(config.autonomyEnabled(), config.autonomy());
 		this.npc.setPlanner(plannerFor(intentPlannerId).orElseGet(() -> {
 			Luminary.LOGGER.warn("[luminary] unknown intentPlanner '{}' in config; planning disabled", intentPlannerId);
 			return IntentPlanner.none();
@@ -115,6 +118,11 @@ public final class LuminaryRuntime {
 			default:
 				return Optional.empty();
 		}
+	}
+
+	/** Flips the server-wide autonomy switch at runtime (admin command, tests); the config value returns on /reload. */
+	public void setAutonomyEnabled(boolean enabled) {
+		this.npc.configureAutonomy(enabled, config.autonomy());
 	}
 
 	/** Swaps the intent planner at runtime (admin command, tests). Lost on /reload (the config value returns) and restart. */

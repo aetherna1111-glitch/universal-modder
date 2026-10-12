@@ -123,5 +123,13 @@
   "npc.luminary.intent.where": "I do not know where you are.",
   "npc.luminary.intent.cannot": "I cannot do that: %s",
   "npc.luminary.task.done": "Done: %s.",
-  "npc.luminary.task.failed": "I could not finish (%s): %s."
+  "npc.luminary.task.failed": "I could not finish (%s): %s.",
+  "luminary.command.autonomy_server_on": "Autonomy enabled server-wide (until /reload or restart; config/luminary.json holds the default)",
+  "luminary.command.autonomy_server_off": "Autonomy disabled server-wide",
+  "luminary.command.autonomy_server_is_off": "Note: the server-wide autonomy switch is off (config autonomy.enabled or /luminary npc autonomy server on)",
+  "luminary.command.autonomy_on": "%s may now act on its own (standing orders and reflexes, within the budget)",
+  "luminary.command.autonomy_off": "%s no longer acts on its own",
+  "luminary.command.autonomy_status": "%s: server switch %s, NPC switch %s, decisions this hour %s/%s, orders %s, avoided targets %s",
+  "luminary.command.order_added": "Standing order added to %s",
+  "luminary.command.order_cleared": "Standing orders of %s cleared"
 }

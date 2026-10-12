@@ -1,6 +1,7 @@
 package dev.luminary.core.npc;
 
 import dev.luminary.core.ids.LuminaryId;
+import dev.luminary.core.npc.autonomy.AutonomyState;
 import dev.luminary.core.npc.memory.MemoryStore;
 import dev.luminary.core.npc.task.NpcTask;
 
@@ -37,6 +38,12 @@ public final class NpcRoster {
 		private final Set<Long> authorizedContainers = new TreeSet<>();
 		private NpcTask task;
 		private final MemoryStore memory = new MemoryStore();
+		private final AutonomyState autonomy = new AutonomyState();
+
+		/** Self-direction switch, standing orders and budget; see {@code core.npc.autonomy}. */
+		public AutonomyState autonomy() {
+			return autonomy;
+		}
 
 		/** Structured memory (facts, events, promises, observations); see {@code core.npc.memory}. */
 		public MemoryStore memory() {

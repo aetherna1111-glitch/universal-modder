@@ -10,6 +10,8 @@ import dev.luminary.core.npc.memory.MemoryEntry;
 import dev.luminary.core.npc.memory.MemoryKind;
 import dev.luminary.core.npc.memory.MemoryStore;
 import dev.luminary.core.npc.memory.Provenance;
+import dev.luminary.core.npc.autonomy.AutonomyState;
+import dev.luminary.core.npc.autonomy.StandingOrder;
 import dev.luminary.core.npc.task.NpcAction;
 import java.util.Optional;
 import dev.luminary.core.npc.task.NpcTask;
@@ -82,6 +84,29 @@ public final class NpcStateCodec {
 				memories.add(m);
 			}
 			o.add("memories", memories);
+			AutonomyState auto = r.autonomy();
+			if (auto.enabled() || !auto.orders().isEmpty() || !auto.decisions().isEmpty() || !auto.avoidUntil().isEmpty()) {
+				JsonObject a = new JsonObject();
+				a.addProperty("enabled", auto.enabled());
+				JsonArray orders = new JsonArray();
+				for (StandingOrder order : auto.orders()) {
+					JsonObject so = new JsonObject();
+					so.addProperty("type", order.type());
+					if (order instanceof StandingOrder.StockWood w) {
+						so.addProperty("container", w.containerPos());
+						so.addProperty("minLogs", w.minLogs());
+					}
+					orders.add(so);
+				}
+				a.add("orders", orders);
+				JsonArray decisions = new JsonArray();
+				auto.decisions().forEach(d -> decisions.add(d.toString()));
+				a.add("decisions", decisions);
+				JsonObject avoid = new JsonObject();
+				auto.avoidUntil().forEach((pos, until) -> avoid.addProperty(Long.toString(pos), until.toString()));
+				a.add("avoid", avoid);
+				o.add("autonomy", a);
+			}
 			npcs.add(id.toString(), o);
 		});
 		root.add("npcs", npcs);
@@ -205,6 +230,31 @@ public final class NpcStateCodec {
 							m.has("topic") ? Optional.of(m.get("topic").getAsString()) : Optional.empty(),
 							m.get("text").getAsString(), Instant.parse(m.get("at").getAsString()), Instant.parse(m.get("lastUsed").getAsString()),
 							m.get("importance").getAsDouble(), Provenance.valueOf(m.get("provenance").getAsString())));
+				}
+			}
+			if (o.has("autonomy")) {
+				JsonObject a = o.getAsJsonObject("autonomy");
+				AutonomyState auto = roster.ensureRecord(id).autonomy();
+				auto.setEnabled(a.has("enabled") && a.get("enabled").getAsBoolean());
+				if (a.has("orders")) {
+					for (JsonElement el : a.getAsJsonArray("orders")) {
+						JsonObject so = el.getAsJsonObject();
+						if ("stock_wood".equals(so.get("type").getAsString())) {
+							auto.addOrder(new StandingOrder.StockWood(so.get("container").getAsLong(), so.get("minLogs").getAsInt()));
+						} else {
+							throw new IllegalArgumentException("unknown standing order type '" + so.get("type").getAsString() + "'");
+						}
+					}
+				}
+				if (a.has("decisions")) {
+					for (JsonElement el : a.getAsJsonArray("decisions")) {
+						AutonomyState.Restore.decision(auto, Instant.parse(el.getAsString()));
+					}
+				}
+				if (a.has("avoid")) {
+					for (Map.Entry<String, JsonElement> ae : a.getAsJsonObject("avoid").entrySet()) {
+						AutonomyState.Restore.avoid(auto, Long.parseLong(ae.getKey()), Instant.parse(ae.getValue().getAsString()));
+					}
 				}
 			}
 			if (o.has("players")) {

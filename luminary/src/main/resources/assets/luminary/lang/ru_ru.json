@@ -123,5 +123,13 @@
   "npc.luminary.intent.where": "Я не знаю, где ты.",
   "npc.luminary.intent.cannot": "Не могу: %s",
   "npc.luminary.task.done": "Готово: %s.",
-  "npc.luminary.task.failed": "Не смог закончить (%s): %s."
+  "npc.luminary.task.failed": "Не смог закончить (%s): %s.",
+  "luminary.command.autonomy_server_on": "Автономия включена на сервере (до /reload или перезапуска; значение по умолчанию — в config/luminary.json)",
+  "luminary.command.autonomy_server_off": "Автономия выключена на сервере",
+  "luminary.command.autonomy_server_is_off": "Внимание: общий выключатель автономии выключен (config autonomy.enabled или /luminary npc autonomy server on)",
+  "luminary.command.autonomy_on": "%s теперь может действовать самостоятельно (постоянные поручения и рефлексы, в пределах бюджета)",
+  "luminary.command.autonomy_off": "%s больше не действует самостоятельно",
+  "luminary.command.autonomy_status": "%s: сервер %s, NPC %s, решений за час %s/%s, поручений %s, избегаемых целей %s",
+  "luminary.command.order_added": "Постоянное поручение добавлено %s",
+  "luminary.command.order_cleared": "Постоянные поручения %s сняты"
 }

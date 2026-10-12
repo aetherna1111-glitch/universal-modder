@@ -5,6 +5,9 @@ import dev.luminary.core.ids.LuminaryId;
 import dev.luminary.core.npc.NpcDefinition;
 import dev.luminary.core.npc.NpcDialogueService;
 import dev.luminary.core.npc.NpcRoster;
+import dev.luminary.core.npc.autonomy.AutonomyPlanner;
+import dev.luminary.core.npc.autonomy.AutonomyRules;
+import dev.luminary.core.npc.autonomy.AutonomyState;
 import dev.luminary.core.npc.intent.Intent;
 import dev.luminary.core.npc.intent.IntentCandidates;
 import dev.luminary.core.npc.intent.IntentPlanner;
@@ -58,6 +61,9 @@ public final class NpcService {
 	private final TaskExecutor executor;
 	private final CandidateScanner scanner;
 	private IntentPlanner planner = IntentPlanner.none();
+	private AutonomyPlanner autonomy = new AutonomyPlanner(AutonomyRules.DEFAULTS, TaskRules.DEFAULTS);
+	/** Server-wide feature flag (config {@code autonomy.enabled}); each NPC also has its own switch. */
+	private boolean autonomyEnabled;
 
 	public NpcService(MinecraftServer server, NpcWorldState state, NpcDialogueService dialogue, Clock clock) {
 		this.server = server;
@@ -74,6 +80,69 @@ public final class NpcService {
 
 	public IntentPlanner planner() {
 		return planner;
+	}
+
+	public AutonomyPlanner autonomy() {
+		return autonomy;
+	}
+
+	public boolean autonomyEnabled() {
+		return autonomyEnabled;
+	}
+
+	public void configureAutonomy(boolean enabled, AutonomyRules rules) {
+		this.autonomyEnabled = enabled;
+		this.autonomy = new AutonomyPlanner(rules, TaskRules.DEFAULTS);
+	}
+
+	/**
+	 * Self-direction, called by the body every tick and acting every {@code thinkIntervalTicks}: scan, decide
+	 * (reflexes, standing orders, budget), assign through the same validated path as commands. A refused target is
+	 * avoided for the failure cooldown; a started task counts against the budget and is remembered as the NPC's own
+	 * decision. Returns the decision taken this tick, if the planner ran.
+	 */
+	public Optional<AutonomyPlanner.Decision> tickAutonomy(LuminaryNpcEntity body) {
+		if (!autonomyEnabled || body.npcId().isEmpty() || body.age % autonomy.rules().thinkIntervalTicks() != 0 || !(body.getWorld() instanceof ServerWorld world)) {
+			return Optional.empty();
+		}
+		LuminaryId id = body.npcId().get();
+		if (!state.roster().isBody(id, body.getUuid()) || dialogue.definitions().npc(id).isEmpty()) {
+			return Optional.empty();
+		}
+		NpcRoster.NpcRecord record = state.roster().ensureRecord(id);
+		AutonomyState auto = record.autonomy();
+		if (!auto.enabled()) {
+			return Optional.empty();
+		}
+		Instant now = clock.instant();
+		auto.prune(now);
+		IntentCandidates seen = scanner.scan(world, body, record, null);
+		AutonomyPlanner.Decision decision = autonomy.decide(auto, seen, record.hasActiveTask(), now);
+		if (decision.action().isEmpty()) {
+			return Optional.of(decision);
+		}
+		NpcAction action = decision.action().get();
+		auto.recordDecision(now, autonomy.rules().window());
+		Result r = assign(id, action, null);
+		if (r.ok()) {
+			dialogue.memory(id).add(MemoryEntry.of(MemoryKind.SIGNIFICANT_EVENT, null, "task/" + record.task().orElseThrow().id(),
+					"Decided on my own (" + decision.reason() + "): " + describe(action), now, Provenance.OBSERVED_IN_WORLD), now);
+			Luminary.LOGGER.info("[luminary] {} decided on its own ({}): {}", id, decision.reason(), describe(action));
+		} else {
+			Instant until = now.plus(autonomy.rules().failureCooldown());
+			targetsOf(action).forEach(pos -> auto.avoid(pos, until));
+			Luminary.LOGGER.info("[luminary] {} wanted to {} ({}) but validation said {}; avoiding the target until {}", id, describe(action), decision.reason(), r.reasonKey(), until);
+		}
+		state.markDirty();
+		return Optional.of(decision);
+	}
+
+	private static List<Long> targetsOf(NpcAction action) {
+		if (action instanceof NpcAction.GatherWood g) return List.of(g.targetPos(), g.containerPos());
+		if (action instanceof NpcAction.Deposit d) return List.of(d.containerPos());
+		if (action instanceof NpcAction.Withdraw w) return List.of(w.containerPos());
+		if (action instanceof NpcAction.MoveTo m) return List.of(m.targetPos());
+		return List.of();
 	}
 
 	public void setPlanner(IntentPlanner planner) {
@@ -168,6 +237,11 @@ public final class NpcService {
 		String who = requester != null ? " for " + nameOf(npc, requester) : "";
 		dialogue.memory(npc).add(MemoryEntry.of(MemoryKind.SIGNIFICANT_EVENT, requester, "task/" + task.id(),
 				outcome + ": " + describe(task.action()) + who + ledger, now, Provenance.OBSERVED_IN_WORLD), now);
+		if (task.state() == dev.luminary.core.npc.task.TaskState.FAILED && task.requestedBy().isEmpty()) {
+			// an autonomous task that failed: leave its targets alone for a while instead of retrying every think tick
+			Instant until = now.plus(autonomy.rules().failureCooldown());
+			state.roster().get(npc).ifPresent(r -> targetsOf(task.action()).forEach(pos -> r.autonomy().avoid(pos, until)));
+		}
 		if (requester != null) {
 			var player = server.getPlayerManager().getPlayer(requester);
 			if (player != null) {

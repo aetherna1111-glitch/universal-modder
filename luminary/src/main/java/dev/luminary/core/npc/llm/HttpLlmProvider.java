@@ -117,6 +117,10 @@ public abstract class HttpLlmProvider implements LlmProvider {
 		http.sendAsync(httpRequest, info -> new BoundedBodySubscriber(config.maxResponseBytes()))
 				.orTimeout(config.requestTimeout().toMillis() + 500, java.util.concurrent.TimeUnit.MILLISECONDS)
 				.whenCompleteAsync((response, error) -> {
+					// Settle stats, cooldown and the concurrency slot BEFORE completing the caller's future: a caller that
+					// sends its next request from the completion must see the slot free and the health state final.
+					LlmResponse ok = null;
+					LlmException failure = null;
 					try {
 						if (error != null) {
 							throw translate(error);
@@ -128,16 +132,20 @@ public abstract class HttpLlmProvider implements LlmProvider {
 						String text = parseText(body);
 						long latency = Duration.between(started, clock.instant()).toMillis();
 						onSuccess(latency);
-						result.complete(new LlmResponse(text, JsonExtractor.extractObject(text), latency, id(), config.model()));
+						ok = new LlmResponse(text, JsonExtractor.extractObject(text), latency, id(), config.model());
 					} catch (LlmException e) {
 						onFailure(e);
-						result.completeExceptionally(e);
+						failure = e;
 					} catch (RuntimeException e) {
-						LlmException wrapped = new LlmException(LlmException.Kind.TRANSPORT, id() + ": " + e.getMessage(), e);
-						onFailure(wrapped);
-						result.completeExceptionally(wrapped);
+						failure = new LlmException(LlmException.Kind.TRANSPORT, id() + ": " + e.getMessage(), e);
+						onFailure(failure);
 					} finally {
 						slots.release();
+					}
+					if (failure != null) {
+						result.completeExceptionally(failure);
+					} else {
+						result.complete(ok);
 					}
 				}, executor);
 		return result;

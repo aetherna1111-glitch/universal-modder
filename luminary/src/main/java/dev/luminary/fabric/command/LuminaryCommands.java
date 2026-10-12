@@ -161,6 +161,25 @@ public final class LuminaryCommands {
 												.executes(ctx -> npcFollow(ctx, EntityArgumentType.getPlayer(ctx, "player"))))))
 						.then(CommandManager.literal("talk")
 								.then(CommandManager.argument("id", IdentifierArgumentType.identifier()).executes(LuminaryCommands::npcTalk)))
+						.then(CommandManager.literal("autonomy")
+								.requires(src -> src.hasPermissionLevel(3))
+								.then(CommandManager.literal("server")
+										.requires(src -> src.hasPermissionLevel(4))
+										.then(CommandManager.literal("on").executes(ctx -> autonomyServer(ctx, true)))
+										.then(CommandManager.literal("off").executes(ctx -> autonomyServer(ctx, false))))
+								.then(CommandManager.argument("id", IdentifierArgumentType.identifier())
+										.executes(LuminaryCommands::autonomyStatus)
+										.then(CommandManager.literal("on").executes(ctx -> autonomyNpc(ctx, true)))
+										.then(CommandManager.literal("off").executes(ctx -> autonomyNpc(ctx, false)))))
+						.then(CommandManager.literal("order")
+								.requires(src -> src.hasPermissionLevel(3))
+								.then(CommandManager.literal("stock_wood")
+										.then(CommandManager.argument("id", IdentifierArgumentType.identifier())
+												.then(CommandManager.argument("container", BlockPosArgumentType.blockPos())
+														.then(CommandManager.argument("minLogs", IntegerArgumentType.integer(1, 1728))
+																.executes(LuminaryCommands::orderStockWood)))))
+								.then(CommandManager.literal("clear")
+										.then(CommandManager.argument("id", IdentifierArgumentType.identifier()).executes(LuminaryCommands::orderClear))))
 						.then(CommandManager.literal("planner")
 								.requires(src -> src.hasPermissionLevel(4))
 								.then(CommandManager.argument("planner", com.mojang.brigadier.arguments.StringArgumentType.word())
@@ -297,6 +316,78 @@ public final class LuminaryCommands {
 		BlockPos container = BlockPosArgumentType.getLoadedBlockPos(ctx, "container");
 		String item = IdentifierArgumentType.getIdentifier(ctx, "item").toString();
 		return runtime(ctx.getSource()).map(rt -> report(ctx.getSource(), rt.npc().assign(id, new NpcAction.Withdraw(container.asLong(), item, count)), "luminary.command.task_assigned", id)).orElse(0);
+	}
+
+	private static int autonomyServer(CommandContext<ServerCommandSource> ctx, boolean on) {
+		return runtime(ctx.getSource()).map(rt -> {
+			rt.setAutonomyEnabled(on);
+			ctx.getSource().sendFeedback(() -> Text.translatable(on ? "luminary.command.autonomy_server_on" : "luminary.command.autonomy_server_off"), true);
+			return 1;
+		}).orElse(0);
+	}
+
+	private static int autonomyNpc(CommandContext<ServerCommandSource> ctx, boolean on) {
+		return runtime(ctx.getSource()).map(rt -> {
+			LuminaryId id = parseId(ctx);
+			if (rt.npc().dialogue().definitions().npc(id).isEmpty()) {
+				ctx.getSource().sendError(Text.translatable(NpcService.REASON_UNKNOWN_NPC));
+				return 0;
+			}
+			rt.npc().roster().ensureRecord(id).autonomy().setEnabled(on);
+			rt.npc().markDirty();
+			ctx.getSource().sendFeedback(() -> Text.translatable(on ? "luminary.command.autonomy_on" : "luminary.command.autonomy_off", id.toString()), true);
+			if (on && !rt.npc().autonomyEnabled()) {
+				ctx.getSource().sendFeedback(() -> Text.translatable("luminary.command.autonomy_server_is_off"), false);
+			}
+			return 1;
+		}).orElse(0);
+	}
+
+	private static int autonomyStatus(CommandContext<ServerCommandSource> ctx) {
+		return runtime(ctx.getSource()).map(rt -> {
+			LuminaryId id = parseId(ctx);
+			var auto = rt.npc().roster().ensureRecord(id).autonomy();
+			var rules = rt.npc().autonomy().rules();
+			ctx.getSource().sendFeedback(() -> Text.translatable("luminary.command.autonomy_status", id.toString(),
+					rt.npc().autonomyEnabled() ? "on" : "off", auto.enabled() ? "on" : "off",
+					auto.decisionsWithin(rules.window(), Instant.now()), rules.maxDecisionsPerWindow(), auto.orders().size(), auto.avoidUntil().size()), false);
+			for (var order : auto.orders()) {
+				String text = order instanceof dev.luminary.core.npc.autonomy.StandingOrder.StockWood w
+						? "stock_wood: keep >= " + w.minLogs() + " logs in " + BlockPos.fromLong(w.containerPos()).toShortString() : order.type();
+				ctx.getSource().sendFeedback(() -> Text.literal(" - " + text), false);
+			}
+			return 1;
+		}).orElse(0);
+	}
+
+	private static int orderStockWood(CommandContext<ServerCommandSource> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+		LuminaryId id = parseId(ctx);
+		BlockPos container = BlockPosArgumentType.getLoadedBlockPos(ctx, "container");
+		int min = IntegerArgumentType.getInteger(ctx, "minLogs");
+		return runtime(ctx.getSource()).map(rt -> {
+			if (rt.npc().dialogue().definitions().npc(id).isEmpty()) {
+				ctx.getSource().sendError(Text.translatable(NpcService.REASON_UNKNOWN_NPC));
+				return 0;
+			}
+			if (!rt.npc().roster().ensureRecord(id).authorizedContainers().contains(container.asLong())) {
+				ctx.getSource().sendError(Text.translatable(dev.luminary.core.npc.task.ActionValidator.REASON_CONTAINER_UNAUTHORIZED));
+				return 0;
+			}
+			rt.npc().roster().ensureRecord(id).autonomy().addOrder(new dev.luminary.core.npc.autonomy.StandingOrder.StockWood(container.asLong(), min));
+			rt.npc().markDirty();
+			ctx.getSource().sendFeedback(() -> Text.translatable("luminary.command.order_added", id.toString()), true);
+			return 1;
+		}).orElse(0);
+	}
+
+	private static int orderClear(CommandContext<ServerCommandSource> ctx) {
+		return runtime(ctx.getSource()).map(rt -> {
+			LuminaryId id = parseId(ctx);
+			rt.npc().roster().ensureRecord(id).autonomy().clearOrders();
+			rt.npc().markDirty();
+			ctx.getSource().sendFeedback(() -> Text.translatable("luminary.command.order_cleared", id.toString()), true);
+			return 1;
+		}).orElse(0);
 	}
 
 	private static int npcPlanner(CommandContext<ServerCommandSource> ctx) {

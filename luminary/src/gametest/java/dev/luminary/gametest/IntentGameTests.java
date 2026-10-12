@@ -3,6 +3,8 @@ package dev.luminary.gametest;
 import dev.luminary.core.catalog.Result;
 import dev.luminary.core.ids.LuminaryId;
 import dev.luminary.core.npc.NpcRoster;
+import dev.luminary.core.npc.autonomy.AutonomyState;
+import dev.luminary.core.npc.autonomy.StandingOrder;
 import dev.luminary.core.npc.intent.KeywordIntentPlanner;
 import dev.luminary.core.npc.memory.MemoryEntry;
 import dev.luminary.core.npc.memory.MemoryKind;
@@ -212,5 +214,39 @@ public final class IntentGameTests implements FabricGameTest {
 		rt.setIntentPlanner(new KeywordIntentPlanner(TaskRules.DEFAULTS));
 		npc.despawn(id);
 		ctx.complete();
+	}
+
+	/** Autonomy (slice 10): a standing order and the server/NPC switches make the NPC stock the chest with no command or chat at all. */
+	@GameTest(templateName = ARENA, tickLimit = 1600)
+	public void standingOrderMakesTheNpcStockTheChestOnItsOwnThenRest(TestContext ctx) {
+		LuminaryRuntime rt = LuminaryRuntime.get().orElseThrow();
+		Arena a = arena(ctx, "auto_stock", 2);
+		AutonomyState auto = a.npc().roster().ensureRecord(a.npcId()).autonomy();
+		auto.addOrder(new StandingOrder.StockWood(a.chest().asLong(), 2));
+		// NPC switch on, server switch still off: nothing may happen
+		auto.setEnabled(true);
+		expect(!rt.npc().autonomyEnabled(), "fixture: the server-wide switch is off by default");
+		ctx.waitAndRun(120, () -> {
+			expect(task(a).isEmpty(), "with the server switch off the NPC must not start anything");
+			rt.setAutonomyEnabled(true);
+			await(ctx, () -> task(a).map(t -> !t.isActive()).orElse(false), 1300, () -> {
+				NpcTask t = task(a).orElseThrow();
+				expect(t.requestedBy().isEmpty(), "an autonomous task has no requester");
+				expect(t.state() == TaskState.COMPLETED && t.action() instanceof NpcAction.GatherWood g && g.maxLogs() == 2,
+						"the order must become a completed 2-log gather, got " + t.action() + " " + t.state() + " " + t.failureReason().orElse(""));
+				expect(logsIn(ctx, a.chest()) == 2, "the chest must now hold 2 logs, holds " + logsIn(ctx, a.chest()));
+				expect(auto.decisionsWithin(java.time.Duration.ofHours(1), java.time.Instant.now()) == 1, "one decision must be on the budget");
+				MemoryStore memory = a.npc().dialogue().memory(a.npcId());
+				expect(memory.all().stream().anyMatch(e -> e.kind() == MemoryKind.SIGNIFICANT_EVENT && e.text().startsWith("Completed") && e.text().contains("gather 2 logs")),
+						"the outcome must be remembered: " + memory.all());
+				// order satisfied: the next think ticks decide nothing new
+				ctx.waitAndRun(220, () -> {
+					expect(task(a).map(x -> x.id().equals(t.id())).orElse(false), "a satisfied order must not start another task");
+					rt.setAutonomyEnabled(false);
+					a.npc().despawn(a.npcId());
+					ctx.complete();
+				});
+			});
+		});
 	}
 }

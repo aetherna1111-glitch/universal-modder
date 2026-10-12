@@ -89,7 +89,10 @@ public class LuminaryNpcEntity extends PathAwareEntity {
 	protected void mobTick() {
 		super.mobTick();
 		if (!getWorld().isClient && npcId != null) {
-			LuminaryRuntime.get().ifPresent(rt -> rt.npc().tickTask(this));
+			LuminaryRuntime.get().ifPresent(rt -> {
+				rt.npc().tickTask(this);
+				rt.npc().tickAutonomy(this);
+			});
 		}
 	}
 
