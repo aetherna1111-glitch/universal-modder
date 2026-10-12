@@ -66,6 +66,15 @@ Single source of truth for resuming this work. Keep it short; update at mileston
 - Files: `luminary_app/ui/state.py`, `ui/main_window.py`, `ui/screens/home.py`, plus the new test.
 - Launcher tests: 124 passed. Backend: 50 passed.
 
+## Fourth pass (2026-10-12): one-file installer
+- `installer/` (NSIS script, `make_art.py`, `build_installer.py`): `Luminary-Setup-<version>.exe` is a
+  per-user, themed, Russian installer with shortcuts, an uninstaller and a Play-now checkbox. Its
+  shortcuts start `pythonw.exe` directly, so they don't depend on the untested Mono-built starter.
+- The launcher sets a Windows AppUserModelID so the taskbar shows Luminary instead of Python.
+- `package_release.py` excludes `installer/` from releases.
+- Installer checked under Wine (install, pages, uninstall). Not checked on real Windows.
+- The installer is unsigned, so SmartScreen will warn. Code signing would be an owner purchase.
+
 ## Owner actions (blocking production use)
 1. Rent a VPS + domain for the accounts service; deploy per docs/DEPLOYMENT.md §1.
 2. Reserve existing player names from usercache.json (§2).

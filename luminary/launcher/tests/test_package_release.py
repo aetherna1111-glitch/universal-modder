@@ -63,6 +63,7 @@ def test_valid_folder_packages_without_user_data_or_dev_files(prepared, tmp_path
                  "luminary_app/main.py", "assets/hero_bg.png", "SHA256SUMS.txt", "release-info.json"):
         assert must in shipped
     for never in ("launcher_data/session.bin", "logs/launcher.log", ".minecraft/mods/a.jar", "nickname.txt",
+                  "installer/luminary.nsi",
                   "make_manifest.py", "package_release.py", "build_starter.bat"):
         assert never not in shipped
     assert not any(s.startswith(("tests/", "starter/")) or "__pycache__" in s for s in shipped)

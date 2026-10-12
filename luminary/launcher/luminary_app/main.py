@@ -26,6 +26,13 @@ def main(argv: list[str] | None = None) -> int:
     from PySide6.QtGui import QFont, QIcon
     from PySide6.QtWidgets import QApplication, QMessageBox
 
+    if sys.platform == "win32":
+        # Started through pythonw.exe: without its own app id Windows groups the window under Python's icon.
+        try:
+            import ctypes
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Luminary.Launcher")
+        except Exception:
+            log.debug("could not set AppUserModelID", exc_info=True)
     app = QApplication([sys.argv[0], *qt_args])
     app.setApplicationName("Luminary Launcher")
     app.setApplicationVersion(__version__)

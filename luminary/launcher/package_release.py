@@ -34,7 +34,7 @@ REQUIRED_DIRS = ["luminary_app", "assets", "sounds", "python/Lib/site-packages/P
 EXPECTED_SUBSYSTEM = {"Luminary.exe": GUI, "python/pythonw.exe": GUI, "jre/bin/javaw.exe": GUI,
                       "LuminaryLauncher.exe": CONSOLE}  # PortableMC is a console program; the launcher hides it
 # Never shipped: per-player data, caches, development files.
-EXCLUDE_TOP = {"launcher_data", "logs", "runtime", ".minecraft", "tests", "starter", ".git", ".github",
+EXCLUDE_TOP = {"launcher_data", "logs", "runtime", ".minecraft", "tests", "starter", "installer", ".git", ".github",
                ".pytest_cache", "nickname.txt", "ram.txt", "manifest.json", "make_manifest.py",
                "package_release.py", "build_starter.bat", ".gitignore", "session.bin"}
 EXCLUDE_ANY = {"__pycache__", ".DS_Store", "Thumbs.db", "desktop.ini"}

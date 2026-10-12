@@ -27,3 +27,6 @@ launcher_data/
 runtime/
 nickname.txt
 ram.txt
+
+# installer artwork/build output
+installer/build/

@@ -7,7 +7,7 @@ no Windows machine and no access to the production server.
 
 ```sh
 cd luminary/backend  && pytest -q                                   # 50 passed
-cd luminary/launcher && QT_QPA_PLATFORM=offscreen pytest -q tests   # 124 passed
+cd luminary/launcher && QT_QPA_PLATFORM=offscreen pytest -q tests   # 127 passed
 cd <repo root>       && uv run --with pytest pytest -q tests        # toolkit: 87 passed, 1 skipped (unchanged)
 ./bin/um publish check . && ./bin/um kb check --index                # 0 failures (2 old warnings); 157 notes pass
 ```
@@ -31,6 +31,7 @@ cd <repo root>       && uv run --with pytest pytest -q tests        # toolkit: 8
 | Account-state transitions (`test_account_states.py`, real backend) | a session expired at startup signs out with a message. A session revoked on another PC ("sign out everywhere") is noticed by the heartbeat and signs out. An outage at startup keeps the session, allows nickname play, shows "<name> · нет связи" instead of "Войти", and retries silently. Recovery when the service returns needs no restart and no UI flicker. Losing the network while signed in switches to offline. A session close to expiry is rotated while the launcher stays open. |
 | Session file | it holds only protector output, a protector failure writes nothing (no plaintext fallback), and an unreadable file (another user's DPAPI blob) signs out and is deleted. DPAPI itself is Windows-only. |
 | Release packaging (`package_release.py`) | builds from the real sources plus stand-in binaries, with the real starter compiled by Mono. It ships no user data or dev files, `SHA256SUMS` match, and the zip is identical across two builds. It refuses a console starter, a missing Java or PySide6, localhost or plain-http account servers, machine paths and key material. |
+| Installer (`installer/`, `test_installer.py`) | artwork sizes, a per-user install, and an uninstaller that never wipes the install folder or touches player data on upgrade. Shortcuts point at `pythonw.exe`. A real NSIS build of a small installer is a GUI-subsystem exe. |
 | GUI-only start | starter compiles with Mono to PE subsystem 2 (GUI), argument quoting round-trips under CommandLineToArgvW rules, static guard that every subprocess call hides its console, no `print()` diagnostics |
 
 ## Verified against real software
@@ -51,6 +52,19 @@ cd <repo root>       && uv run --with pytest pytest -q tests        # toolkit: 8
 - **The launcher UI** was screenshotted on every page, signed out and signed in, against the live backend
   (`images/launcher-*.jpg`). The account-mode test passes the token the game received to the backend's
   join endpoint, and `hasJoined` returns the signed profile.
+
+**Installer under Wine (Linux, Wine 9, not real Windows).** A small build of the same installer script was
+installed silently and interactively. Results:
+
+- Files landed in `%LOCALAPPDATA%\Programs\Luminary`, with desktop and Start-menu shortcuts and the
+  uninstall registry entry.
+- The welcome, folder and finish pages rendered in Russian with the dark theme.
+- A silent uninstall removed program files, shortcuts and the registry key, and kept `.minecraft` and
+  `launcher_data`.
+- A Cyrillic-named shortcut appears only with a UTF-8 locale, which is a Wine/container quirk.
+
+The full 207 MB installer was built but not run under Wine, because its payload is real Windows Python and
+Java.
 
 ## Not verified here
 

@@ -120,6 +120,26 @@ developer files. The output is `release\Luminary\` with `SHA256SUMS.txt` and `re
 `Luminary-2.0.0.zip`. The zip is byte-for-byte reproducible from the same input, so you can publish its
 SHA-256 next to the download. Run `--check` instead of `--version` to only validate.
 
+**One-file installer for players.** From the same prepared folder, on any machine with NSIS 3
+(`apt install nsis` or the Windows NSIS package) and Pillow, run:
+
+```sh
+python installer/build_installer.py <prepared folder> <output dir> --version 2.0.0
+```
+
+This produces `Luminary-Setup-2.0.0.exe`, about 207 MB, and takes about 10 minutes for LZMA compression.
+
+- It installs per user into `%LOCALAPPDATA%\Programs\Luminary`, with no administrator prompt.
+- It shows dark kelp-themed welcome and finish pages in Russian. The artwork comes from `assets\` via
+  `installer/make_art.py`.
+- It creates desktop and Start-menu shortcuts that start the bundled `pythonw.exe` directly, so no console
+  appears. It also registers an "Apps & features" entry.
+- The finish page has an "Играть сейчас" (Play now) checkbox.
+- Upgrades keep `.minecraft`, `launcher_data` and `logs`. The uninstaller removes only installed files and
+  asks before deleting game data.
+- The installer is not code-signed, so Windows SmartScreen will warn on first run ("Подробнее" →
+  "Выполнить в любом случае"). Signing needs a code-signing certificate, which is an owner purchase.
+
 The launcher creates `launcher_data\`, `logs\`, `runtime\` (the authlib-injector jar, downloaded once and
 SHA-256 checked) and `.minecraft\` itself. Old `nickname.txt` and `ram.txt` are migrated automatically.
 If the launcher cannot start at all (a broken `python\` folder, or an install in a read-only place such as
