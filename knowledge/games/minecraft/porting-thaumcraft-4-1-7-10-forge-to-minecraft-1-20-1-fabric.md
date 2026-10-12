@@ -24,7 +24,10 @@ tags: [porting, legacy, 1.7.10, forge-to-fabric, gametest, worldgen, dimension, 
 > (323 passing on 2026-10-10, from 859 decompiled original classes to about 77,000 lines of port code). Rendering,
 > screens, the click path, natural world generation and the custom dimension are checked by screenshots from a real
 > client driven by a scripted harness. This note collects the 1.20.1 engine facts that cost time. The method is the
-> `port-a-mod` skill; Forge 1.7.10 → Fabric 1.20.1 mappings are in its `references/` folder.
+> `port-a-mod` skill (`skills/port-a-mod/`); Forge 1.7.10 → Fabric 1.20.1 mappings are in its `references/` folder.
+> The test traps that apply to any Fabric 1.20.1 mod have their own notes:
+> `techniques/fabric-1-20-1-gametests-as-the-oracle-of-a-large-mod-port.md` (GameTests) and
+> `techniques/a-scenario-harness-in-a-minecraft-fabric-dev-client-real-cli.md` (the client harness).
 
 ## Setup
 - Minecraft Java 1.20.1, Fabric Loader 0.16.14, Fabric API 0.92.12+1.20.1, Yarn 1.20.1+build.10 (v2), Loom 1.6.12
@@ -34,8 +37,12 @@ tags: [porting, legacy, 1.7.10, forge-to-fabric, gametest, worldgen, dimension, 
   SRG → MCP `stable_12-1.7.10` with a token-replacing script (859 classes, 7 not decompilable). CFR was the fallback
   for the classes Vineflower could not decompile cleanly. The decompile and the original assets live in the port's
   **private** repository, so every fresh session can read them; they are never shipped.
+- **Permission:** Thaumcraft is All Rights Reserved (Azanor). The port re-implements its code from the decompile and
+  its build uses TC4's own textures and sounds (see Assets), so releasing the port would need Azanor's permission.
+  The port's repository is private and this note links no release. Nothing from Thaumcraft (code, decompile,
+  textures, sounds or data files) is in this repository; the note describes the original's logic in its own words.
 - Target modpack pieces loaded in tests: Accessories 1.0.0-beta.48+1.20.1, cloth-config 11.1.118, Trinkets 3.7.2,
-  accessories-tc-layer 3.8.1-beta.14, Cardinal Components.
+  accessories-tc-layer 3.8.1+beta.14, Cardinal Components.
 - Builds ran offline from a populated Loom cache: `./gradlew build runGametest --no-daemon`. A fresh cloud container
   needs `maven.fabricmc.net`, `piston-meta.mojang.com`, `piston-data.mojang.com`, `libraries.minecraft.net`,
   `resources.download.minecraft.net` and each dependency's Maven allowed first.
@@ -61,13 +68,17 @@ tags: [porting, legacy, 1.7.10, forge-to-fabric, gametest, worldgen, dimension, 
 - **GameTest server:** it builds its world from the flat preset with only the vanilla dimensions, so datapack
   dimensions do not exist in `runGametest`. The NeoForge 1.21.1 note in this KB reports the same. Test dimension
   content in the overworld, and the dimension itself in a client run.
-- **Flat generator:** `FlatChunkGeneratorConfig` treats an all-air layer list as "no terrain" and then runs no biome
-  features at all. A void dimension whose biome feature builds everything needs one non-air, non-colliding layer:
+- **Flat generator:** `FlatChunkGeneratorConfig.createGenerationSettings` treats an all-air layer list as "no
+  terrain" (`hasNoTerrain`) and then copies none of the biome's features, unless the biome is `minecraft:the_void`.
+  A void dimension whose own biome feature builds everything needs one non-air, non-colliding layer:
   `minecraft:structure_void`, height 1.
 - **Experimental-settings warning:** a datapack dimension marks the world experimental in two places.
   `DimensionOptionsRegistryHolder.toConfig` compares the dimension count with vanilla's, and
   `getLifecycle(RegistryKey, DimensionOptions)` flags non-vanilla entries. One mixin patches both: a `@Redirect` on
   `List.size()` in `toConfig` that leaves out the mod's namespace, and a HEAD inject returning `Lifecycle.stable()`.
+  Both checks feed one value: `toConfig` creates the dimension registry with the count check's lifecycle, and
+  `SimpleRegistry.add` merges each entry's lifecycle into it, so either check alone keeps the world experimental
+  (read in the 1.20.1 bytecode during review; patching only one was not tried).
 - **Biome reads are blended:** `World.getBiome(BlockPos)` (`BiomeAccess.getBiome`) picks a neighbouring 4x4x4 cell
   by a seeded offset (`SeedMixer.mixSeed`). A block near a cell edge can therefore report another cell's biome than
   the one just written with `Chunk.populateBiomes`. Gameplay checks that must agree with a biome you set should read
@@ -118,14 +129,17 @@ tags: [porting, legacy, 1.7.10, forge-to-fabric, gametest, worldgen, dimension, 
   crucible, worktable, research table, research note solved by dragging aspects, infusion, a golem placed and
   cored by hand).
 - **Not verified:**
-  - whether patching only one of the two experimental-warning checks would be enough (both were patched together);
+  - patching only one of the two experimental-warning checks, in game (both were patched together; the bytecode
+    says both are needed);
   - Sodium / Indium with the port's FRAPI models (the dev runtime cannot run Sodium, gotcha 52);
   - a full survival playthrough, a full modpack instance, and multiplayer beyond a two-client smoke test.
 
 ## Gotchas
-1. **A dimension GameTest finds no world.**
-   - **Cause:** the GameTest server has no datapack dimensions.
-   - **Fix:** test the content in the overworld and the dimension in a client run.
+Traps that apply to any Fabric 1.20.1 GameTest suite or client harness are written up once, in the GameTest note
+(`techniques/fabric-1-20-1-gametests-as-the-oracle-of-a-large-mod-port.md`) and the harness note
+(`techniques/a-scenario-harness-in-a-minecraft-fabric-dev-client-real-cli.md`). They keep their number here and
+point there.
+1. **A dimension GameTest finds no world.** The GameTest server has no datapack dimensions: GameTest note, gotcha 7.
 2. **Void dimension, but the biome feature never runs.**
    - **Cause:** all-air flat layers count as "no terrain", so features are skipped.
    - **Fix:** one `structure_void` layer.
@@ -139,26 +153,15 @@ tags: [porting, legacy, 1.7.10, forge-to-fabric, gametest, worldgen, dimension, 
 5. **A biome was just written but the check says it wasn't, at some positions only.**
    - **Cause:** `getBiome` blends neighbouring cells by seed.
    - **Fix:** read the stored cell with `getBiomeForNoiseGen`.
-6. **Unrelated tests start failing after new tests are added.**
-   - **Cause:** test positions moved, and global state keyed by position (static maps, `PersistentState`) leaked
-     between tests and batches.
-   - **Fix:** each test clears the global state round its own position.
-7. **A mob on a pressure plate never presses it.**
-   - **Cause:** the mob had `setAiDisabled(true)`. It then never ran its block-collision callbacks. Observed; the exact
-     code path was not traced.
-   - **Fix:** use an item entity, or a mob with AI.
-8. **Mobs in other tests act strangely.**
-   - **Cause:** `createMockCreativeServerPlayerInWorld()` adds a real player that every test in the batch sees. It
-     also has about 60 ticks of join invulnerability.
-   - **Fix:** give such tests their own `batchId`, wait past the invulnerability, and remove the player with
-     `world.removePlayer(player, DISCARDED)`.
-9. **`ctx.createMockPlayer()` does not compile on 1.20.1.**
-   - **Cause:** 1.20.1 only has `createMockSurvivalPlayer`, `createMockCreativePlayer` and
-     `createMockCreativeServerPlayerInWorld`.
-   - **Fix:** use one of those.
-10. **Boss entities spawned in corner chunks are not found by `getEntitiesByClass`.**
-    - **Cause:** those chunks were not entity-ticking.
-    - **Fix:** `setChunkForced` them during the test.
+6. **Unrelated tests start failing after new tests are added.** Global state keyed by position leaks between tests:
+   GameTest note, gotcha 2.
+7. **A mob on a pressure plate never presses it.** It had `setAiDisabled(true)`: GameTest note, gotcha 8.
+8. **Mobs in other tests act strangely.** The in-world mock player is seen by every test in the batch: GameTest
+   note, gotcha 3.
+9. **`ctx.createMockPlayer()` does not compile on 1.20.1.** 1.20.1 has only the three `createMock*Player*` methods:
+   GameTest note, gotcha 3.
+10. **Boss entities spawned in corner chunks are not found by `getEntitiesByClass`.** Those chunks were not
+    entity-ticking: GameTest note, gotcha 6.
 11. **Crop "growth" code does nothing.**
     - **Cause:** 1.20 crops grow in `randomTick`; 1.7.10 used `updateTick`.
     - **Fix:** call `randomTick`.
@@ -173,10 +176,8 @@ tags: [porting, legacy, 1.7.10, forge-to-fabric, gametest, worldgen, dimension, 
     - **Fix:** inside a formed structure those inputs never change. Compute them once when it forms, store them as
       block-state properties, and generate one model per state with a script that ports `getIcon`. For TC4's
       infernal furnace that was 231 states, and it keeps vanilla culling and AO.
-14. **A screenshot harness reported success, but the picture was from an older run.**
-    - **Cause:** the harness's own compile failed, and the wrapper script still exited 0 while the previous PNG
-      stayed on disk.
-    - **Fix:** fail when no new file is written, and compare the PNG's hash with the last run before looking at it.
+14. **A screenshot harness reported success, but the picture was from an older run.** The harness's compile had
+    failed and the old PNG was still on disk: harness note, "The wrapper script".
 15. **Log "Tried to load a block entity for block X but failed" right after world generation.**
     - **Cause:** a 1.7.10 block class covered several metas, only some with a tile entity (`hasTileEntity(meta)`). Ported as
       one `BlockWithEntity` per meta, every state counts as having a block entity. `ChunkRegion.setBlockState` then queues
@@ -190,23 +191,16 @@ tags: [porting, legacy, 1.7.10, forge-to-fabric, gametest, worldgen, dimension, 
     - **Fix:** shift the frame by -8 (`x = chunkX * 16 - 8`): the same 16 x 16 square lands on the decorated chunk and
       trees get 16 blocks of margin on every side. Densities stay the same; positions move 8 blocks for a given seed.
 17. **A scripted screenshot client lands underwater or on the ground after a long teleport, though it was flying.**
-    - **Cause:** a creative player teleported into chunks the client has not loaded yet counts as on the ground, and the
-      client switches creative flight off; it falls once the chunks arrive.
-    - **Fix:** put the harness player in spectator mode before long teleports (flight is locked, no hand in the shot).
-18. **Finding a naturally generated jigsaw piece (a modded village house) in a test world.**
-    - **How:** walk the structure set's `RandomSpreadStructurePlacement.getStartChunk(structureSeed, rx * spacing,
-      rz * spacing)` cells, load those chunks only to `ChunkStatus.STRUCTURE_STARTS`, and scan
-      `getStructureStarts()` children for `PoolStructurePiece`s. 81 cells took about 12 s.
-    - **Gotcha:** match the piece by its template id (`getPoolElement().toString()` contains it). Element identity
-      maps break for starts read back from a saved chunk, where the elements are new instances.
+    Creative flight switches off in unloaded chunks; use spectator mode: harness note, gotcha 2.
+18. **Finding a naturally generated jigsaw piece (a modded village house) in a test world.** Walk the structure
+    set's placement cells to `STRUCTURE_STARTS` and match pieces by template id: harness note, "Natural generation".
 19. **"Mod was built with a newer version of Loom (1.7.413), you are using Loom (1.6.12)" when adding a dependency.**
     - **Cause:** Loom refuses to remap a mod jar whose manifest `Fabric-Loom-Version` is newer than the build's Loom.
     - **Fix:** raise Loom to at least that minor (1.6.12 -> 1.7.4 worked on Gradle 8.8 with no other change; 314 tests
       unchanged). Patching the jar's manifest also works but leaves a modified third-party jar to maintain.
 20. **`NoClassDefFoundError: net/fabricmc/mapping/tree/TinyMappingFactory` at launch after adding cloth-config.**
-    - **Cause:** cloth-config 11.1.118's pom depends on fabric-loader 0.14.21 and an old Fabric API; Gradle pulled them
-      onto the dev runtime next to the project's loader.
-    - **Fix:** declare such mod dependencies with `{ transitive = false }`.
+    Its pom pulled an old fabric-loader and Fabric API onto the dev runtime; use `{ transitive = false }`: GameTest
+    note, gotcha 12.
 21. **Trinkets and the Accessories "Trinkets compat layer" in one pack (1.20.1).**
     - **Fact:** accessories-tc-layer 3.8.1+beta.14 declares `"provides": ["trinkets"]` and ships the Trinkets API
       classes. With Trinkets 3.7.2 also installed, Fabric Loader 0.16.14 keeps the layer (higher version) as
@@ -217,8 +211,10 @@ tags: [porting, legacy, 1.7.10, forge-to-fabric, gametest, worldgen, dimension, 
 22. **"No data fixer registered for <modid>:<entity>" ERROR lines at every start, also on a production server.**
     - **Cause:** `EntityType.Builder.build(id)` calls `Util.getChoiceType` only to validate the id against vanilla's
       data fixer schema and drops the result; mod ids are never in it.
-    - **Fix:** a `@Redirect` of that call in `EntityType.Builder.build` returning null for your namespace (or build the
-      types without the vanilla builder). Saving and loading do not depend on it; all 318 tests still passed.
+    - **Fix:** a `@Redirect` of that call in `EntityType.Builder.build` returning null for your namespace. Saving and
+      loading do not depend on it; all 318 tests still passed. Fabric API's `FabricEntityTypeBuilder` avoids the line
+      without a mixin: in Fabric API 0.92 (1.20.1) its `build()` constructs the `EntityType` directly and never makes
+      that call.
 23. **Testing the release jar, not the dev runtime.**
     - **How:** the official server launcher `https://meta.fabricmc.net/v2/versions/loader/<mc>/<loader>/<installer>/server/jar`,
       the remapped jar plus real dependency jars in `mods/`, `eula=true`, pipe `stop` once the log says `Done (`, then
@@ -232,12 +228,8 @@ tags: [porting, legacy, 1.7.10, forge-to-fabric, gametest, worldgen, dimension, 
       against the real reference; hash every texture and model and compare with the reference jar's assets
       (here 16 textures and a whole folder of OBJ meshes had no TC4 origin; 9 icons that looked new were exact
       crops of a TC4 sprite sheet). Removing an unused leftover is safe only after grepping for its path.
-25. **A regression test that could not fail.**
-    - **Symptom:** a test for "one toggle per key press" held the key for 40 ticks with key repeat; the toggle
-      cycles mod 3 and 40 is 1 mod 3, so the old buggy code passed too. A cooldown test used a focus whose
-      cooldown is 0 ms and failed for a reason unrelated to the change.
-    - **Fix:** choose inputs so the old behaviour gives a different answer (30 repeats: old 0, new 1), and read the
-      reference values the test depends on before writing it.
+25. **A regression test that could not fail.** 40 ticks of key repeat on a mod-3 toggle gave the buggy code the
+    right answer too: GameTest note, gotcha 1.
 26. **Systematic renderer drift that per-feature tests never catch.**
     - **Symptom:** every gameplay test passed, yet the thaumometer was invisible, infused ores were solid tinted
       cubes, glows were cut into hard blobs and many item icons faced the wrong way.
@@ -245,7 +237,7 @@ tags: [porting, legacy, 1.7.10, forge-to-fabric, gametest, worldgen, dimension, 
       code with the original renderer line by line (GL state, matrix sequence, brightness, UVs) and returning
       findings ranked by visibility; then one harness scenario that places every flagged object and is re-run after
       each fix. About 60 differences surfaced in one pass; none was TC5-derived. Details of the GL11 to 1.20 mapping:
-      `techniques/porting-1-7-10-gl11-render-states-and-iitemrenderer-frames-t.md` (its own branch).
+      `techniques/porting-1-7-10-gl11-render-states-and-iitemrenderer-frames-t.md`.
 27. **Item icons of TESR-drawn blocks a quarter-turn off.**
     - **Symptom:** chests showed their back, tables and the bore base faced away; adding TC4's own
       renderInventoryBlock rotations did not help.
@@ -266,16 +258,9 @@ tags: [porting, legacy, 1.7.10, forge-to-fabric, gametest, worldgen, dimension, 
       aspect>", "nothing can be learned"); the port kept only the server's re-check, which refuses quietly.
     - **Fix:** port the client-side pre-check with its message. Found only by driving the item through the real
       client (use key held) in a scripted scenario, not by server tests.
-30. **Driving TC4 GUIs from a Fabric client harness.**
-    - **Symptom:** synthetic `mouseClicked` calls on the Thaumonomicon did nothing, or clicked the wrong node.
-    - **Cause:** screens that pick their hover target while rendering (from the real mouse position) ignore the
-      coordinates passed to `mouseClicked`.
-    - **Fix:** set `Mouse.x / y` by reflection (window pixels = scaled point x window width / scaled width), let a
-      frame render, then call `mouseClicked` / `mouseReleased` at the same scaled point; small read-only hooks on the
-      screens (node, tab, hex and palette centres) keep the harness free of layout copies. Hold an item use with
-      `useKey.setPressed(true)` plus `interactItem` (the client re-uses every 4 ticks while it is held, as a
-      player's would). Pick targets the setup commands do not already unlock: a "give research" command that grants
-      parents recursively had unlocked the first choice, so its "learned" check passed for the wrong reason.
+30. **Synthetic `mouseClicked` calls on the Thaumonomicon did nothing, or clicked the wrong node.** TC4's screens
+    pick their hover target while rendering, from the real mouse position; move the mouse first, and add small
+    read-only hooks for node, tab, hex and palette centres: harness note, gotcha 12.
 
 31. **Every block in the game lost its mipmaps ("limits mip level from 4 to 1").**
     - **Cause:** a handful of 1.7.10 textures 6 or 8 px wide (animated strips, one leftover 8 x 8) in the block atlas
@@ -378,11 +363,14 @@ tags: [porting, legacy, 1.7.10, forge-to-fabric, gametest, worldgen, dimension, 
     and send sites in the decompile before porting, and record what was skipped.
 
 ## Assets
-The original mod's own textures and sounds are used; no generated assets.
+The port's private build uses the original mod's own textures and sounds (Azanor's, All Rights Reserved; see
+Setup). None of them are in this repository. No generated assets.
 
 ## Cost and time
 Many sessions. One full `build runGametest` takes about 1–2 minutes from a warm Loom cache.
 
 ## Open questions
-- Is one of the two experimental-warning checks enough on its own?
-- Does the block-collision skip for AI-disabled mobs come from `Entity.move` not running? Not traced in source.
+- Answered from the 1.20.1 bytecode during review: neither experimental-warning check is enough alone (How the game
+  works), and AI-disabled mobs skip their block collisions because `Entity.move` never runs for them (GameTest note,
+  gotcha 8).
+- Does the port hold up under Sodium and Indium in a real modpack (gotcha 52)?
