@@ -54,6 +54,18 @@ Single source of truth for resuming this work. Keep it short; update at mileston
   gradle, docs/decisions). It shares no file with this work except `luminary/README.md`, which both
   branches create. That file was not edited in this pass; expect a merge conflict there.
 
+## Third pass (2026-10-12)
+- Verified the checkpoint again: 50 backend and 119 launcher tests pass, the manifest is still 404, and
+  the parallel branch is unchanged and has no overlap.
+- Fixed account-state defects found by new real-backend tests (`tests/test_account_states.py`):
+  - A session revoked elsewhere, or expired while the launcher was open, went unnoticed. The heartbeat
+    failure was only logged; it now signs out with a message.
+  - An outage at startup never recovered without a restart. It now retries silently every 60 s.
+  - Sessions were rotated only at startup. The heartbeat now rotates them near expiry.
+  - While offline, the UI offered "Войти" to a signed-in user. It now shows "<name> · нет связи".
+- Files: `luminary_app/ui/state.py`, `ui/main_window.py`, `ui/screens/home.py`, plus the new test.
+- Launcher tests: 124 passed. Backend: 50 passed.
+
 ## Owner actions (blocking production use)
 1. Rent a VPS + domain for the accounts service; deploy per docs/DEPLOYMENT.md §1.
 2. Reserve existing player names from usercache.json (§2).

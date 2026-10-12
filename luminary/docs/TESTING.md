@@ -7,7 +7,7 @@ no Windows machine and no access to the production server.
 
 ```sh
 cd luminary/backend  && pytest -q                                   # 50 passed
-cd luminary/launcher && QT_QPA_PLATFORM=offscreen pytest -q tests   # 119 passed
+cd luminary/launcher && QT_QPA_PLATFORM=offscreen pytest -q tests   # 124 passed
 cd <repo root>       && uv run --with pytest pytest -q tests        # toolkit: 87 passed, 1 skipped (unchanged)
 ./bin/um publish check . && ./bin/um kb check --index                # 0 failures (2 old warnings); 157 notes pass
 ```
@@ -28,6 +28,7 @@ cd <repo root>       && uv run --with pytest pytest -q tests        # toolkit: 8
 | Modpack publishing (`make_manifest.py`) | a generated manifest is accepted by the launcher's own parser and syncs a fresh install end to end. Names launchers would reject are refused (`CON.jar`, trailing space, `:`, case-only duplicates, symlinks), and temp files are skipped. The previous manifest survives a refused build. `--check` finds changed, missing and unlisted files. `--check-remote` finds corrupted and missing published files and an unpublished manifest. |
 | Zero-byte files in the pack | regression test: an empty file in the pack used to make every update fail. Fixed in `modpack._download`. |
 | Startup guard (`launcher.py`) | a missing PySide6 (also in a real subprocess), a read-only folder, and an unwritable `logs\` (falls back to `%LOCALAPPDATA%`) each give a message plus `startup-error.log`. Normal exit codes pass through. |
+| Account-state transitions (`test_account_states.py`, real backend) | a session expired at startup signs out with a message. A session revoked on another PC ("sign out everywhere") is noticed by the heartbeat and signs out. An outage at startup keeps the session, allows nickname play, shows "<name> · нет связи" instead of "Войти", and retries silently. Recovery when the service returns needs no restart and no UI flicker. Losing the network while signed in switches to offline. A session close to expiry is rotated while the launcher stays open. |
 | Session file | it holds only protector output, a protector failure writes nothing (no plaintext fallback), and an unreadable file (another user's DPAPI blob) signs out and is deleted. DPAPI itself is Windows-only. |
 | Release packaging (`package_release.py`) | builds from the real sources plus stand-in binaries, with the real starter compiled by Mono. It ships no user data or dev files, `SHA256SUMS` match, and the zip is identical across two builds. It refuses a console starter, a missing Java or PySide6, localhost or plain-http account servers, machine paths and key material. |
 | GUI-only start | starter compiles with Mono to PE subsystem 2 (GUI), argument quoting round-trips under CommandLineToArgvW rules, static guard that every subprocess call hides its console, no `print()` diagnostics |

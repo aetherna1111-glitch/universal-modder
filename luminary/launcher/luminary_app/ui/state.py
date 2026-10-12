@@ -40,6 +40,10 @@ class AppState(QObject):
         self.presence_timer = QTimer(self)
         self.presence_timer.setInterval(60_000)
         self.presence_timer.timeout.connect(self.send_presence)
+        # While the accounts service is unreachable, keep checking quietly instead of until restart.
+        self.retry_timer = QTimer(self)
+        self.retry_timer.setInterval(60_000)
+        self.retry_timer.timeout.connect(self.retry_offline)
         if self.settings.ram_mb not in system.ram_choices(self.total_ram):
             self.settings.ram_mb = system.clamp_ram(self.settings.ram_mb, self.total_ram)
 
@@ -117,7 +121,48 @@ class AppState(QObject):
 
     def _set_status(self, status: str) -> None:
         self.status = status
+        if status == "offline" and self.session:
+            if not self.retry_timer.isActive():
+                self.retry_timer.start()
+        else:
+            self.retry_timer.stop()
+        if status != "ok":
+            self.presence_timer.stop()
         self.account_status.emit(status)
+
+    def _go_offline(self, exc: Exception) -> None:
+        log.info("accounts service unreachable (%s); will retry", getattr(exc, "code", type(exc).__name__))
+        if self.status != "offline":
+            self._set_status("offline")
+            self.account_changed.emit()
+
+    @staticmethod
+    def _is_outage(exc: Exception) -> bool:
+        return isinstance(exc, ApiError) and (exc.offline or exc.status >= 500 or exc.code == "bad_response")
+
+    def retry_offline(self) -> None:
+        """Background re-check while offline. Silent: the UI only changes when the service is back."""
+        if not self.session or self.status != "offline":
+            self.retry_timer.stop()
+            return
+        api = self.api()
+
+        def done(me):
+            if not self.session or self.status != "offline":
+                return
+            self.me = me
+            self._set_status("ok")
+            self.presence_timer.start()
+            self.account_changed.emit()
+            self.send_presence()
+            self.toast.emit("Связь с сервером аккаунтов восстановлена", "ok")
+
+        def failed(exc):
+            if isinstance(exc, ApiError) and exc.unauthorized and self.session:
+                self.sign_out_local("Сессия истекла, войди снова")
+            # otherwise stay offline; the timer tries again
+
+        self.runner.run(lambda ctx: api.me(), done, failed, name="retry-session")
 
     def restore_session(self) -> None:
         if not self.session:
@@ -163,12 +208,39 @@ class AppState(QObject):
         return "Неожиданная ошибка, подробности в журнале"
 
     def send_presence(self) -> None:
+        """Heartbeat (every 60 s while signed in): presence for friends, and the session health check.
+
+        Rotates the session when it nears expiry, signs out when the service says the session is gone
+        (expired, "sign out everywhere", password changed, account disabled) and switches to offline
+        mode with background retries when the service cannot be reached."""
         if not self.session or self.status != "ok":
             return
         api = self.api()
         state = "playing" if self.game_state == "running" else "online"
-        self.runner.run(lambda ctx: api.presence(state), on_error=lambda e: log.debug("presence failed: %s", e),
-                        name="presence")
+        expires = self.session.get("expires_at") or 0
+        rotate = bool(expires) and expires - time.time() < REFRESH_BEFORE
+
+        def work(ctx):
+            if rotate:
+                return api.refresh()
+            api.presence(state)
+            return None
+
+        def done(body):
+            if body and self.session:
+                self.apply_login(body)  # stores the new token; old one is revoked server-side
+
+        def failed(exc):
+            if not self.session:
+                return
+            if isinstance(exc, ApiError) and exc.unauthorized:
+                self.sign_out_local("Сессия завершена (истекла или был выход на всех устройствах). Войди снова")
+            elif self._is_outage(exc):
+                self._go_offline(exc)
+            else:
+                log.debug("presence failed: %s", exc)
+
+        self.runner.run(work, done, failed, name="presence")
 
     def set_game_state(self, state: str) -> None:
         if state != self.game_state:

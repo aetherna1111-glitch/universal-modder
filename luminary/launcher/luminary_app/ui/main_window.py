@@ -276,6 +276,8 @@ class MainWindow(QWidget):
             chip.setText(((st.me or {}).get("profile") or {}).get("name", "Профиль"))
         elif st.status == "checking":
             chip.setText("Проверка…")
+        elif st.status == "offline" and st.session:
+            chip.setText(f"{st.session.get('username') or 'Аккаунт'} · нет связи")
         else:
             chip.setText("Войти")
 

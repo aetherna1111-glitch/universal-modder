@@ -135,8 +135,9 @@ class PlayerCard(Card):
     def refresh(self) -> None:
         st = self.state
         accounts = st.accounts_enabled
+        offline_session = st.status == "offline" and bool(st.session)
         for w in (self.login_link, self.register_link, self.links_sep):
-            w.setVisible(accounts)
+            w.setVisible(accounts and not offline_session)  # already signed in, just no connection
         if st.signed_in:
             me = st.me or {}
             self.acc_name.setText(me.get("profile", {}).get("name") or me.get("username", ""))

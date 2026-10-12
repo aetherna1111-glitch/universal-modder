@@ -32,7 +32,7 @@ and Fabric 1.20.1 servers with `tools/verify_skins.py`.
 | Passwords | Argon2id (argon2-cffi defaults: 64 MiB, t=3, p=4), rehashed if parameters change. 8–128 chars, not the username, not on a small common-password list. The launcher never stores passwords. |
 | Launcher session | 256-bit random token. Only its SHA-256 is stored server-side. 30 days, rotated by the launcher when under 7 days remain. Sent as `Authorization: Bearer`. |
 | Game token | Separate 256-bit token, 48 h, issued per launch from a session. It can only do Yggdrasil operations (join/validate/refresh), never account changes. Revoked with its parent session. |
-| Revocation | Logout revokes the session and its game tokens. "Sign out everywhere", a password change (all other sessions) and disabling an account revoke everything. |
+| Revocation | Logout revokes the session and its game tokens. "Sign out everywhere", a password change (all other sessions) and disabling an account revoke everything. An open launcher notices a revoked or expired session at its next heartbeat (within about 60 s) and signs out. If the service is unreachable it keeps the session and retries every 60 s. |
 | Client storage | `launcher_data/session.bin`, encrypted with Windows DPAPI for the current user; owner-only file elsewhere. |
 | Brute force | Per IP: 20 login attempts/10 min, 100/day. Per account: 10 failures/15 min from any IP, which slows credential stuffing. Registration: 5/hour per IP. Limits live in SQLite and survive restarts. |
 | Enumeration | Login errors are identical for "no such user" and "wrong password", and both cost an Argon2 verification. Registration has to say "name taken", since names are public in-game anyway. User search requires a session. |
