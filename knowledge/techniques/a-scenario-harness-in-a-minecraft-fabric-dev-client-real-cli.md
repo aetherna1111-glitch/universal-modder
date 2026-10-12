@@ -20,6 +20,10 @@ tags: [minecraft, fabric, loom, testing, screenshots, harness, worldgen, multipl
   `ClientPlayerInteractionManager`, a packet and the server's use path; a GameTest calling the item method does not).
 - For anything visual (models, item display transforms, screens, particles) and for naturally generated content.
 - For a cheap multiplayer smoke test with two real clients.
+- On Minecraft 1.21.4 and later, look at Fabric API's own client game tests first: `fabric-client-gametest-api-v1`
+  (entrypoint `fabric-client-gametest`) has simulated input, singleplayer and dedicated-server contexts and
+  screenshot comparison. Fabric API 0.92 for 1.20.1 has only the server-side `fabric-gametest-api-v1`, hence this
+  hand-made harness.
 Verified on Minecraft 1.20.1, Fabric Loader 0.16.14, Loom 1.7.4, Windows 10 and Linux (Xvfb).
 
 ## How
@@ -42,10 +46,14 @@ Verified on Minecraft 1.20.1, Fabric Loader 0.16.14, Loom 1.7.4, Windows 10 and 
   `ChunkStatus.STRUCTURE_STARTS`; find biomes with `ServerWorld.locateBiome`; find features by generating chunks
   outwards and scanning sections with `ChunkSection.hasAny(predicate)`. Log the seed, the generator class and every
   position used, and fail loudly when nothing is found instead of placing it by hand.
+  - Scan `getStructureStarts()` children for `PoolStructurePiece`s and match a piece by its template id
+    (`getPoolElement().toString()` contains it). Element identity maps break for starts read back from a saved
+    chunk, where the elements are new instances. 81 placement cells took about 12 s.
 - **Two clients:** a second Loom client run config with its own `runDir` and `--username`, started some seconds
   after the first, against a dedicated server run config whose stdin gets `op @a` every few seconds.
 - **The wrapper script** fails when no new screenshot was written, so a crashed or never-compiled client is not
-  mistaken for success.
+  mistaken for success. (A failed harness compile once still exited 0 and left the previous PNG on disk.) Compare
+  each PNG's hash with the last run's before looking at it.
 - **Load probe:** the same queue can spawn N entities / block entities and log `MinecraftServer.getTickTime()`
   before and after.
 
@@ -58,7 +66,8 @@ Verified on Minecraft 1.20.1, Fabric Loader 0.16.14, Loom 1.7.4, Windows 10 and 
 2. **The camera fell into the ocean.**
    - **Cause:** a creative player teleported into chunks the client has not loaded counts as on the ground, and the
      client switches flight off.
-   - **Fix:** spectator mode for camera-only scenarios.
+   - **Fix:** spectator mode for camera-only scenarios, set before long teleports (flight is locked, and no hand
+     shows in the shot).
 3. **Commands silently did nothing in the multiplayer run.**
    - **Cause:** the clients sent commands before the server's op loop had opped them ("Unknown or incomplete
      command" in the client log).
@@ -93,7 +102,24 @@ Verified on Minecraft 1.20.1, Fabric Loader 0.16.14, Loom 1.7.4, Windows 10 and 
 11. **Error dialogs on the user's screen.** Harness clients open real windows, so loader or Sodium error dialogs
     appear on the user's desktop. Run under `xvfb-run` where available. A Linux container with Xvfb and Mesa
     (software OpenGL) needs no physical display.
+12. **Synthetic clicks on a screen did nothing, or hit the wrong element.**
+    - **Cause:** screens that pick their hover target while rendering, from the real mouse position, ignore the
+      coordinates passed to `mouseClicked`.
+    - **Fix:** set `Mouse.x` / `Mouse.y` by reflection (window pixels = scaled point x window width / scaled width),
+      let a frame render, then call `mouseClicked` / `mouseReleased` at the same scaled point. Small read-only hooks
+      on the mod's screens that report element centres keep layout copies out of the harness.
+    - To hold an item use, `useKey.setPressed(true)` plus `interactItem`: the client then re-uses every 4 ticks
+      while the key is held, as a player's would.
 
 ## Seen in
 - `games/minecraft/porting-thaumcraft-4-1-7-10-forge-to-minecraft-1-20-1-fabric.md`: natural villages, biomes and
-  features on a seed-12345 world; 9 of 9 real-click progression checks; two clients; a 100-node / 40-golem load probe.
+  features on a seed-12345 world; 9 of 9 real-click checks and a 28 / 28 progression scenario; two clients; a
+  100-node / 40-golem load probe.
+  Its gotchas 28 and 29 are two more finds of this harness (aiming the camera at RNG-predicted positions, a refusal
+  that was silent only in the port).
+- `techniques/fabric-1-20-1-gametests-as-the-oracle-of-a-large-mod-port.md`: the server-side suite this harness
+  complements.
+- Other scripted dev-client autotests in this KB:
+  - `games/halo-3-mcc/halo-3-weapons-covenant-vehicles-and-maps-ported-into-minecr.md`;
+  - `games/fpv-logic/fpv-logic-drones-flight-model-rc-radio-and-3d-models-in-minecraft.md`;
+  - `games/minecraft/bloons-td-6-in-minecraft.md`.
