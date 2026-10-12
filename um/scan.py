@@ -462,8 +462,11 @@ ENGINES = {
     "genie": ("Genie (Age of Empires DE)", "genie-aoe2.md", "data mods (genieutils-py), graphics/UI mods, scenarios; SLD sprites"),
     "clausewitz": ("Paradox Clausewitz/Jomini", "misc-engines.md", "script mods (plain text) in Documents/Paradox Interactive/<game>/mod"),
     "re-engine": ("Capcom RE Engine", "big-frameworks.md", "REFramework (Lua scripts, in-game UI) + Fluffy Mod Manager for pak/natives replacements"),
+    "mt-framework": ("Capcom MT Framework", "big-frameworks.md", ".arc archives under native*/ (nativePC, nativeDX10, ...): ARCtool to unpack/repack, Fluffy Mod Manager to install; DeadRisingEx for Dead Rising; native code via DLL hooks"),
     "fromsoft": ("FromSoftware (Dantelion)", "big-frameworks.md", "ModEngine2 + Smithbox/DSMapStudio, param edits; offline only"),
     "rage": ("Rockstar RAGE", "big-frameworks.md", "story mode: ScriptHookV + ASI loader, OpenIV/CodeWalker for assets; never online"),
+    "hedgehog": ("Hedgehog Engine (Sonic Team)", "big-frameworks.md", "Hedge Mod Manager + its HE1/HE2 mod loaders (Generations, Lost World, Forces, Frontiers, Shadow Generations) or Unleashed Recompiled's built-in loader: mod.ini folders of loose file replacements"),
+    "blackrock": ("Black Rock Studio engine (Split/Second)", "big-frameworks.md", "no community tools: .ark packs, .model/.textures assets and plaintext .params config to reverse yourself; native code via DLL hooks"),
     "redengine": ("CD Projekt REDengine", "big-frameworks.md", "REDmod, Cyber Engine Tweaks, RED4ext, WolvenKit (Cyberpunk); REDkit (Witcher 3)"),
     "idtech": ("id Tech / Doom family", "misc-engines.md", "WAD/PK3/PK4 mods, source ports"),
     "cryengine": ("CryEngine", "native.md", "pak (zip) overrides, Lua/XML where exposed; native hooks otherwise"),
@@ -649,9 +652,26 @@ def detect(ix: Index) -> tuple[list[tuple[str, int, list[str], dict]], dict]:
     if ix.has("re_chunk_000.pak", "re_chunk_000.pak.*"):
         add("re-engine", 100, ["re_chunk_000.pak"])
 
+    # Capcom MT Framework: .arc archives under a native* folder whose name depends on the port: nativePC (Dragon's
+    # Dogma: Dark Arisen), nativePC_MT (Resident Evil 5), nativeDX10 (Devil May Cry 4 SE), nativeWin64 (Dead Rising)
+    if ix.has("native*/*.arc"):
+        add("mt-framework", 95, ix.find("native*/*.arc")[:2])
+
     # FromSoftware
     if ix.has("eldenring.exe", "game/eldenring.exe", "darksoulsiii.exe", "game/darksoulsiii.exe", "sekiro.exe", "armoredcore6.exe", "game/armoredcore6.exe", "nightreign.exe", "game/nightreign.exe") or ix.has("*/regulation.bin", "regulation.bin"):
         add("fromsoft", 95, ix.find("*eldenring.exe", "*darksoulsiii.exe", "*sekiro.exe", "*armoredcore6.exe", "*nightreign.exe", "*regulation.bin")[:2])
+
+    # Sonic Team's Hedgehog Engine: the exes Hedge Mod Manager looks for (HE1: Unleashed Recompiled, Generations,
+    # Lost World; HE2: Forces, Frontiers, Shadow Generations), or loose HE1 split archives (#ActD_Africa.ar.00 + .arl).
+    # Sonic Generations (2011) packs its .ar files into CRI bb*.cpk packfiles, so the archives alone don't catch it.
+    he_exes = ix.find("unleashedrecomp.exe", "unleashedrecomp", "sonicgenerations.exe", "slw.exe", "*sonic forces.exe",
+                      "sonicfrontiers.exe", "sonic_x_shadow_generations.exe")
+    if he_exes or (ix.has("*.arl") and ix.has("*.ar", "*.ar.??")):
+        add("hedgehog", 95, he_exes[:1] + ix.find("*.arl")[:1])
+
+    # Black Rock Studio's engine (Split/Second): .shaderinst shader instances next to .model assets
+    if ix.has("*.shaderinst") and ix.has("*.model"):
+        add("blackrock", 95, ix.find("*.shaderinst")[:1] + ix.find("*.model")[:1])
 
     # RAGE
     if ix.has("gta5.exe", "gta5_enhanced.exe", "playgtav.exe", "rdr2.exe", "gtaiv.exe") or (ix.has("*.rpf") and ix.has("*.exe")):
