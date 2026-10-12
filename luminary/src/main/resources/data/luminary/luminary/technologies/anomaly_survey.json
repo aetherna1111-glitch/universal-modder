@@ -1,0 +1,6 @@
+{ "id": "luminary:tech/anomaly_survey", "era": "luminary:era/town", "title": "technology.luminary.tech.anomaly_survey",
+  "prerequisites": [ { "type": "era_at_least", "era": "luminary:era/town" },
+                     { "type": "technology_unlocked", "technology": "luminary:tech/ore_assay" },
+                     { "type": "discovery_verified", "discovery": "luminary:phenomenon/deviation_zone" } ],
+  "applies": [ "luminary:phenomenon/deviation_zone" ],
+  "grants": [ "luminary:cap/survey_instruments" ] }

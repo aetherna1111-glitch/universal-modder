@@ -1,6 +1,7 @@
 package dev.luminary.core.persistence;
 
 import dev.luminary.core.catalog.CatalogState;
+import dev.luminary.core.progression.ProgressionState;
 
 import java.util.Objects;
 import java.util.Set;
@@ -12,22 +13,28 @@ import java.util.TreeSet;
  */
 public final class CivilizationState {
 	/** Bump when the JSON shape changes; add a step to {@link SchemaMigrations}. */
-	public static final int CURRENT_SCHEMA_VERSION = 1;
+	public static final int CURRENT_SCHEMA_VERSION = 2;
 
 	private final CatalogState catalog;
+	private final ProgressionState progression;
 	private final Set<String> executedEffectIds;
 
 	public CivilizationState() {
-		this(new CatalogState(), new TreeSet<>());
+		this(new CatalogState(), new ProgressionState(), new TreeSet<>());
 	}
 
-	public CivilizationState(CatalogState catalog, Set<String> executedEffectIds) {
+	public CivilizationState(CatalogState catalog, ProgressionState progression, Set<String> executedEffectIds) {
 		this.catalog = Objects.requireNonNull(catalog);
+		this.progression = Objects.requireNonNull(progression);
 		this.executedEffectIds = new TreeSet<>(executedEffectIds);
 	}
 
 	public CatalogState catalog() {
 		return catalog;
+	}
+
+	public ProgressionState progression() {
+		return progression;
 	}
 
 	public Set<String> executedEffectIds() {

@@ -18,5 +18,18 @@
   "luminary.catalog.duplicate_evidence": "Это свидетельство уже записано",
   "discovery.luminary.material.first_trace_ore": "Первый след (неизвестный минерал)",
   "discovery.luminary.phenomenon.deviation_zone": "Зона отклонения",
-  "discovery.luminary.structure.foreign_record": "Чужая запись"
+  "discovery.luminary.structure.foreign_record": "Чужая запись",
+  "luminary.command.progression_status": "Эра: %s. Открыто технологий: %s из %s. Возможности: [%s]. Сигналы: %s",
+  "luminary.command.unlocked": "Технология %s открыта",
+  "luminary.command.unlocked_forced": "Технология %s открыта (административное решение, записано в историю)",
+  "luminary.command.signal_set": "Сигнал %s установлен в %s",
+  "luminary.progression.unknown_technology": "Нет технологии с таким id (см. data/<ns>/luminary/technologies/)",
+  "luminary.progression.already_unlocked": "Эта технология уже открыта",
+  "luminary.progression.prerequisites_unmet": "Предпосылки не выполнены (см. /luminary progression technologies)",
+  "luminary.progression.no_definitions": "Определения прогрессии не загружены",
+  "era.luminary.zero_meridian": "Фаза 0: Нулевой меридиан",
+  "era.luminary.settlement": "Развивающееся поселение",
+  "era.luminary.town": "Организованный город",
+  "technology.luminary.tech.ore_assay": "Анализ руды",
+  "technology.luminary.tech.anomaly_survey": "Обследование аномалий"
 }

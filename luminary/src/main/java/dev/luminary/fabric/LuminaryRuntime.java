@@ -1,9 +1,10 @@
 package dev.luminary.fabric;
 
 import dev.luminary.core.catalog.CatalogService;
-import dev.luminary.core.catalog.Templates;
+import dev.luminary.core.progression.ProgressionService;
 import dev.luminary.core.events.EventBus;
 import dev.luminary.core.persistence.CivilizationState;
+import dev.luminary.fabric.definitions.Definitions;
 import dev.luminary.fabric.definitions.DefinitionsReloadListener;
 import dev.luminary.fabric.state.LuminaryWorldState;
 import net.minecraft.server.MinecraftServer;
@@ -23,25 +24,40 @@ public final class LuminaryRuntime {
 	private final LuminaryWorldState worldState;
 	private final EventBus events;
 	private CatalogService catalog;
+	private ProgressionService progression;
 
 	private LuminaryRuntime(MinecraftServer server, LuminaryWorldState worldState) {
 		this.server = server;
 		this.worldState = worldState;
 		this.events = new EventBus((event, listener, error) ->
 				Luminary.LOGGER.error("[luminary] listener {} failed on {}", listener.getClass().getName(), event, error));
-		rebuildServices(DefinitionsReloadListener.currentTemplates());
+		rebuildServices(DefinitionsReloadListener.current());
 	}
 
-	/** Called by the reload listener after templates were replaced; records are untouched. */
-	public void rebuildServices(Templates templates) {
-		this.catalog = new CatalogService(worldState.state().catalog(), templates, events, Clock.systemUTC(), worldState::markDirty);
+	/**
+	 * (Re)builds the services on top of the persisted state with the given definitions. Called at start and by the
+	 * reload listener after a successful {@code /reload}; records and unlocks are untouched, rules may change.
+	 * A fresh EventBus-subscription set is created each time so stale services stop receiving events.
+	 */
+	public void rebuildServices(Definitions definitions) {
+		EventBus bus = this.eventsRebuilt();
+		this.catalog = new CatalogService(worldState.state().catalog(), definitions.discoveries(), bus, Clock.systemUTC(), worldState::markDirty);
+		this.progression = new ProgressionService(worldState.state().progression(), definitions.progression(), catalog, bus, Clock.systemUTC(), worldState::markDirty);
+		this.progression.start();
+	}
+
+	private EventBus eventsRebuilt() {
+		events.clearSubscriptions();
+		return events;
 	}
 
 	static void start(MinecraftServer server) {
 		LuminaryWorldState state = LuminaryWorldState.get(server);
 		current = new LuminaryRuntime(server, state);
-		Luminary.LOGGER.info("[luminary] state loaded: {} catalog records, {} executed effects, {} discovery templates",
-				state.state().catalog().size(), state.state().executedEffectIds().size(), current.catalog.templates().size());
+		Luminary.LOGGER.info("[luminary] state loaded: {} catalog records, {} unlocked technologies, era {}, {} executed effects; definitions: {} templates, {} eras, {} technologies",
+				state.state().catalog().size(), state.state().progression().unlocked().size(), state.state().progression().currentEra().map(Object::toString).orElse("-"),
+				state.state().executedEffectIds().size(), current.catalog.templates().size(),
+				current.progression.definitions().erasInOrder().size(), current.progression.definitions().technologies().size());
 	}
 
 	static void stop(MinecraftServer server) {
@@ -57,6 +73,10 @@ public final class LuminaryRuntime {
 
 	public CatalogService catalog() {
 		return catalog;
+	}
+
+	public ProgressionService progression() {
+		return progression;
 	}
 
 	public CivilizationState state() {

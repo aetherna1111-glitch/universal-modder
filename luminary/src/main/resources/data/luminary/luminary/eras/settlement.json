@@ -1,0 +1,2 @@
+{ "id": "luminary:era/settlement", "order": 1, "title": "era.luminary.settlement",
+  "prerequisites": [ { "type": "discovery_verified", "discovery": "luminary:material/first_trace_ore" } ] }

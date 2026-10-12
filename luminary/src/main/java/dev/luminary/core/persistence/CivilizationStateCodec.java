@@ -14,6 +14,7 @@ import dev.luminary.core.catalog.DiscoveryStatus;
 import dev.luminary.core.catalog.Evidence;
 import dev.luminary.core.catalog.StatusChange;
 import dev.luminary.core.ids.LuminaryId;
+import dev.luminary.core.progression.ProgressionState;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -56,12 +57,36 @@ public final class CivilizationStateCodec {
 		JsonObject catalog = new JsonObject();
 		catalog.add("records", records);
 		root.add("catalog", catalog);
+		root.add("progression", progressionToJson(state.progression()));
 		JsonArray effects = new JsonArray();
 		for (String id : state.executedEffectIds()) {
 			effects.add(id);
 		}
 		root.add("executedEffects", effects);
 		return root;
+	}
+
+	private static JsonObject progressionToJson(ProgressionState p) {
+		JsonObject o = new JsonObject();
+		p.currentEra().ifPresent(e -> o.addProperty("currentEra", e.toString()));
+		JsonObject eras = new JsonObject();
+		p.eraEnteredAt().forEach((id, at) -> eras.addProperty(id.toString(), at.toString()));
+		o.add("eras", eras);
+		JsonObject unlocked = new JsonObject();
+		p.unlocked().forEach((id, u) -> {
+			JsonObject uo = new JsonObject();
+			uo.addProperty("at", u.at().toString());
+			uo.addProperty("reason", u.reason());
+			if (u.actor() != null) {
+				uo.addProperty("actor", u.actor().toString());
+			}
+			unlocked.add(id.toString(), uo);
+		});
+		o.add("unlocked", unlocked);
+		JsonObject signals = new JsonObject();
+		p.signals().forEach((id, v) -> signals.addProperty(id.toString(), v));
+		o.add("signals", signals);
+		return o;
 	}
 
 	private static JsonObject recordToJson(DiscoveryRecord r) {
@@ -150,13 +175,39 @@ public final class CivilizationStateCodec {
 				catalogPut(catalog, r);
 			}
 		}
+		ProgressionState progression = progressionFromJson(root.has("progression") ? root.getAsJsonObject("progression") : new JsonObject());
 		TreeSet<String> effects = new TreeSet<>();
 		if (root.has("executedEffects")) {
 			for (JsonElement el : root.getAsJsonArray("executedEffects")) {
 				effects.add(el.getAsString());
 			}
 		}
-		return new CivilizationState(catalog, effects);
+		return new CivilizationState(catalog, progression, effects);
+	}
+
+	private static ProgressionState progressionFromJson(JsonObject o) {
+		ProgressionState p = new ProgressionState();
+		if (o.has("eras")) {
+			for (Map.Entry<String, JsonElement> e : o.getAsJsonObject("eras").entrySet()) {
+				ProgressionState.Restore.era(p, LuminaryId.parse(e.getKey()), Instant.parse(e.getValue().getAsString()));
+			}
+		}
+		if (o.has("currentEra")) {
+			ProgressionState.Restore.currentEra(p, LuminaryId.parse(o.get("currentEra").getAsString()));
+		}
+		if (o.has("unlocked")) {
+			for (Map.Entry<String, JsonElement> e : o.getAsJsonObject("unlocked").entrySet()) {
+				JsonObject u = e.getValue().getAsJsonObject();
+				ProgressionState.Restore.unlock(p, LuminaryId.parse(e.getKey()), new ProgressionState.Unlock(Instant.parse(u.get("at").getAsString()),
+						u.get("reason").getAsString(), u.has("actor") ? UUID.fromString(u.get("actor").getAsString()) : null));
+			}
+		}
+		if (o.has("signals")) {
+			for (Map.Entry<String, JsonElement> e : o.getAsJsonObject("signals").entrySet()) {
+				ProgressionState.Restore.signal(p, LuminaryId.parse(e.getKey()), e.getValue().getAsLong());
+			}
+		}
+		return p;
 	}
 
 	private static void catalogPut(CatalogState state, DiscoveryRecord r) {

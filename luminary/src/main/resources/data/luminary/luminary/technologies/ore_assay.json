@@ -1,0 +1,5 @@
+{ "id": "luminary:tech/ore_assay", "era": "luminary:era/settlement", "title": "technology.luminary.tech.ore_assay",
+  "prerequisites": [ { "type": "era_at_least", "era": "luminary:era/settlement" },
+                     { "type": "discovery_verified", "discovery": "luminary:material/first_trace_ore" } ],
+  "applies": [ "luminary:material/first_trace_ore" ],
+  "grants": [ "luminary:cap/assay_bench" ] }

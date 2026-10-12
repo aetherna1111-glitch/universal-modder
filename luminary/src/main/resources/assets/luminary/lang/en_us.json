@@ -18,5 +18,18 @@
   "luminary.catalog.duplicate_evidence": "That evidence was already recorded",
   "discovery.luminary.material.first_trace_ore": "The First Trace (unknown mineral)",
   "discovery.luminary.phenomenon.deviation_zone": "A zone of deviation",
-  "discovery.luminary.structure.foreign_record": "The Foreign Record"
+  "discovery.luminary.structure.foreign_record": "The Foreign Record",
+  "luminary.command.progression_status": "Era: %s. Unlocked %s of %s technologies. Capabilities: [%s]. Signals: %s",
+  "luminary.command.unlocked": "Technology %s unlocked",
+  "luminary.command.unlocked_forced": "Technology %s unlocked (administrative override, recorded)",
+  "luminary.command.signal_set": "Signal %s set to %s",
+  "luminary.progression.unknown_technology": "No technology with that id (check data/<ns>/luminary/technologies/)",
+  "luminary.progression.already_unlocked": "That technology is already unlocked",
+  "luminary.progression.prerequisites_unmet": "Prerequisites are not met (see /luminary progression technologies)",
+  "luminary.progression.no_definitions": "No progression definitions are loaded",
+  "era.luminary.zero_meridian": "Phase 0: The Zero Meridian",
+  "era.luminary.settlement": "A developing settlement",
+  "era.luminary.town": "An organized town",
+  "technology.luminary.tech.ore_assay": "Ore assay",
+  "technology.luminary.tech.anomaly_survey": "Anomaly survey"
 }

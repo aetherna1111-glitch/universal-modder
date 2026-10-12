@@ -93,6 +93,30 @@ class CivilizationStateCodecTest {
 	}
 
 	@Test
+	void progressionRoundTripsAndV1DocumentsMigrate() {
+		CivilizationStateCodec codec = CivilizationStateCodec.production();
+		CivilizationState s = new CivilizationState();
+		dev.luminary.core.progression.ProgressionState.Restore.era(s.progression(), LuminaryId.of("era/zero"), NOW);
+		dev.luminary.core.progression.ProgressionState.Restore.currentEra(s.progression(), LuminaryId.of("era/zero"));
+		dev.luminary.core.progression.ProgressionState.Restore.unlock(s.progression(), LuminaryId.of("tech/a"),
+				new dev.luminary.core.progression.ProgressionState.Unlock(NOW, "admin_override:1_unmet", UUID.nameUUIDFromBytes("admin".getBytes())));
+		dev.luminary.core.progression.ProgressionState.Restore.signal(s.progression(), LuminaryId.of("signal/x"), 42L);
+		CivilizationState copy = codec.decode(codec.encode(s));
+		assertEquals(LuminaryId.of("era/zero"), copy.progression().currentEra().orElseThrow());
+		assertEquals("admin_override:1_unmet", copy.progression().unlocked().get(LuminaryId.of("tech/a")).reason());
+		assertEquals(42L, copy.progression().signal(LuminaryId.of("signal/x")));
+		assertEquals(codec.encode(s), codec.encode(copy));
+
+		// A document written by the first slice (schema 1: catalog + executedEffects only) must load.
+		String v1 = "{\"schemaVersion\":1,\"catalog\":{\"records\":[]},\"executedEffects\":[\"x\"]}";
+		CivilizationState migrated = codec.decode(v1);
+		assertTrue(migrated.progression().currentEra().isEmpty());
+		assertTrue(migrated.progression().unlocked().isEmpty());
+		assertFalse(migrated.claimEffect("x"));
+		assertEquals(2, CivilizationState.CURRENT_SCHEMA_VERSION);
+	}
+
+	@Test
 	void emptyStateDecodesFromMinimalDocument() {
 		CivilizationState s = CivilizationStateCodec.production().decode("{\"schemaVersion\":1}");
 		assertEquals(0, s.catalog().size());

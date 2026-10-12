@@ -21,4 +21,13 @@ public sealed interface DomainEvent {
 
 	/** The status of a discovery changed (OBSERVED→VERIFIED or VERIFIED→APPLIED). */
 	record DiscoveryStatusChanged(Instant at, LuminaryId discovery, DiscoveryStatus from, DiscoveryStatus to, UUID actor) implements DomainEvent {}
+
+	/** A technology unlocked; {@code actor} is null for automatic (prerequisites met) unlocks. */
+	record TechnologyUnlocked(Instant at, LuminaryId technology, UUID actor) implements DomainEvent {}
+
+	/** The civilization entered {@code era}; {@code from} is null for the first era. */
+	record EraEntered(Instant at, LuminaryId era, LuminaryId from) implements DomainEvent {}
+
+	/** A progression signal changed value; {@code source} names the integration or command that set it. */
+	record SignalChanged(Instant at, LuminaryId signal, long oldValue, long newValue, String source) implements DomainEvent {}
 }

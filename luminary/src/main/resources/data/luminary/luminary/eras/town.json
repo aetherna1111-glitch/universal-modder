@@ -1,0 +1,3 @@
+{ "id": "luminary:era/town", "order": 2, "title": "era.luminary.town",
+  "prerequisites": [ { "type": "technology_unlocked", "technology": "luminary:tech/ore_assay" },
+                     { "type": "signal", "signal": "luminary:signal/luminarium_founded", "min": 1 } ] }

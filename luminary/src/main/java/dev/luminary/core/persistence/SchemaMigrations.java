@@ -56,8 +56,23 @@ public final class SchemaMigrations {
 		return current;
 	}
 
-	/** The production chain. Version 1 is the first persisted shape, so there are no steps yet. */
+	/**
+	 * The production chain, starting at the first persisted shape (v1). Steps:
+	 * <ol>
+	 *   <li>v1 → v2: adds the {@code progression} object (no era, no unlocks, no signals).</li>
+	 * </ol>
+	 */
 	public static SchemaMigrations production() {
-		return new SchemaMigrations(CivilizationState.CURRENT_SCHEMA_VERSION);
+		return new SchemaMigrations(1)
+				.step(doc -> {
+					if (!doc.has("progression")) {
+						JsonObject p = new JsonObject();
+						p.add("eras", new JsonObject());
+						p.add("unlocked", new JsonObject());
+						p.add("signals", new JsonObject());
+						doc.add("progression", p);
+					}
+					return doc;
+				});
 	}
 }

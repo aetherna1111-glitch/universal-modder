@@ -47,23 +47,24 @@ public final class CatalogGameTests implements FabricGameTest {
 		if (unknown != 0 || rt.state().catalog().get(LuminaryId.parse("luminary:" + id)).isPresent()) {
 			throw new GameTestException("observing an unknown template must fail and store nothing");
 		}
-		// Known template: stored once, attributed to the console source; a re-observation becomes ONE evidence entry
-		// (deterministic id per observer), so the third call is a duplicate and changes nothing.
-		run(ctx, console, "luminary catalog observe " + ORE);
-		run(ctx, console, "luminary catalog observe " + ORE);
-		int duplicate = tryRun(ctx, console, "luminary catalog observe " + ORE);
-		DiscoveryRecord r = rt.state().catalog().get(ORE).orElseThrow(() -> new AssertionError("record missing"));
+		// All GameTests share one server, so this test uses FOREIGN (no technology applies it) and the progression test
+		// owns ORE. Known template: stored once, attributed to the console source; a re-observation becomes ONE evidence
+		// entry (deterministic id per observer), so the third call is a duplicate and changes nothing.
+		run(ctx, console, "luminary catalog observe " + FOREIGN);
+		run(ctx, console, "luminary catalog observe " + FOREIGN);
+		int duplicate = tryRun(ctx, console, "luminary catalog observe " + FOREIGN);
+		DiscoveryRecord r = rt.state().catalog().get(FOREIGN).orElseThrow(() -> new AssertionError("record missing"));
 		if (r.status() != DiscoveryStatus.OBSERVED || r.evidence().size() != 1 || duplicate != 0) {
 			throw new GameTestException("re-observation must be stored once as evidence; got status " + r.status() + ", evidence " + r.evidence().size() + ", duplicate result " + duplicate);
 		}
-		// Verification refused while requirements are not met (needs 2 contributors + 8 samples).
-		int verified = tryRun(ctx, console, "luminary catalog verify " + ORE);
-		if (verified != 0 || rt.state().catalog().get(ORE).orElseThrow().status() != DiscoveryStatus.OBSERVED) {
+		// Verification refused: FOREIGN depends on deviation_zone (unverified) and needs 2 contributors.
+		int verified = tryRun(ctx, console, "luminary catalog verify " + FOREIGN);
+		if (verified != 0 || rt.state().catalog().get(FOREIGN).orElseThrow().status() != DiscoveryStatus.OBSERVED) {
 			throw new GameTestException("verify must be refused before requirements are met");
 		}
 		// Forced verification is allowed for the console (op 4) and recorded.
-		run(ctx, console, "luminary catalog verify " + ORE + " force");
-		DiscoveryRecord v = rt.state().catalog().get(ORE).orElseThrow();
+		run(ctx, console, "luminary catalog verify " + FOREIGN + " force");
+		DiscoveryRecord v = rt.state().catalog().get(FOREIGN).orElseThrow();
 		if (v.status() != DiscoveryStatus.VERIFIED || !v.history().get(v.history().size() - 1).reason().startsWith("admin_override:")) {
 			throw new GameTestException("forced verification must be VERIFIED with an admin_override history line");
 		}
@@ -103,6 +104,37 @@ public final class CatalogGameTests implements FabricGameTest {
 		} catch (com.mojang.brigadier.exceptions.CommandSyntaxException e) {
 			throw new GameTestException("command syntax: /" + command + " -> " + e.getMessage());
 		}
+	}
+
+	@GameTest(templateName = EMPTY_STRUCTURE)
+	public void progressionCascadesFromVerifiedDiscoveryAndSignals(TestContext ctx) {
+		LuminaryRuntime rt = LuminaryRuntime.get().orElseThrow();
+		ServerCommandSource console = ctx.getWorld().getServer().getCommandSource();
+		LuminaryId zero = LuminaryId.parse("luminary:era/zero_meridian"), settlement = LuminaryId.parse("luminary:era/settlement"), town = LuminaryId.parse("luminary:era/town");
+		LuminaryId assay = LuminaryId.parse("luminary:tech/ore_assay");
+		if (rt.progression().definitions().erasInOrder().size() != 3 || rt.progression().definitions().technologies().size() != 2) {
+			throw new GameTestException("expected the bundled 3 eras and 2 technologies");
+		}
+		if (!rt.progression().state().currentEra().orElseThrow().equals(zero)) {
+			throw new GameTestException("fresh world must start in era zero_meridian, got " + rt.progression().state().currentEra());
+		}
+		if (tryRun(ctx, console, "luminary progression unlock " + assay) != 0) {
+			throw new GameTestException("unlock must be refused while prerequisites are unmet");
+		}
+		// Verify the ore (forced, console) → era settlement → ore_assay auto-unlocks → ore APPLIED.
+		run(ctx, console, "luminary catalog observe luminary:material/first_trace_ore");
+		run(ctx, console, "luminary catalog verify luminary:material/first_trace_ore force");
+		if (!rt.progression().state().currentEra().orElseThrow().equals(settlement) || !rt.progression().state().isUnlocked(assay)) {
+			throw new GameTestException("verification must cascade into era settlement + ore_assay; era=" + rt.progression().state().currentEra() + " unlocked=" + rt.progression().state().unlocked().keySet());
+		}
+		if (rt.state().catalog().get(LuminaryId.parse("luminary:material/first_trace_ore")).orElseThrow().status() != DiscoveryStatus.APPLIED) {
+			throw new GameTestException("unlocking ore_assay must mark the ore APPLIED");
+		}
+		run(ctx, console, "luminary progression signal luminary:signal/luminarium_founded 1");
+		if (!rt.progression().state().currentEra().orElseThrow().equals(town)) {
+			throw new GameTestException("signal must advance the era to town, got " + rt.progression().state().currentEra());
+		}
+		ctx.complete();
 	}
 
 	private static void run(TestContext ctx, ServerCommandSource source, String command) {

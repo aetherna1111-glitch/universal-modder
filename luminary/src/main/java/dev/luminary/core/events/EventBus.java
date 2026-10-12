@@ -53,6 +53,11 @@ public final class EventBus {
 		}
 	}
 
+	/** Drops every subscription (services are rebuilt on data pack reload). Published history is kept. */
+	public void clearSubscriptions() {
+		subscriptions.clear();
+	}
+
 	/** Events published so far, oldest first (useful for tests and the debug command). */
 	public List<DomainEvent> history() {
 		return List.copyOf(published);
