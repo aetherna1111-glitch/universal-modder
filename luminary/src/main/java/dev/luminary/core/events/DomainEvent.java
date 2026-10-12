@@ -30,4 +30,13 @@ public sealed interface DomainEvent {
 
 	/** A progression signal changed value; {@code source} names the integration or command that set it. */
 	record SignalChanged(Instant at, LuminaryId signal, long oldValue, long newValue, String source) implements DomainEvent {}
+
+	/** The story moved to {@code to}; {@code from} is null on a fresh world; {@code actor} is null for automatic activation. */
+	record StoryPhaseChanged(Instant at, LuminaryId from, LuminaryId to, UUID actor, String reason) implements DomainEvent {}
+
+	/** An administrator committed the civilization to a strategic approach ({@code previous} may be null). */
+	record StoryBranchChosen(Instant at, LuminaryId previous, LuminaryId branch, UUID actor) implements DomainEvent {}
+
+	/** An authored clue was surfaced to players through {@code source} (npc, book, admin). */
+	record ClueRevealed(Instant at, LuminaryId clue, String source) implements DomainEvent {}
 }

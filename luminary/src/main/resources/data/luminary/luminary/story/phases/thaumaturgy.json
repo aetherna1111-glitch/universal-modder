@@ -1,0 +1,11 @@
+{
+  "id": "luminary:story/thaumaturgy",
+  "order": 4,
+  "title": "story.phase.luminary.thaumaturgy",
+  "conditions": [
+    {
+      "type": "era_at_least",
+      "era": "luminary:era/town"
+    }
+  ]
+}

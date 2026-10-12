@@ -1,0 +1,15 @@
+{
+  "id": "luminary:clue/record_author",
+  "phase": "luminary:story/foreign_record",
+  "text": "story.clue.luminary.record_author",
+  "conditions": [
+    {
+      "type": "clue_revealed",
+      "clue": "luminary:clue/compass_lie"
+    },
+    {
+      "type": "technology_unlocked",
+      "technology": "luminary:tech/ore_assay"
+    }
+  ]
+}

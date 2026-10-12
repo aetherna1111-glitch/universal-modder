@@ -2,6 +2,7 @@ package dev.luminary.fabric;
 
 import dev.luminary.core.catalog.CatalogService;
 import dev.luminary.core.progression.ProgressionService;
+import dev.luminary.core.story.StoryController;
 import dev.luminary.core.events.EventBus;
 import dev.luminary.core.persistence.CivilizationState;
 import dev.luminary.fabric.definitions.Definitions;
@@ -25,6 +26,7 @@ public final class LuminaryRuntime {
 	private final EventBus events;
 	private CatalogService catalog;
 	private ProgressionService progression;
+	private StoryController story;
 
 	private LuminaryRuntime(MinecraftServer server, LuminaryWorldState worldState) {
 		this.server = server;
@@ -44,6 +46,8 @@ public final class LuminaryRuntime {
 		this.catalog = new CatalogService(worldState.state().catalog(), definitions.discoveries(), bus, Clock.systemUTC(), worldState::markDirty);
 		this.progression = new ProgressionService(worldState.state().progression(), definitions.progression(), catalog, bus, Clock.systemUTC(), worldState::markDirty);
 		this.progression.start();
+		this.story = new StoryController(worldState.state().story(), definitions.story(), progression::holds, bus, Clock.systemUTC(), worldState::markDirty);
+		this.story.start();
 	}
 
 	private EventBus eventsRebuilt() {
@@ -54,10 +58,12 @@ public final class LuminaryRuntime {
 	static void start(MinecraftServer server) {
 		LuminaryWorldState state = LuminaryWorldState.get(server);
 		current = new LuminaryRuntime(server, state);
-		Luminary.LOGGER.info("[luminary] state loaded: {} catalog records, {} unlocked technologies, era {}, {} executed effects; definitions: {} templates, {} eras, {} technologies",
+		Luminary.LOGGER.info("[luminary] state loaded: {} catalog records, {} unlocked technologies, era {}, story phase {}, {} executed effects; definitions: {} templates, {} eras, {} technologies, {} phases, {} clues",
 				state.state().catalog().size(), state.state().progression().unlocked().size(), state.state().progression().currentEra().map(Object::toString).orElse("-"),
+				state.state().story().currentPhase().map(Object::toString).orElse("-"),
 				state.state().executedEffectIds().size(), current.catalog.templates().size(),
-				current.progression.definitions().erasInOrder().size(), current.progression.definitions().technologies().size());
+				current.progression.definitions().erasInOrder().size(), current.progression.definitions().technologies().size(),
+				current.story.definitions().phasesInOrder().size(), current.story.definitions().clues().size());
 	}
 
 	static void stop(MinecraftServer server) {
@@ -77,6 +83,10 @@ public final class LuminaryRuntime {
 
 	public ProgressionService progression() {
 		return progression;
+	}
+
+	public StoryController story() {
+		return story;
 	}
 
 	public CivilizationState state() {

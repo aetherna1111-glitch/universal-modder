@@ -1,0 +1,11 @@
+{
+  "id": "luminary:clue/compass_lie",
+  "phase": "luminary:story/deviation",
+  "text": "story.clue.luminary.compass_lie",
+  "conditions": [
+    {
+      "type": "clue_revealed",
+      "clue": "luminary:clue/ore_hum"
+    }
+  ]
+}

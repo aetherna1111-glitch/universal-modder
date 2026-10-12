@@ -60,6 +60,7 @@ public final class SchemaMigrations {
 	 * The production chain, starting at the first persisted shape (v1). Steps:
 	 * <ol>
 	 *   <li>v1 → v2: adds the {@code progression} object (no era, no unlocks, no signals).</li>
+	 *   <li>v2 → v3: adds the {@code story} object (no phase, no branch, no revealed clues, empty history).</li>
 	 * </ol>
 	 */
 	public static SchemaMigrations production() {
@@ -71,6 +72,16 @@ public final class SchemaMigrations {
 						p.add("unlocked", new JsonObject());
 						p.add("signals", new JsonObject());
 						doc.add("progression", p);
+					}
+					return doc;
+				})
+				.step(doc -> {
+					if (!doc.has("story")) {
+						JsonObject st = new JsonObject();
+						st.add("phases", new JsonObject());
+						st.add("revealed", new JsonObject());
+						st.add("history", new com.google.gson.JsonArray());
+						doc.add("story", st);
 					}
 					return doc;
 				});

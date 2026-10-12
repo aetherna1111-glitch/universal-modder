@@ -1,0 +1,11 @@
+{
+  "id": "luminary:story/beyond_boundary",
+  "order": 6,
+  "title": "story.phase.luminary.beyond_boundary",
+  "conditions": [
+    {
+      "type": "phase_at_least",
+      "phase": "luminary:story/response"
+    }
+  ]
+}

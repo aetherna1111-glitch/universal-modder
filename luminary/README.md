@@ -10,20 +10,21 @@ slice**; design and research live in `../docs/research/luminary-2026-10-11/` (st
 | Area | State |
 |---|---|
 | Pure-Java core: ids, event bus, Catalog rules (observe / evidence / verify / applied), JSON codec, schema migrations (v1→v2) | **implemented, unit-tested** |
-| Pure-Java core: Progression — eras, technologies, prerequisites (era / verified discovery / unlocked technology / signal), automatic cascading unlocks, era advancement, admin override, capabilities | **implemented, unit-tested** (27 tests in total) |
-| Fabric layer: mod init, `PersistentState` (`<world>/data/luminary.dat`), data-pack loader (discoveries, eras, technologies), `/luminary catalog` and `/luminary progression` commands, en/ru lang | **implemented**; covered by 4 GameTests |
-| Gameplay enforcement of capabilities (recipe/item gates), Story (phases, clues), City (facilities), NPC, LLM provider, mod integrations | **designed, not implemented** — see the research set |
+| Pure-Java core: Progression — eras, technologies, prerequisites (era / verified discovery / unlocked technology / signal), automatic cascading unlocks, era advancement, admin override, capabilities | **implemented, unit-tested** |
+| Pure-Java core: Story — ordered phases (admin-controlled; opt-in auto-advance on explicit conditions), strategic branches, authored clues with reveal conditions and no override, full phase history; schema v3 | **implemented, unit-tested** (34 tests in total) |
+| Fabric layer: mod init, `PersistentState` (`<world>/data/luminary.dat`), data-pack loader (discoveries, eras, technologies, story phases/clues/branches), `/luminary catalog`, `/luminary progression`, `/luminary story` commands, en/ru lang | **implemented**; covered by 5 GameTests |
+| Gameplay enforcement of capabilities (recipe/item gates), City (facilities), NPC, LLM provider, mod integrations | **designed, not implemented** — see the research set |
 | Thaumcraft 4 port bridge (`dev.luminary.api` plugin entrypoint) | **proposed**, needs the port maintainers |
 
 Nothing here grants items, unlocks recipes or changes gameplay yet. The slice proves the architecture: a Minecraft-free
 core, server-side rules, persistence with migrations, admin commands, and an in-world test harness.
 
-## Last recorded verification (2026-10-12, slice 2, JDK 21 runtime, `release 17`)
+## Last recorded verification (2026-10-12, slice 3, JDK 21 runtime, `release 17`)
 
 | Check | Result |
 |---|---|
-| `./gradlew build` (compile main/test/gametest, 27 unit tests, jar) | passed; `build/libs/luminary-0.1.0.jar` (100 KB) |
-| `./gradlew runGametest` (headless 1.20.1 server, Fabric API 0.92.12, Loader 0.19.5) | "All 4 required tests passed" |
+| `./gradlew build` (compile main/test/gametest, 34 unit tests, jar) | passed; `build/libs/luminary-0.1.0.jar` (137 KB) |
+| `./gradlew runGametest` (headless 1.20.1 server, Fabric API 0.92.12, Loader 0.19.5) | "All 5 required tests passed" |
 | `um publish check luminary` | 0 failures (1 warning in the ignored `.gradle/` cache) |
 | Not verified | a real dedicated server with players; the integrated client; any other mod loaded alongside |
 
@@ -58,6 +59,10 @@ cd luminary
 /luminary progression technologies              [2]  each technology with its still-missing prerequisites
 /luminary progression unlock <id> [force]       [3/4] explicit unlock; force bypasses prerequisites and is recorded
 /luminary progression signal <id> <value>       [4]  set an external signal (integrations will do this in code)
+/luminary story status | phases | clues         [2]  phase, branch, revealed / revealable clues
+/luminary story set <phase>                     [4]  administrative phase change (forward or back), recorded with actor
+/luminary story branch <branch>                 [4]  commit to a strategic approach
+/luminary story reveal <clue>                   [3]  surface an authored clue; refused while locked — there is no override
 ```
 Ids are Minecraft identifiers: always write the namespace (`luminary:material/first_trace_ore`).
 
@@ -99,11 +104,31 @@ not a per-player purchase); unlocking marks `applies` discoveries APPLIED in the
 its prerequisites hold; eras never go backwards. Evaluation re-runs after every Catalog status change, unlock, era
 change and signal change (see ADR-0003).
 
+## Data packs: story
+
+`data/<ns>/luminary/story/phases/*.json`, `.../story/clues/*.json`, `.../story/branches/*.json`
+
+```json
+{ "id": "luminary:story/first_trace", "order": 1, "title": "story.phase.luminary.first_trace", "autoAdvance": true,
+  "conditions": [ { "type": "discovery_verified", "discovery": "luminary:material/first_trace_ore" } ] }
+
+{ "id": "luminary:clue/compass_lie", "phase": "luminary:story/deviation", "text": "story.clue.luminary.compass_lie",
+  "conditions": [ { "type": "clue_revealed", "clue": "luminary:clue/ore_hum" } ] }
+
+{ "id": "luminary:story/branch/containment", "title": "story.branch.luminary.containment" }
+```
+Condition types: every progression prerequisite type plus `branch_chosen`, `clue_revealed`, `phase_at_least`.
+Semantics (ADR-0004): phases change only by an administrator, except phases that set `autoAdvance: true`, which are
+entered automatically when their conditions hold; admin changes may go backwards and are always recorded. A clue can be
+revealed only once its phase is reached and its conditions hold; there is deliberately no override. Clue texts are
+authored lang entries: the future NPC/LLM layer may only ask `mayReveal` and quote the authored text.
+The bundled phases are the seven working titles from the vision (0 Zero Meridian … VI Beyond the Boundary).
+
 ## Layout
 
 ```
 src/main/java/dev/luminary/core/        pure Java (no net.minecraft / net.fabricmc imports; enforced by a test)
-  ids/ events/ catalog/ progression/ persistence/
+  ids/ events/ catalog/ progression/ story/ persistence/
 src/main/java/dev/luminary/fabric/      Minecraft-facing: Luminary (init), LuminaryRuntime, state/, command/, definitions/
 src/test/java/                          JUnit 5
 src/gametest/java/                      Fabric GameTests (second Loom mod "luminary-gametest", never shipped)

@@ -113,7 +113,35 @@ class CivilizationStateCodecTest {
 		assertTrue(migrated.progression().currentEra().isEmpty());
 		assertTrue(migrated.progression().unlocked().isEmpty());
 		assertFalse(migrated.claimEffect("x"));
-		assertEquals(2, CivilizationState.CURRENT_SCHEMA_VERSION);
+		assertTrue(CivilizationState.CURRENT_SCHEMA_VERSION >= 2);
+	}
+
+	@Test
+	void storyRoundTripsAndV2DocumentsMigrate() {
+		CivilizationStateCodec codec = CivilizationStateCodec.production();
+		CivilizationState s = new CivilizationState();
+		UUID admin = UUID.nameUUIDFromBytes("admin".getBytes());
+		dev.luminary.core.story.StoryState.Restore.phaseEntered(s.story(), LuminaryId.of("story/zero"), NOW);
+		dev.luminary.core.story.StoryState.Restore.phaseEntered(s.story(), LuminaryId.of("story/one"), NOW.plusSeconds(5));
+		dev.luminary.core.story.StoryState.Restore.currentPhase(s.story(), LuminaryId.of("story/one"));
+		dev.luminary.core.story.StoryState.Restore.branch(s.story(), LuminaryId.of("story/branch/containment"));
+		dev.luminary.core.story.StoryState.Restore.revealed(s.story(), LuminaryId.of("clue/hum"), NOW);
+		dev.luminary.core.story.StoryState.Restore.history(s.story(), new dev.luminary.core.story.StoryState.PhaseChange(null, LuminaryId.of("story/zero"), NOW, "first_phase", null));
+		dev.luminary.core.story.StoryState.Restore.history(s.story(), new dev.luminary.core.story.StoryState.PhaseChange(LuminaryId.of("story/zero"), LuminaryId.of("story/one"), NOW.plusSeconds(5), "admin", admin));
+		CivilizationState copy = codec.decode(codec.encode(s));
+		assertEquals(LuminaryId.of("story/one"), copy.story().currentPhase().orElseThrow());
+		assertEquals(LuminaryId.of("story/branch/containment"), copy.story().branch().orElseThrow());
+		assertTrue(copy.story().isRevealed(LuminaryId.of("clue/hum")));
+		assertEquals(2, copy.story().history().size());
+		assertEquals(admin, copy.story().history().get(1).actor());
+		assertEquals(codec.encode(s), codec.encode(copy));
+
+		String v2 = "{\"schemaVersion\":2,\"catalog\":{\"records\":[]},\"progression\":{\"eras\":{},\"unlocked\":{},\"signals\":{\"luminary:s\":3}},\"executedEffects\":[]}";
+		CivilizationState migrated = codec.decode(v2);
+		assertTrue(migrated.story().currentPhase().isEmpty());
+		assertTrue(migrated.story().history().isEmpty());
+		assertEquals(3L, migrated.progression().signal(LuminaryId.of("s")));
+		assertEquals(3, CivilizationState.CURRENT_SCHEMA_VERSION);
 	}
 
 	@Test

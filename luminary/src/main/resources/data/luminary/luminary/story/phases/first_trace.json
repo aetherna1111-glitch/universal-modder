@@ -1,0 +1,12 @@
+{
+  "id": "luminary:story/first_trace",
+  "order": 1,
+  "title": "story.phase.luminary.first_trace",
+  "conditions": [
+    {
+      "type": "discovery_verified",
+      "discovery": "luminary:material/first_trace_ore"
+    }
+  ],
+  "autoAdvance": true
+}

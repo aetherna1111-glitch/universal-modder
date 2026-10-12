@@ -1,0 +1,11 @@
+{
+  "id": "luminary:story/foreign_record",
+  "order": 3,
+  "title": "story.phase.luminary.foreign_record",
+  "conditions": [
+    {
+      "type": "discovery_verified",
+      "discovery": "luminary:structure/foreign_record"
+    }
+  ]
+}

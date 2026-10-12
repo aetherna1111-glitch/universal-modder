@@ -1,0 +1,11 @@
+{
+  "id": "luminary:story/response",
+  "order": 5,
+  "title": "story.phase.luminary.response",
+  "conditions": [
+    {
+      "type": "clue_revealed",
+      "clue": "luminary:clue/record_author"
+    }
+  ]
+}

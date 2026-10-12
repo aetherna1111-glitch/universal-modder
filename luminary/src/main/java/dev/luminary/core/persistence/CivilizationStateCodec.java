@@ -15,6 +15,7 @@ import dev.luminary.core.catalog.Evidence;
 import dev.luminary.core.catalog.StatusChange;
 import dev.luminary.core.ids.LuminaryId;
 import dev.luminary.core.progression.ProgressionState;
+import dev.luminary.core.story.StoryState;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -58,6 +59,7 @@ public final class CivilizationStateCodec {
 		catalog.add("records", records);
 		root.add("catalog", catalog);
 		root.add("progression", progressionToJson(state.progression()));
+		root.add("story", storyToJson(state.story()));
 		JsonArray effects = new JsonArray();
 		for (String id : state.executedEffectIds()) {
 			effects.add(id);
@@ -86,6 +88,34 @@ public final class CivilizationStateCodec {
 		JsonObject signals = new JsonObject();
 		p.signals().forEach((id, v) -> signals.addProperty(id.toString(), v));
 		o.add("signals", signals);
+		return o;
+	}
+
+	private static JsonObject storyToJson(StoryState st) {
+		JsonObject o = new JsonObject();
+		st.currentPhase().ifPresent(p -> o.addProperty("currentPhase", p.toString()));
+		st.branch().ifPresent(b -> o.addProperty("branch", b.toString()));
+		JsonObject phases = new JsonObject();
+		st.phaseEnteredAt().forEach((id, at) -> phases.addProperty(id.toString(), at.toString()));
+		o.add("phases", phases);
+		JsonObject revealed = new JsonObject();
+		st.revealedClues().forEach((id, at) -> revealed.addProperty(id.toString(), at.toString()));
+		o.add("revealed", revealed);
+		JsonArray history = new JsonArray();
+		for (StoryState.PhaseChange c : st.history()) {
+			JsonObject h = new JsonObject();
+			if (c.from() != null) {
+				h.addProperty("from", c.from().toString());
+			}
+			h.addProperty("to", c.to().toString());
+			h.addProperty("at", c.at().toString());
+			h.addProperty("reason", c.reason());
+			if (c.actor() != null) {
+				h.addProperty("actor", c.actor().toString());
+			}
+			history.add(h);
+		}
+		o.add("history", history);
 		return o;
 	}
 
@@ -182,7 +212,37 @@ public final class CivilizationStateCodec {
 				effects.add(el.getAsString());
 			}
 		}
-		return new CivilizationState(catalog, progression, effects);
+		StoryState story = storyFromJson(root.has("story") ? root.getAsJsonObject("story") : new JsonObject());
+		return new CivilizationState(catalog, progression, story, effects);
+	}
+
+	private static StoryState storyFromJson(JsonObject o) {
+		StoryState st = new StoryState();
+		if (o.has("phases")) {
+			for (Map.Entry<String, JsonElement> e : o.getAsJsonObject("phases").entrySet()) {
+				StoryState.Restore.phaseEntered(st, LuminaryId.parse(e.getKey()), Instant.parse(e.getValue().getAsString()));
+			}
+		}
+		if (o.has("currentPhase")) {
+			StoryState.Restore.currentPhase(st, LuminaryId.parse(o.get("currentPhase").getAsString()));
+		}
+		if (o.has("branch")) {
+			StoryState.Restore.branch(st, LuminaryId.parse(o.get("branch").getAsString()));
+		}
+		if (o.has("revealed")) {
+			for (Map.Entry<String, JsonElement> e : o.getAsJsonObject("revealed").entrySet()) {
+				StoryState.Restore.revealed(st, LuminaryId.parse(e.getKey()), Instant.parse(e.getValue().getAsString()));
+			}
+		}
+		if (o.has("history")) {
+			for (JsonElement el : o.getAsJsonArray("history")) {
+				JsonObject h = el.getAsJsonObject();
+				StoryState.Restore.history(st, new StoryState.PhaseChange(h.has("from") ? LuminaryId.parse(h.get("from").getAsString()) : null,
+						LuminaryId.parse(h.get("to").getAsString()), Instant.parse(h.get("at").getAsString()), h.get("reason").getAsString(),
+						h.has("actor") ? UUID.fromString(h.get("actor").getAsString()) : null));
+			}
+		}
+		return st;
 	}
 
 	private static ProgressionState progressionFromJson(JsonObject o) {

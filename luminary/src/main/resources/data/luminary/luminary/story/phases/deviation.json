@@ -1,0 +1,12 @@
+{
+  "id": "luminary:story/deviation",
+  "order": 2,
+  "title": "story.phase.luminary.deviation",
+  "conditions": [
+    {
+      "type": "discovery_verified",
+      "discovery": "luminary:phenomenon/deviation_zone"
+    }
+  ],
+  "autoAdvance": true
+}

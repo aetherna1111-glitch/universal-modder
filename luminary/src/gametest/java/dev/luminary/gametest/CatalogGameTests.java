@@ -137,6 +137,45 @@ public final class CatalogGameTests implements FabricGameTest {
 		ctx.complete();
 	}
 
+	@GameTest(templateName = EMPTY_STRUCTURE)
+	public void storyIsAdminControlledAndCluesStayLockedUntilConditionsHold(TestContext ctx) {
+		LuminaryRuntime rt = LuminaryRuntime.get().orElseThrow();
+		ServerCommandSource console = ctx.getWorld().getServer().getCommandSource();
+		LuminaryId thaumaturgy = LuminaryId.parse("luminary:story/thaumaturgy");
+		LuminaryId hum = LuminaryId.parse("luminary:clue/ore_hum"), compass = LuminaryId.parse("luminary:clue/compass_lie"), record = LuminaryId.parse("luminary:clue/record_author");
+		if (rt.story().definitions().phasesInOrder().size() != 7 || rt.story().definitions().clues().size() != 3 || rt.story().definitions().branches().size() != 3) {
+			throw new GameTestException("expected the bundled 7 phases, 3 clues, 3 branches");
+		}
+		// The progression test (same server) may already have auto-advanced the story to Phase I (first_trace, autoAdvance),
+		// so only assert that no admin-only phase has been entered yet.
+		int order = rt.story().definitions().phase(rt.story().state().currentPhase().orElseThrow()).orElseThrow().order();
+		if (order > 2) {
+			throw new GameTestException("fresh world must not be past the auto-advance phases, got " + rt.story().state().currentPhase());
+		}
+		if (tryRun(ctx, console, "luminary story reveal " + record) != 0 || rt.story().state().isRevealed(record)) {
+			throw new GameTestException("a clue of a later (admin-only) phase must be locked");
+		}
+		// Admin moves the story straight to Phase IV (admin-only phase; no conditions evaluated for admin changes).
+		run(ctx, console, "luminary story set " + thaumaturgy);
+		if (!rt.story().state().currentPhase().orElseThrow().equals(thaumaturgy) || !"admin".equals(rt.story().state().history().get(rt.story().state().history().size() - 1).reason())) {
+			throw new GameTestException("admin phase change must be applied and recorded");
+		}
+		// compass_lie needs ore_hum revealed first: refused, then allowed in order.
+		if (tryRun(ctx, console, "luminary story reveal " + compass) != 0) {
+			throw new GameTestException("compass_lie must stay locked until ore_hum is revealed");
+		}
+		run(ctx, console, "luminary story reveal " + hum);
+		run(ctx, console, "luminary story reveal " + compass);
+		if (rt.story().state().revealedClues().size() != 2) {
+			throw new GameTestException("two clues should be revealed, got " + rt.story().state().revealedClues().keySet());
+		}
+		run(ctx, console, "luminary story branch luminary:story/branch/investigation");
+		if (!rt.story().state().branch().orElseThrow().equals(LuminaryId.parse("luminary:story/branch/investigation"))) {
+			throw new GameTestException("branch must be recorded");
+		}
+		ctx.complete();
+	}
+
 	private static void run(TestContext ctx, ServerCommandSource source, String command) {
 		try {
 			int result = ctx.getWorld().getServer().getCommandManager().getDispatcher().execute(command, source);

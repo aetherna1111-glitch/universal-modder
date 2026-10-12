@@ -14,6 +14,9 @@ import dev.luminary.core.ids.LuminaryId;
 import dev.luminary.core.progression.Era;
 import dev.luminary.core.progression.Prerequisite;
 import dev.luminary.core.progression.Technology;
+import dev.luminary.core.story.Clue;
+import dev.luminary.core.story.StoryCondition;
+import dev.luminary.core.story.StoryPhase;
 import dev.luminary.fabric.LuminaryRuntime;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.command.argument.EntityArgumentType;
@@ -45,6 +48,10 @@ import java.util.UUID;
  * /luminary progression eras | technologies            (op 2)  definitions with "missing" prerequisites per technology
  * /luminary progression unlock &lt;id&gt; [force]            (op 3 / op 4)
  * /luminary progression signal &lt;id&gt; &lt;value&gt;            (op 4)  sets an external signal (integrations do this in code)
+ * /luminary story status | phases | clues              (op 2)  phase, branch, revealed and currently revealable clues
+ * /luminary story set &lt;phase&gt;                          (op 4)  administrative phase change, recorded
+ * /luminary story branch &lt;branch&gt;                      (op 4)  commit to a strategic approach
+ * /luminary story reveal &lt;clue&gt;                        (op 3)  surface a clue; refused while locked, no override exists
  * </pre>
  */
 public final class LuminaryCommands {
@@ -96,7 +103,93 @@ public final class LuminaryCommands {
 								.requires(src -> src.hasPermissionLevel(4))
 								.then(CommandManager.argument("id", IdentifierArgumentType.identifier())
 										.then(CommandManager.argument("value", LongArgumentType.longArg())
-												.executes(LuminaryCommands::signal))))));
+												.executes(LuminaryCommands::signal)))))
+				.then(CommandManager.literal("story")
+						.then(CommandManager.literal("status").executes(LuminaryCommands::storyStatus))
+						.then(CommandManager.literal("phases").executes(LuminaryCommands::phases))
+						.then(CommandManager.literal("clues").executes(LuminaryCommands::clues))
+						.then(CommandManager.literal("set")
+								.requires(src -> src.hasPermissionLevel(4))
+								.then(CommandManager.argument("id", IdentifierArgumentType.identifier()).executes(LuminaryCommands::setPhase)))
+						.then(CommandManager.literal("branch")
+								.requires(src -> src.hasPermissionLevel(4))
+								.then(CommandManager.argument("id", IdentifierArgumentType.identifier()).executes(LuminaryCommands::branch)))
+						.then(CommandManager.literal("reveal")
+								.requires(src -> src.hasPermissionLevel(3))
+								.then(CommandManager.argument("id", IdentifierArgumentType.identifier()).executes(LuminaryCommands::reveal)))));
+	}
+
+	private static int storyStatus(CommandContext<ServerCommandSource> ctx) {
+		return runtime(ctx.getSource()).map(rt -> {
+			var st = rt.story();
+			ctx.getSource().sendFeedback(() -> Text.translatable("luminary.command.story_status",
+					st.state().currentPhase().map(Object::toString).orElse("-"), st.state().branch().map(Object::toString).orElse("-"),
+					st.state().revealedClues().size(), st.definitions().clues().size(), st.revealable().size()), false);
+			return 1;
+		}).orElse(0);
+	}
+
+	private static int phases(CommandContext<ServerCommandSource> ctx) {
+		return runtime(ctx.getSource()).map(rt -> {
+			LuminaryId current = rt.story().state().currentPhase().orElse(null);
+			for (StoryPhase p : rt.story().definitions().phasesInOrder()) {
+				String marker = p.id().equals(current) ? " <== current" : "";
+				String conditions = p.activationConditions().isEmpty() ? "none" : "missing=" + describeConditions(rt.story().missing(p)) + " of " + p.activationConditions().size();
+				ctx.getSource().sendFeedback(() -> Text.literal(" " + p.order() + ". " + p.id() + "  " + Text.translatable(p.titleKey()).getString()
+						+ (p.autoAdvance() ? "  [auto]" : "  [admin]") + "  " + conditions + marker), false);
+			}
+			return rt.story().definitions().phasesInOrder().size();
+		}).orElse(0);
+	}
+
+	private static int clues(CommandContext<ServerCommandSource> ctx) {
+		return runtime(ctx.getSource()).map(rt -> {
+			for (Clue c : rt.story().definitions().clues()) {
+				String state = rt.story().state().isRevealed(c.id()) ? "REVEALED" : rt.story().mayReveal(c.id()) ? "revealable" : "locked";
+				ctx.getSource().sendFeedback(() -> Text.literal(" - " + c.id() + "  phase=" + c.phase() + "  " + state), false);
+			}
+			return rt.story().definitions().clues().size();
+		}).orElse(0);
+	}
+
+	private static int setPhase(CommandContext<ServerCommandSource> ctx) {
+		return runtime(ctx.getSource()).map(rt -> {
+			LuminaryId id = parseId(ctx);
+			return report(ctx.getSource(), rt.story().setPhase(id, actorId(ctx.getSource())), "luminary.command.phase_set", id);
+		}).orElse(0);
+	}
+
+	private static int branch(CommandContext<ServerCommandSource> ctx) {
+		return runtime(ctx.getSource()).map(rt -> {
+			LuminaryId id = parseId(ctx);
+			return report(ctx.getSource(), rt.story().chooseBranch(id, actorId(ctx.getSource())), "luminary.command.branch_set", id);
+		}).orElse(0);
+	}
+
+	private static int reveal(CommandContext<ServerCommandSource> ctx) {
+		return runtime(ctx.getSource()).map(rt -> {
+			LuminaryId id = parseId(ctx);
+			Result r = rt.story().reveal(id, "command:" + ctx.getSource().getName());
+			if (r.ok()) {
+				Clue clue = rt.story().definitions().clue(id).orElseThrow();
+				ctx.getSource().sendFeedback(() -> Text.translatable("luminary.command.clue_revealed", id.toString()).append(Text.literal(" — ")).append(Text.translatable(clue.textKey())), true);
+				return 1;
+			}
+			ctx.getSource().sendError(Text.translatable(r.reasonKey()));
+			return 0;
+		}).orElse(0);
+	}
+
+	private static String describeConditions(java.util.Collection<StoryCondition> conditions) {
+		java.util.List<String> parts = new java.util.ArrayList<>();
+		for (StoryCondition c : conditions) {
+			if (c instanceof StoryCondition.Progression p) parts.add(describe(java.util.List.of(p.prerequisite())));
+			else if (c instanceof StoryCondition.BranchChosen b) parts.add("branch:" + b.branch());
+			else if (c instanceof StoryCondition.ClueRevealed r) parts.add("clue:" + r.clue());
+			else if (c instanceof StoryCondition.PhaseAtLeast p) parts.add("phase>=" + p.phase());
+		}
+		java.util.Collections.sort(parts);
+		return parts.isEmpty() ? "none" : String.join(", ", parts);
 	}
 
 	private static int progressionStatus(CommandContext<ServerCommandSource> ctx) {
