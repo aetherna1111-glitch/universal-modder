@@ -351,6 +351,7 @@ LOADERS = [
     ("Hollow Knight Modding API", ("*modding api*", "*/managed/mods/*")),
     ("RE_Kenshi (Kenshi OGRE plugin)", ("re_kenshi.dll", "kenshilib.dll")),
     ("Kenshi Mod Manager", ("kenshimodtool.exe",)),
+    ("DFHack", ("dfhooks*.dll", "libdfhooks*.so")),
 ]
 
 # folders whose exes/jars belong to installers and runtimes, not the game (matched with leading "_" stripped,
@@ -388,12 +389,26 @@ KNOWN = {
     "balatro": ("Steamodded + lovely (Lua injection into the LÖVE game)", "misc-engines.md"),
     "kenshi": ("FCS .mod data mods + asset overrides in mods/<name>/ mirroring data/ (load order in the launcher or KMM); code via RE_Kenshi + KenshiLib C++ plugins (VS2010 v100 x64, GPLv3, listed in the mod's RE_Kenshi.json) - the game exe is native, no CLR", "native.md"),
     "factorio": ("official Lua modding API (mods/ folder, data.lua + control.lua)", "misc-engines.md"),
+    "mindustry": ("the built-in mod loader, no patching: mod.hjson/mod.json + content/<type>/*.hjson|json (blocks, units, items...), "
+                  "sprites/ (sprites-override/ replaces vanilla), scripts/main.js; Java mods are jars from Anuken/MindustryJavaModTemplate. "
+                  "Mods go in %APPDATA%/Mindustry/mods, ~/.local/share/Mindustry/mods, or <install>/saves/mods on Steam", "misc-engines.md"),
+    "dwarf fortress": ("raws, no exe patching (v50+): mods/<name>/ with info.txt (ID, NUMERIC_VERSION) + objects/ and graphics/ raws, in the "
+                       "user folder (Bay 12 Games/Dwarf Fortress under %APPDATA% or ~/.local/share; the install in portable mode) or the "
+                       "Workshop. Mods are picked and ordered at world creation and copied to data/installed_mods (bump NUMERIC_VERSION after "
+                       "edits); graphics replacements declare [REQUIRES_ID_AFTER_ME:vanilla_creatures_graphics]. DFHack (Lua) for scripting",
+                       "misc-engines.md"),
     "counter-strike 2": ("Workshop maps / Source 2 tools; local -insecure only. VAC: never inject on official servers", "source.md"),
     "portal 2": ("VScript (Squirrel) + Puzzle Maker/Hammer, Workshop", "source.md"),
     "half-life 2": ("Source SDK 2013 mods (C++), maps with Hammer", "source.md"),
     "doom": ("WAD/PK3 mods with a source port (GZDoom/UZDoom)", "misc-engines.md"),
     "minecraft": ("Fabric (Mixin) or NeoForge", "minecraft.md"),
 }
+
+# known games recognised by their files when the folder name doesn't say (renamed, portable or non-store installs)
+KNOWN_FILES = [
+    ("dwarf fortress", ("data/vanilla/*/info.txt", "dwarf fortress.exe", "dwarfort")),
+    ("mindustry", ("mindustry.exe", "mindustry.json", "mindustry.jar", "mindustry.app/contents/resources/desktop.jar")),
+]
 
 # save/profile folders that don't follow the game's name ({profile}, {documents}, {appdata}, {localappdata})
 KNOWN_SAVES = {
@@ -447,8 +462,11 @@ ENGINES = {
     "genie": ("Genie (Age of Empires DE)", "genie-aoe2.md", "data mods (genieutils-py), graphics/UI mods, scenarios; SLD sprites"),
     "clausewitz": ("Paradox Clausewitz/Jomini", "misc-engines.md", "script mods (plain text) in Documents/Paradox Interactive/<game>/mod"),
     "re-engine": ("Capcom RE Engine", "big-frameworks.md", "REFramework (Lua scripts, in-game UI) + Fluffy Mod Manager for pak/natives replacements"),
+    "mt-framework": ("Capcom MT Framework", "big-frameworks.md", ".arc archives under native*/ (nativePC, nativeDX10, ...): ARCtool to unpack/repack, Fluffy Mod Manager to install; DeadRisingEx for Dead Rising; native code via DLL hooks"),
     "fromsoft": ("FromSoftware (Dantelion)", "big-frameworks.md", "ModEngine2 + Smithbox/DSMapStudio, param edits; offline only"),
     "rage": ("Rockstar RAGE", "big-frameworks.md", "story mode: ScriptHookV + ASI loader, OpenIV/CodeWalker for assets; never online"),
+    "hedgehog": ("Hedgehog Engine (Sonic Team)", "big-frameworks.md", "Hedge Mod Manager + its HE1/HE2 mod loaders (Generations, Lost World, Forces, Frontiers, Shadow Generations) or Unleashed Recompiled's built-in loader: mod.ini folders of loose file replacements"),
+    "blackrock": ("Black Rock Studio engine (Split/Second)", "big-frameworks.md", "no community tools: .ark packs, .model/.textures assets and plaintext .params config to reverse yourself; native code via DLL hooks"),
     "redengine": ("CD Projekt REDengine", "big-frameworks.md", "REDmod, Cyber Engine Tweaks, RED4ext, WolvenKit (Cyberpunk); REDkit (Witcher 3)"),
     "idtech": ("id Tech / Doom family", "misc-engines.md", "WAD/PK3/PK4 mods, source ports"),
     "cryengine": ("CryEngine", "native.md", "pak (zip) overrides, Lua/XML where exposed; native hooks otherwise"),
@@ -634,9 +652,26 @@ def detect(ix: Index) -> tuple[list[tuple[str, int, list[str], dict]], dict]:
     if ix.has("re_chunk_000.pak", "re_chunk_000.pak.*"):
         add("re-engine", 100, ["re_chunk_000.pak"])
 
+    # Capcom MT Framework: .arc archives under a native* folder whose name depends on the port: nativePC (Dragon's
+    # Dogma: Dark Arisen), nativePC_MT (Resident Evil 5), nativeDX10 (Devil May Cry 4 SE), nativeWin64 (Dead Rising)
+    if ix.has("native*/*.arc"):
+        add("mt-framework", 95, ix.find("native*/*.arc")[:2])
+
     # FromSoftware
     if ix.has("eldenring.exe", "game/eldenring.exe", "darksoulsiii.exe", "game/darksoulsiii.exe", "sekiro.exe", "armoredcore6.exe", "game/armoredcore6.exe", "nightreign.exe", "game/nightreign.exe") or ix.has("*/regulation.bin", "regulation.bin"):
         add("fromsoft", 95, ix.find("*eldenring.exe", "*darksoulsiii.exe", "*sekiro.exe", "*armoredcore6.exe", "*nightreign.exe", "*regulation.bin")[:2])
+
+    # Sonic Team's Hedgehog Engine: the exes Hedge Mod Manager looks for (HE1: Unleashed Recompiled, Generations,
+    # Lost World; HE2: Forces, Frontiers, Shadow Generations), or loose HE1 split archives (#ActD_Africa.ar.00 + .arl).
+    # Sonic Generations (2011) packs its .ar files into CRI bb*.cpk packfiles, so the archives alone don't catch it.
+    he_exes = ix.find("unleashedrecomp.exe", "unleashedrecomp", "sonicgenerations.exe", "slw.exe", "*sonic forces.exe",
+                      "sonicfrontiers.exe", "sonic_x_shadow_generations.exe")
+    if he_exes or (ix.has("*.arl") and ix.has("*.ar", "*.ar.??")):
+        add("hedgehog", 95, he_exes[:1] + ix.find("*.arl")[:1])
+
+    # Black Rock Studio's engine (Split/Second): .shaderinst shader instances next to .model assets
+    if ix.has("*.shaderinst") and ix.has("*.model"):
+        add("blackrock", 95, ix.find("*.shaderinst")[:1] + ix.find("*.model")[:1])
 
     # RAGE
     if ix.has("gta5.exe", "gta5_enhanced.exe", "playgtav.exe", "rdr2.exe", "gtaiv.exe") or (ix.has("*.rpf") and ix.has("*.exe")):
@@ -730,7 +765,8 @@ def scan(query: str) -> dict:
     moddirs = [d for d in MOD_DIRS if d in ix.dirs]
     name = (game.get("name") or root.name)
     lname = name.lower()
-    known = next((v for k, v in sorted(KNOWN.items(), key=lambda kv: -len(kv[0])) if k == lname or (k in lname and len(k) > 5)), None)
+    known = next((v for k, v in sorted(KNOWN.items(), key=lambda kv: -len(kv[0])) if k == lname or (k in lname and len(k) > 5)), None) \
+        or next((KNOWN[k] for k, pats in KNOWN_FILES if ix.has(*pats)), None)
     online = online_only(name)
     routes = []
     if known:
