@@ -33,7 +33,7 @@ def total_ram_mb() -> int | None:
                     if line.startswith("MemTotal:"):
                         return int(line.split()[1]) // 1024
         if sys.platform == "darwin":
-            out = subprocess.run(["sysctl", "-n", "hw.memsize"], capture_output=True, text=True, timeout=5)
+            out = subprocess.run(["sysctl", "-n", "hw.memsize"], capture_output=True, text=True, timeout=5)  # macOS only
             return int(out.stdout.strip()) // (1024 * 1024)
     except Exception:
         return None
