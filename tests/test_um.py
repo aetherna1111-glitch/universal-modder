@@ -607,12 +607,21 @@ def test_kb_check_warns_on_links_to_missing_notes(tmp_path):
     (root / "games" / "x" / "real.md").write_text("---\nkind: game\ntitle: Real\ngame: X\n---\n# Real\n", encoding="utf-8")
     note = root / "techniques" / "t.md"
     head = "---\nkind: technique\ntitle: t\ntags: [x]\ndate: 2026-10-10\nagents: [a]\n---\n# t\n"
-    note.write_text(head + "See [real](../games/x/real.md) and `games/x/real.md`.\n", encoding="utf-8")
+    note.write_text(head + "See [real](../games/x/real.md), [its setup](../games/x/real.md#setup), "
+                    "[a doc](https://example.com/docs/gone.md), `games/x/real.md` and `knowledge/games/x/real.md`.\n",
+                    encoding="utf-8")
     _, warns = kb.check_note(note, root)
     assert not [w for w in warns if "does not exist" in w]
-    note.write_text(head + "See [gone](../games/x/gone.md) and `techniques/missing.md`.\n", encoding="utf-8")
+    note.write_text(head + "See [gone](../games/x/gone.md), [gone too](../games/x/gone.md#setup), "
+                    "[root-relative](games/x/real.md) and `techniques/missing.md`.\n", encoding="utf-8")
     _, warns = kb.check_note(note, root)
-    assert sum("does not exist" in w for w in warns) == 2
+    assert sum("does not exist" in w for w in warns) == 4
+    # a note linking to the note next to it
+    sib = root / "games" / "x" / "sib.md"
+    sib.write_text(head + "Next to [real](real.md) and [gone](./gone.md).\n", encoding="utf-8")
+    _, warns = kb.check_note(sib, root)
+    assert [w for w in warns if "does not exist" in w] == [
+        "link to a note that does not exist: ./gone.md (links are relative to this note's folder)"]
 
 
 def test_kb_check_rejects_secrets_and_dumps(tmp_path):

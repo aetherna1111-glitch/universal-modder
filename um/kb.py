@@ -232,13 +232,15 @@ def check_note(path: Path, root: Path | None = None) -> tuple[list[str], list[st
         warns.append("absolute user path (use <you>, %USERPROFILE% or ~ instead)")
     if len(text.encode()) > MAX_NOTE_KB * 1024:
         warns.append(f"note is {len(text.encode()) // 1024} KB; split it or trim (limit {MAX_NOTE_KB} KB)")
-    # links to other notes: a relative markdown link, or a `games/...md` / `techniques/...md` path from the knowledge root
+    # links to other notes: any relative Markdown link to a .md file (an #anchor is fine), and a `games/...md` /
+    # `techniques/...md` path in backticks, from the knowledge root (also written `knowledge/games/...md`)
+    for m in re.finditer(r"\]\(([^)\s#]+\.md)(?:#[^)\s]*)?\)", body):
+        target = m.group(1)
+        if not re.match(r"[a-z][a-z0-9+.-]*:|/", target, re.I) and not (path.parent / target).resolve().exists():
+            warns.append(f"link to a note that does not exist: {target} (links are relative to this note's folder)")
     kroot = root or next((p for p in path.resolve().parents if p.name == "knowledge"), None)
-    for m in re.finditer(r"\]\(((?:\.\./)*(?:games|techniques)/[^)#\s]+\.md)\)", body):
-        if not (path.parent / m.group(1)).resolve().exists():
-            warns.append(f"link to a note that does not exist: {m.group(1)}")
     if kroot is not None:
-        for m in re.finditer(r"`((?:games|techniques)/[a-z0-9_./-]+\.md)`", body):
+        for m in re.finditer(r"`(?:knowledge/)?((?:games|techniques)/[a-z0-9_./-]+\.md)`", body):
             if not (kroot / m.group(1)).exists():
                 warns.append(f"reference to a note that does not exist: {m.group(1)}")
     for m in re.finditer(r"!\[[^\]]*\]\(([^)\s]+)\)", body):
