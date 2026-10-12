@@ -117,6 +117,18 @@ Single source of truth for resuming this work. Keep it short; update at mileston
   valid, 56 files, 0 errors. Live check: 2.1.0 and 2.1.1 launchers are offered 2.1.2. `manifest.json` is
   still 404 until the full client pack is published.
 
+- 2026-10-12: the owner sent the full client pack (`minecraft.rar`, 1.59 GB, MD5 verified). Extracted with
+  bsdtar (all 2,803 files match the archive's CRC32; the container's 7-Zip lacks RAR support and unar
+  corrupted 183 files). Checks: 452 mods, no duplicate ids, highest Fabric Loader requirement 0.19.3
+  (pinned 0.19.5 covers it), the Thaumcraft patch files match their published hashes except the main jar,
+  which is a newer copy (`thaumcraft-fabric-0.1.0 (1).jar`). Left out: `fancymenu_data/last_world.fmdata`
+  (owner's Windows user name and local world path), `config/jade/usernamecache.json`, `config/spark/tmp/`,
+  and 2 hidden files. Manifest `2026.10.12-thaumcraft`: 2,796 files, 1.8 GB, 7 folders (`mods` mirror,
+  the rest update). Rehearsed with the 2.1.2 sync code against a local copy laid out like servarium (no
+  hidden or empty files): fresh install synced all files with 0 errors, a player's own resource pack
+  stayed, a stray mod went to `.backup`, a second Play had nothing to do, and an edited config was kept.
+  Not yet uploaded to servarium.
+
 ## Owner actions (blocking production use)
 1. Rent a VPS + domain for the accounts service; deploy per docs/DEPLOYMENT.md §1.
 2. Reserve existing player names from usercache.json (§2).
