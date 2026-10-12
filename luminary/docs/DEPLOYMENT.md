@@ -146,6 +146,40 @@ If the launcher cannot start at all (a broken `python\` folder, or an install in
 Program Files), it shows a message box and writes `logs\startup-error.log`. If `logs\` is not writable,
 the log goes to `%LOCALAPPDATA%\Luminary\startup-error.log`.
 
+### Launcher auto-update
+
+Installed launchers update themselves from `launcher_update.url` in `profiles.json`. That is currently
+`<servarium client-pack>/launcher/`, which `launcher.json` does not exist in yet.
+
+- **When.** Launchers check 15 s after start and then every 6 hours.
+- **Download.** Only changed files are downloaded, and each is verified by SHA-256.
+- **Signature.** Every release is signed with Ed25519. Launchers carry the matching public key and refuse
+  unsigned, re-signed or older releases, so an attacker with write access to the host cannot push code.
+- **Install.** The update installs when the launcher restarts: on "Перезапустить" (Restart), or simply at the
+  next start.
+- **Rollback.** If the new version does not start, the launcher puts the previous one back and never offers
+  that version again.
+- **Scope.** Only the launcher's own files (`luminary_app\`, `assets\`, `sounds\`, `launcher.py`,
+  `profiles.json`, …) are updated. A new Python or Java needs a new installer.
+
+To publish a new version from the main copy of the launcher:
+
+1. Raise `__version__` in `luminary_app\__init__.py`, for example to `2.1.1`. Players only move to higher
+   versions.
+2. Run:
+   ```bat
+   python\python.exe publish_launcher.py publish . out\launcher --key <path to luminary-update.key> --notes "Что нового"
+   ```
+3. Upload `out\launcher\<version>\` to the servarium `launcher` folder first, then `launcher.json` last.
+4. Run `python\python.exe publish_launcher.py verify`. It downloads the release and checks the signature
+   and every file.
+
+The signing key (`luminary-update.key`) is the only secret here. Anyone who has it can publish code to every
+player, so keep it offline and backed up. If it is lost, create a new one with
+`publish_launcher.py keygen`, put the new `public_key` in `profiles.json`, and ship a new installer, because
+installed launchers only trust the old key. The update host can be any static HTTPS host; to move it, change
+`launcher_update.url` through an update before the old host goes away.
+
 ### Publishing the modpack
 
 `config_updater.json` points at the servarium folder. On 2026-10-12 that folder still had no

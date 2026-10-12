@@ -19,6 +19,7 @@ from .screens.profile import ProfileScreen
 from .screens.server import ServerScreen
 from .screens.settings_screen import SettingsScreen
 from .server_service import ServerService
+from .update_service import UpdateService
 from .widgets import Backdrop, StatusDot, Toast, button, label
 
 log = logging.getLogger("luminary.window")
@@ -82,6 +83,8 @@ class MainWindow(QWidget):
             self.setWindowIcon(QIcon(str(state.paths.icon)))
         self.controller = LaunchController(state, self)
         self.service = ServerService(state)
+        self.updates = UpdateService(state)
+        self.updates.staged.connect(self.on_update_staged)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -98,7 +101,7 @@ class MainWindow(QWidget):
         self.profile = ProfileScreen(state)
         self.mods = ModsScreen(state, self.controller)
         self.friends = FriendsScreen(state)
-        self.settings_page = SettingsScreen(state, self.controller, self.go)
+        self.settings_page = SettingsScreen(state, self.controller, self.go, self.updates)
         for key, page in (("home", self.home), ("server", self.server), ("profile", self.profile),
                           ("mods", self.mods), ("friends", self.friends), ("settings", self.settings_page)):
             self.pages[key] = page
@@ -343,6 +346,22 @@ class MainWindow(QWidget):
         ErrorDialog(self, "Игра вылетела", msg, log_path=result.log_path, crash_report=result.crash_report,
                     details=result.log_tail, logs_dir=self.state.paths.log_dir).exec()
 
+    def on_update_staged(self, staged) -> None:
+        if self.controller.busy or self.state.game_state == "running":
+            self.state.toast.emit(f"Обновление лаунчера {staged.version} установится при следующем запуске", "info")
+            return
+        box = QMessageBox(self)
+        box.setWindowTitle("Обновление лаунчера")
+        box.setText(f"Готова новая версия лаунчера: {staged.version}.")
+        box.setInformativeText((staged.notes + "\n\n" if staged.notes else "") +
+                               "Перезапустить сейчас? Иначе обновление установится при следующем запуске.")
+        restart = box.addButton("Перезапустить", QMessageBox.AcceptRole)
+        box.addButton("Позже", QMessageBox.RejectRole)
+        box.exec()
+        if box.clickedButton() is restart and self.updates.restart_now():
+            self._restarting = True
+            self.close()
+
     # ------------------------------------------------------------------ lifecycle
     def showEvent(self, e) -> None:
         super().showEvent(e)
@@ -352,6 +371,7 @@ class MainWindow(QWidget):
             self.service.start()
             self.state.restore_session()
             self.refresh_readiness()
+            self.updates.start()
 
     def _restore_geometry(self) -> None:
         g = self.state.settings.window or {}

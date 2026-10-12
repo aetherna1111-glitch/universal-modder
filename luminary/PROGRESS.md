@@ -75,6 +75,18 @@ Single source of truth for resuming this work. Keep it short; update at mileston
 - Installer checked under Wine (install, pages, uninstall). Not checked on real Windows.
 - The installer is unsigned, so SmartScreen will warn. Code signing would be an owner purchase.
 
+## Fifth pass (2026-10-12): launcher auto-update (2.1.0)
+- `luminary_app/selfupdate.py` and `ed25519.py` use only the standard library. Releases are signed, and
+  launchers check at start and every 6 hours, stage changed files, and install on restart with rollback.
+- `publish_launcher.py` (keygen, publish, verify) is the owner's publishing tool. It is excluded from
+  player releases.
+- `profiles.json` has a `launcher_update` entry pointing at the servarium client-pack `launcher/` folder,
+  with the public key of the owner key generated in this session. The key was handed to the owner and is
+  not in git.
+- The version is now 2.1.0. Installer 2.1.0 built. Launcher tests: 150 passed.
+- Owner action: upload the prepared `launcher/` folder (2.1.0) to servarium. Later updates follow
+  DEPLOYMENT.md, "Launcher auto-update".
+
 ## Owner actions (blocking production use)
 1. Rent a VPS + domain for the accounts service; deploy per docs/DEPLOYMENT.md §1.
 2. Reserve existing player names from usercache.json (§2).

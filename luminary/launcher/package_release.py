@@ -36,7 +36,7 @@ EXPECTED_SUBSYSTEM = {"Luminary.exe": GUI, "python/pythonw.exe": GUI, "jre/bin/j
 # Never shipped: per-player data, caches, development files.
 EXCLUDE_TOP = {"launcher_data", "logs", "runtime", ".minecraft", "tests", "starter", "installer", ".git", ".github",
                ".pytest_cache", "nickname.txt", "ram.txt", "manifest.json", "make_manifest.py",
-               "package_release.py", "build_starter.bat", ".gitignore", "session.bin"}
+               "package_release.py", "publish_launcher.py", "build_starter.bat", ".gitignore", "session.bin"}
 EXCLUDE_ANY = {"__pycache__", ".DS_Store", "Thumbs.db", "desktop.ini"}
 EXCLUDE_SUFFIX = {".pyc", ".pyo", ".log", ".tmp", ".part"}
 # Only our own code/config is scanned (python/ and jre/ are third-party distributions).

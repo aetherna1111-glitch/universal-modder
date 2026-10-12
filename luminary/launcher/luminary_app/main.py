@@ -13,6 +13,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="launcher.py", description="Luminary Launcher")
     ap.add_argument("--console", action="store_true", help="also log to the terminal (development)")
     ap.add_argument("--debug", action="store_true", help="verbose log for this run")
+    ap.add_argument("--after-update", action="store_true", help=argparse.SUPPRESS)  # restarted by the updater
     args, qt_args = ap.parse_known_args(argv if argv is not None else sys.argv[1:])
 
     paths = Paths(default_base())
@@ -52,7 +53,8 @@ def main(argv: list[str] | None = None) -> int:
     # Two launchers syncing the same .minecraft at once could corrupt the pack.
     lock = QLockFile(str(paths.data_dir / "launcher.lock"))
     lock.setStaleLockTime(0)
-    if not lock.tryLock(100):
+    # After a self-update restart the old window may still be closing: wait for its lock.
+    if not lock.tryLock(10000 if args.after_update else 100):
         log.info("another launcher instance is running")
         QMessageBox.information(None, "Luminary", "Лаунчер уже запущен.")
         return 0
@@ -80,6 +82,10 @@ def main(argv: list[str] | None = None) -> int:
         window.showMaximized()
     else:
         window.show()
+    from PySide6.QtCore import QTimer
+    from . import selfupdate
+    # The (possibly just updated) launcher is up: drop the update backup.
+    QTimer.singleShot(3000, lambda: selfupdate.confirm_ok(paths.base))
     code = app.exec()
     runner.shutdown(3000)
     lock.unlock()

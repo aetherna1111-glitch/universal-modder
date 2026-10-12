@@ -26,8 +26,9 @@ def _caption(form, widget) -> None:
 
 
 class SettingsScreen(QWidget):
-    def __init__(self, state, controller, go_profile):
+    def __init__(self, state, controller, go_profile, updates=None):
         super().__init__()
+        self.updates = updates
         self.state = state
         self.controller = controller
         outer = QVBoxLayout(self)
@@ -183,6 +184,19 @@ class SettingsScreen(QWidget):
         diag.body.addWidget(label(f"Сервер аккаунтов: {api}", "caption", wrap=True, selectable=True))
         diag.body.addWidget(label(f"Luminary Launcher {__version__} · папка {state.paths.base}", "caption",
                                   wrap=True, selectable=True))
+        urow = QHBoxLayout()
+        self.update_btn = button("Проверить обновления", None, "refresh")
+        self.update_status = label("", "caption", wrap=True)
+        urow.addWidget(self.update_btn)
+        urow.addWidget(self.update_status, 1)
+        diag.body.addLayout(urow)
+        if updates is not None and updates.enabled:
+            self.update_btn.clicked.connect(lambda: updates.check(manual=True))
+            updates.status.connect(self.update_status.setText)
+            self.update_status.setText(updates.last_status)
+        else:
+            self.update_btn.setEnabled(False)
+            self.update_status.setText("Автообновление не настроено (profiles.json → launcher_update)")
         lay.addWidget(diag)
         lay.addStretch()
         self._update_account()

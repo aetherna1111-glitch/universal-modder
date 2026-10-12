@@ -7,7 +7,7 @@ no Windows machine and no access to the production server.
 
 ```sh
 cd luminary/backend  && pytest -q                                   # 50 passed
-cd luminary/launcher && QT_QPA_PLATFORM=offscreen pytest -q tests   # 127 passed
+cd luminary/launcher && QT_QPA_PLATFORM=offscreen pytest -q tests   # 150 passed
 cd <repo root>       && uv run --with pytest pytest -q tests        # toolkit: 87 passed, 1 skipped (unchanged)
 ./bin/um publish check . && ./bin/um kb check --index                # 0 failures (2 old warnings); 157 notes pass
 ```
@@ -32,6 +32,7 @@ cd <repo root>       && uv run --with pytest pytest -q tests        # toolkit: 8
 | Session file | it holds only protector output, a protector failure writes nothing (no plaintext fallback), and an unreadable file (another user's DPAPI blob) signs out and is deleted. DPAPI itself is Windows-only. |
 | Release packaging (`package_release.py`) | builds from the real sources plus stand-in binaries, with the real starter compiled by Mono. It ships no user data or dev files, `SHA256SUMS` match, and the zip is identical across two builds. It refuses a console starter, a missing Java or PySide6, localhost or plain-http account servers, machine paths and key material. |
 | Installer (`installer/`, `test_installer.py`) | artwork sizes, a per-user install, and an uninstaller that never wipes the install folder or touches player data on upgrade. Shortcuts point at `pythonw.exe`. A real NSIS build of a small installer is a GUI-subsystem exe. |
+| Self-update (`test_selfupdate.py`, `test_ed25519.py`) | RFC 8032 vectors and interop with `cryptography`. The real `publish_launcher.py` publishes to a local HTTP host; a real launcher folder checks, stages only changed files, and installs through `launcher.py` in a separate process. That covers the version bump, a new module, deleting a removed module, and keeping player data. Refused cases: a forged or tampered signature, a foreign key, downgrades, paths outside the launcher (`python/`, `jre/`, `..`, `.minecraft`, `launcher_data`) and a corrupted file on the host. A broken release rolls back and is not offered again. A failed install restores everything and retries 3 times. `publish` refuses a key that players would reject. The UI service stages an update and Settings shows it. |
 | GUI-only start | starter compiles with Mono to PE subsystem 2 (GUI), argument quoting round-trips under CommandLineToArgvW rules, static guard that every subprocess call hides its console, no `print()` diagnostics |
 
 ## Verified against real software

@@ -64,16 +64,61 @@ def report_startup_failure(exc):
     return 1
 
 
+def _purge_app_modules():
+    for name in list(sys.modules):
+        if name == "luminary_app" or name.startswith("luminary_app."):
+            del sys.modules[name]
+
+
+def _apply_pending_update():
+    """Install a staged launcher update before any app module is loaded. Never blocks startup."""
+    try:
+        from pathlib import Path
+        from luminary_app import __version__, selfupdate
+        return selfupdate.apply_pending(Path(BASE_DIR), __version__)
+    except Exception as exc:  # noqa: BLE001
+        _write_log("%s update apply failed: %r\n" % (time.strftime("%Y-%m-%d %H:%M:%S"), exc))
+        return None
+    finally:
+        _purge_app_modules()  # the next import must see the new files
+
+
+def _rollback_update(exc):
+    try:
+        from pathlib import Path
+        from luminary_app import selfupdate
+        if not selfupdate.has_unconfirmed(Path(BASE_DIR)):
+            return False
+        bad = selfupdate.rollback(Path(BASE_DIR))
+        _write_log("%s update %s failed to start (%r); rolled back\n" % (time.strftime("%Y-%m-%d %H:%M:%S"), bad, exc))
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+    finally:
+        _purge_app_modules()
+
+
 def run(entry=None, argv=None):
+    if entry is None:
+        _apply_pending_update()
     try:
         if entry is None:
-            from luminary_app.main import main as entry
+            try:
+                from luminary_app.main import main as entry
+            except Exception as exc:  # noqa: BLE001 - a broken update must not brick the launcher
+                if not _rollback_update(exc):
+                    raise
+                from luminary_app.main import main as entry
         return entry(argv)
     except SystemExit:
         raise
     except BaseException as exc:  # noqa: BLE001 - last resort: show it, never die silently
         if isinstance(exc, KeyboardInterrupt):
             return 130
+        if _rollback_update(exc):
+            _show("Новая версия лаунчера не запустилась и была откатена к предыдущей.\n"
+                  "Запусти лаунчер ещё раз.")
+            return 1
         return report_startup_failure(exc)
 
 

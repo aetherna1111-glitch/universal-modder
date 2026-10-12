@@ -78,6 +78,8 @@ class Catalog:
     accounts_required: bool
     authlib: AuthlibInjector | None = None
     warnings: tuple[str, ...] = field(default_factory=tuple)
+    update_url: str = ""          # launcher self-update host (folder with launcher.json)
+    update_key: bytes = b""       # Ed25519 public key that signs launcher releases
 
     def get(self, profile_id: str | None) -> Profile:
         for p in self.profiles:
@@ -190,8 +192,20 @@ def parse_catalog(data: dict) -> Catalog:
         if urlparse(url).scheme != "https" or not _SHA256_RE.fullmatch(sha):
             raise ProfileError("authlib_injector: нужен https-адрес и sha256")
         authlib = AuthlibInjector(str(ai.get("version", "unknown")), url, sha)
+    upd = data.get("launcher_update") or {}
+    update_url, update_key = "", b""
+    if upd.get("url"):
+        update_url = validate_api_url(str(upd["url"]))
+        try:
+            update_key = bytes.fromhex(str(upd.get("public_key", "")))
+        except ValueError:
+            update_key = b""
+        if len(update_key) != 32:
+            warnings.append("launcher_update: нужен public_key (64 hex-символа); автообновление выключено")
+            update_url, update_key = "", b""
     return Catalog(tuple(profiles), str(data.get("default_profile") or profiles[0].id), api_url,
-                   bool(acc.get("required", False)) and bool(api_url), authlib, tuple(warnings))
+                   bool(acc.get("required", False)) and bool(api_url), authlib, tuple(warnings),
+                   update_url, update_key)
 
 
 def load_catalog(path: Path) -> Catalog:

@@ -70,6 +70,15 @@ and Fabric 1.20.1 servers with `tools/verify_skins.py`.
   An interrupted or failed update leaves the pack as it was.
 - authlib-injector is pinned by URL and SHA-256 and re-checked before each use. The launcher executes no
   other downloaded code. PortableMC and Java are the binaries shipped in the launcher folder.
+- Launcher self-updates are accepted only if `launcher.json` carries a valid Ed25519 signature for the
+  public key in `profiles.json`. That is pure-Python RFC 8032, checked against the RFC vectors and the
+  `cryptography` library.
+  - The version must be higher than the installed one, which blocks replaying old releases.
+  - Every file must match its signed SHA-256.
+  - Paths are limited to the launcher's own files, never `python\`, `jre\`, the game installer or player
+    data.
+  - Updates install before any app code loads, with a backup, and roll back automatically if the new
+    version fails to start.
 - Child processes are only ever stopped through their own process handle, never by name.
 
 ## Known limits
