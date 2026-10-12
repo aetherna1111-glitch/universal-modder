@@ -25,14 +25,16 @@ Verified on Minecraft 1.20.1, Fabric API 0.92 (Indigo renderer), Loom 1.7.4.
 ## How
 - **Find the GL state first.** For every draw in the old code, write down blend func, `glAlphaFunc`, depth mask,
   culling, `GL_LIGHTING`, `glTexEnvi(GL_TEXTURE_ENV_MODE)`, the brightness passed to the Tessellator and the matrix
-  sequence. Decompiled bytecode-only methods (Vineflower "couldn't be decompiled") still show these as `ldc` / `invokestatic
-  GL11.*` lines; tableswitches on `ForgeDirection.ordinal()` are direct ordinals (DOWN 0 .. EAST 5).
+  sequence. Methods Vineflower leaves as bytecode ("couldn't be decompiled") still show these as `ldc` /
+  `invokestatic GL11.*` lines; tableswitches on `ForgeDirection.ordinal()` are direct ordinals (DOWN 0 .. EAST 5).
+  Keep the decompile outside the repo you publish.
 - **Alpha test.** Vanilla 1.20 core shaders discard below 0.1, and they differ in *what* they test:
   `rendertype_entity_translucent` tests texture alpha only (a model at vertex alpha 0.05 still shows), while
-  `item_entity_translucent_cull` and `position_color_tex_lightmap` test texture x vertex alpha (it vanishes). For
-  `glAlphaFunc(GL_GREATER, 1/255)` register a copy of the vanilla fragment shader with `<= 0.003921569` through
-  Fabric's `CoreShaderRegistrationCallback` (namespaced json, `"vertex": "position_color_tex_lightmap"` can stay
-  vanilla) and use it only where the old code lowered the threshold.
+  `rendertype_item_entity_translucent_cull` and `position_color_tex_lightmap` test texture x vertex alpha (it
+  vanishes). For `glAlphaFunc(GL_GREATER, 1/255)` register a copy of the vanilla fragment shader with
+  `<= 0.003921569` through Fabric's `CoreShaderRegistrationCallback` (namespaced json,
+  `"vertex": "position_color_tex_lightmap"` can stay vanilla) and use it only where the old code lowered the
+  threshold.
 - **Texture environment.** `GL_ADD` (texture colour plus vertex colour, alphas multiplied) has no vanilla shader;
   a 10-line custom fragment shader (`vec4(tex.rgb + vertexColor.rgb, tex.a * vertexColor.a)`) reproduces it.
 - **Per-face brightness in block models.** An ISBRH that set `tessellator.setBrightness(max(bb, 160))` and an opaque
@@ -59,7 +61,8 @@ Verified on Minecraft 1.20.1, Fabric API 0.92 (Indigo renderer), Loom 1.7.4.
   sequence: both versions start in the same camera space after the arm-sway rotations, `ModelPart.rotate` is Z-Y-X like
   `ModelRenderer`, and `PlayerEntityRenderer.renderRightArm` is the old `renderFirstPersonArm`.
 - **`GL_LIGHTING` off.** In 1.7.10 it only removed the directional diffuse; the lightmap (texture unit 1) still
-  applied. Every 1.20 entity shader runs `minecraft_mix_light` and has no switch for it. Register a copy of the
+  applied. Every lit 1.20 entity shader (`rendertype_entity_solid`, `_cutout`, `_translucent`, ...) runs
+  `minecraft_mix_light` and has no switch for it. Register a copy of the
   entity vertex shader with `vertexColor = Color` (namespaced json; the vanilla `rendertype_entity_cutout_no_cull`
   fragment stage can stay, the translucent one is identical) and build cutout / translucent / culled layers on it.
   Faces drawn with `RenderBlocks.renderFace*` inside a TESR also take their UVs from the render bounds (top and bottom
@@ -140,6 +143,9 @@ Verified on Minecraft 1.20.1, Fabric API 0.92 (Indigo renderer), Loom 1.7.4.
     standard galactic font is `minecraft:alt`, forced unicode is `minecraft:uniform`.
 
 ## Seen in
-- `games/minecraft/porting-thaumcraft-4-1-7-10-forge-to-minecraft-1-20-1-fabric.md` (on its own branch) - thaumometer,
-  infused ores, warded glass / blocks, nodes, wisps, mind spider, research table, valve, jar / reservoir liquids,
-  hover harness, floaty lines.
+- The Thaumcraft 4 port to Fabric 1.20.1 (its field note is PR #236,
+  `games/minecraft/porting-thaumcraft-4-1-7-10-forge-to-minecraft-1-20-1-fabric.md`): thaumometer, infused ores,
+  warded glass / blocks, nodes, wisps, mind spider, research table, valve, jar / reservoir liquids, hover harness,
+  floaty lines. Thaumcraft's code and assets are Azanor's. The port's decompile of the original and the original
+  assets live in its private repository, and nothing from them is in this note. Publishing or sharing a port like
+  this, in a modpack other people download too, needs the original author's permission.
