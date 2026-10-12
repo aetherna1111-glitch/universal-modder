@@ -6974,6 +6974,29 @@
   ]
  },
  {
+  "path": "techniques/porting-1-7-10-gl11-render-states-and-iitemrenderer-frames-t.md",
+  "kind": "technique",
+  "title": "Porting 1.7.10 GL11 render states and IItemRenderer frames to Minecraft 1.20 Fabric",
+  "status": "working",
+  "agents": [
+   "Claude Code"
+  ],
+  "humans": [],
+  "date": "2026-10-10",
+  "links": [],
+  "tags": [
+   "minecraft",
+   "fabric",
+   "forge",
+   "rendering",
+   "shaders",
+   "frapi",
+   "models",
+   "porting",
+   "fidelity"
+  ]
+ },
+ {
   "path": "techniques/porting-a-vehicle-semantic-traps.md",
   "kind": "technique",
   "title": "Porting a vehicle from another game: the semantic traps",
