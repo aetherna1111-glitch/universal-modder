@@ -95,6 +95,24 @@ Single source of truth for resuming this work. Keep it short; update at mileston
   --check-remote` skip them, `publish` refuses empty files, and the two `__init__.py` files now have a
   docstring. Launcher tests: 153 passed.
 
+## Seventh pass (2026-10-12): launcher 2.1.2 for the Thaumcraft pack
+- The Thaumcraft session's build is an update on top of the existing pack: 4 mods (thaumcraft-fabric,
+  createtaumechanics, luminary-fixes, luminary-ru) and 223 config files, tested on Fabric Loader 0.19.5.
+  It is not a full pack, so the manifest still has to be built from the owner's complete client folders.
+- `profiles.json` pins Fabric Loader 0.19.5 (`fabric:1.20.1:0.19.5`), the version the pack was tested on.
+- The published `manifest.json` may now list its folders and a mode for each (`"folders"`), so the owner
+  decides which `.minecraft` folders players get without shipping a new launcher:
+  - `mirror` (`mods`): an exact copy of the server's folder, as before.
+  - `update` (everything else by default): the owner's files are installed and updated, but a file is
+    overwritten only when the server's copy changed since the last sync, with the player's version copied
+    to `.backup` first. Player-added files stay. Before this, every edited config (video settings,
+    minimap, shader choice) was reverted on each launch, and every launch offered an "update".
+  - Game and player data (`saves`, `versions`, `libraries`, `assets`, `logs`, hidden folders, …) can
+    never be claimed by a manifest.
+- `make_manifest.py` writes `"folders"` from `config_updater.json` (`sync_folders` + `folder_modes`).
+- Rehearsed: the committed 2.1.1 code updated itself to 2.1.2 from a local host with servarium's layout
+  (8 changed files, applied on restart). Launcher tests: 170 passed.
+
 ## Owner actions (blocking production use)
 1. Rent a VPS + domain for the accounts service; deploy per docs/DEPLOYMENT.md §1.
 2. Reserve existing player names from usercache.json (§2).

@@ -56,7 +56,7 @@ def server(tmp_path):
     httpd.shutdown()
 
 
-def publish(root: Path, files: dict[str, bytes], version="v1"):
+def publish(root: Path, files: dict[str, bytes], version="v1", folders=None):
     pack = root / "pack"
     if pack.exists():
         import shutil
@@ -67,13 +67,16 @@ def publish(root: Path, files: dict[str, bytes], version="v1"):
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_bytes(data)
         entries.append({"path": rel, "sha256": hashlib.sha256(data).hexdigest(), "size": len(data)})
-    (pack / "manifest.json").write_text(json.dumps({"version": version, "files": entries}))
+    manifest = {"version": version, "files": entries}
+    if folders is not None:
+        manifest["folders"] = folders
+    (pack / "manifest.json").write_text(json.dumps(manifest))
 
 
 def sync(cfg, mc):
     m = modpack.fetch_manifest(cfg)
     cache = modpack.HashCache(mc / modpack.HASH_CACHE)
-    plan = modpack.make_plan(m, mc, cfg.sync_folders, cache)
+    plan = modpack.make_plan(m, mc, cfg.folders, cache)
     return plan, modpack.apply_plan(plan, cfg, mc, cache, retries=2)
 
 
@@ -138,10 +141,75 @@ def test_full_sync_update_and_backup(server, tmp_path):
     plan = modpack.make_plan(m, mc, FOLDERS, cache)
     assert plan.empty and plan.up_to_date == 2 and not cache.dirty
 
-    # Locally modified config is restored from the server.
+    # A locally modified mod is restored from the server (mods is a mirror folder)...
+    (mc / "mods" / "a mod.jar").write_bytes(b"B" * 1000)
+    # ...but a config the player (or a mod) changed is left alone while the server's copy is unchanged.
     (mc / "config" / "a.toml").write_bytes(b"x=2")
     plan, (down, _) = sync(cfg, mc)
-    assert down == 1 and (mc / "config" / "a.toml").read_bytes() == b"x=1"
+    assert down == 1 and plan.kept_local == ["config/a.toml"]
+    assert (mc / "mods" / "a mod.jar").read_bytes() == b"A" * 1000
+    assert (mc / "config" / "a.toml").read_bytes() == b"x=2"
+
+    # When the server changes that config, the new one is installed and the player's edit is backed up.
+    publish(root, {"mods/a mod.jar": b"A" * 1000, "config/a.toml": b"x=3"}, version="v2")
+    plan, (down, _) = sync(cfg, mc)
+    assert down == 1 and plan.backup_first == {"config/a.toml"}
+    assert (mc / "config" / "a.toml").read_bytes() == b"x=3"
+    assert [b.read_bytes() for b in (mc / ".backup").rglob("a.toml")] == [b"x=2"]
+
+
+def test_manifest_folders_decide_what_syncs(server, tmp_path):
+    root, url = server
+    mc = tmp_path / "mc"
+    (mc / "resourcepacks").mkdir(parents=True)
+    (mc / "resourcepacks" / "player-own.zip").write_bytes(b"mine")
+    (mc / "config").mkdir()
+    (mc / "config" / "player.toml").write_bytes(b"p")  # config is not synced by this manifest
+    files = {"mods/a.jar": b"A", "resourcepacks/pack.zip": b"RP1", "shaderpacks/s.zip": b"S"}
+    folders = {"mods": "mirror", "resourcepacks": "update", "shaderpacks": "update"}
+    publish(root, files, folders=folders)
+    cfg = PackConfig(url, sync_folders=FOLDERS)  # the launcher's own list knows neither folder
+    plan, (down, deleted) = sync(cfg, mc)
+    assert (down, deleted) == (3, 0)
+    assert (mc / "resourcepacks" / "player-own.zip").read_bytes() == b"mine"
+    assert (mc / "shaderpacks" / "s.zip").read_bytes() == b"S"
+    assert (mc / "config" / "player.toml").exists()
+    assert modpack.local_manifest(mc, cfg.folders).folders == folders
+
+    # The owner drops shaderpacks and one resource pack: only the files the launcher installed go.
+    publish(root, {"mods/a.jar": b"A"}, version="v2", folders={"mods": "mirror", "resourcepacks": "update"})
+    plan, (down, deleted) = sync(cfg, mc)
+    assert (down, deleted) == (0, 2)
+    assert not (mc / "shaderpacks" / "s.zip").exists() and not (mc / "resourcepacks" / "pack.zip").exists()
+    assert (mc / "resourcepacks" / "player-own.zip").read_bytes() == b"mine"
+    assert sorted(p.name for p in (mc / ".backup").rglob("*.zip")) == ["pack.zip", "s.zip"]
+
+
+@pytest.mark.parametrize("folders", [
+    {"saves": "update"}, {"versions": "mirror"}, {"Libraries": "update"}, {".bobby": "update"},
+    {"../x": "update"}, {"a/b": "update"}, {"con": "update"}, {"mods": "wipe"}, {}, [], "mods",
+    {"mods": "mirror", "MODS": "update"}, {"mods": "mirror", ".luminary_staging": "update"},
+])
+def test_bad_manifest_folders_are_rejected(folders):
+    with pytest.raises(PackError):
+        modpack.parse_manifest({"files": [], "folders": folders}, FOLDERS)
+
+
+def test_manifest_without_folders_uses_launcher_list():
+    m = modpack.parse_manifest({"files": [{"path": "config/a", "sha256": "0" * 64, "size": 0}]}, FOLDERS)
+    assert m.folders == {"mods": "mirror", "config": "update"}
+    with pytest.raises(PackError):
+        modpack.parse_manifest({"files": [{"path": "resourcepacks/a", "sha256": "0" * 64, "size": 0}]}, FOLDERS)
+
+
+def test_config_folder_modes(tmp_path):
+    p = tmp_path / "c.json"
+    p.write_text(json.dumps({"server_url": "https://x/", "sync_folders": ["mods", "config", "kubejs"],
+                             "folder_modes": {"kubejs": "mirror"}}))
+    assert modpack.load_config(p).folders == {"mods": "mirror", "config": "update", "kubejs": "mirror"}
+    p.write_text(json.dumps({"server_url": "https://x/", "sync_folders": ["saves"]}))
+    with pytest.raises(PackError):
+        modpack.load_config(p)
 
 
 def test_hash_mismatch_never_reaches_the_pack(server, tmp_path):

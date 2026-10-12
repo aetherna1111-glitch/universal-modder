@@ -141,3 +141,17 @@ def test_check_remote_reports_unpublished_manifest(server):
     (root / "pack").mkdir()
     with pytest.raises(modpack.PackError, match="manifest.json"):
         mm.check_remote(modpack.PackConfig(url, sync_folders=FOLDERS))
+
+
+def test_manifest_carries_folder_rules_and_check_only_flags_mirror_folders(mc):
+    (mc / "resourcepacks").mkdir()
+    (mc / "resourcepacks" / "pack.zip").write_bytes(b"RP")
+    rules = {"mods": "mirror", "config": "update", "resourcepacks": "update"}
+    manifest, problems, _ = mm.build_manifest(mc, rules, "v1")
+    assert problems == [] and manifest["folders"] == rules
+    assert modpack.parse_manifest(manifest, FOLDERS).folders == rules  # the launcher reads the same rules
+    assert mm.check_local(manifest, mc, FOLDERS) == []
+    (mc / "config" / "player-made.toml").write_text("y = 2\n")   # update folder: players keep it
+    (mc / "mods" / "stray.jar").write_bytes(b"x")                 # mirror folder: players would lose it
+    assert mm.check_local(manifest, mc, FOLDERS) == [
+        "не в манифесте (у игроков будет убран в .backup): mods/stray.jar"]

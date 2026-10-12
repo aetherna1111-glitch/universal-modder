@@ -4,7 +4,10 @@
 #   python\python.exe make_manifest.py --check          verify manifest.json against the local files
 #   python\python.exe make_manifest.py --check-remote   download every published file and verify it
 #
-# The manifest format is unchanged ({"version", "updated", "files": [{"path", "sha256", "size"}]}), but
+# Format: {"version", "updated", "folders": {"<folder>": "mirror"|"update"}, "files": [{"path", "sha256", "size"}]}.
+# "folders" (since launcher 2.1.2) comes from config_updater.json sync_folders + folder_modes, so the published
+# manifest, not the launcher build, decides which .minecraft folders players get (see luminary_app/modpack.py).
+# Older launchers ignore "folders". The file list is unchanged, and
 # every entry is validated with the launcher's own rules (luminary_app.modpack.safe_relpath /
 # parse_manifest) before anything is written: one bad name (trailing space, CON.jar, "..", a case-only
 # duplicate) would otherwise make every launcher reject the whole manifest.
@@ -39,8 +42,12 @@ def sha256_of_file(path: Path) -> str:
     return h.hexdigest()
 
 
-def build_manifest(mc_dir: Path, sync_folders: tuple[str, ...], version: str | None = None):
-    """Returns (manifest dict, problems, skipped). The manifest is only valid if problems is empty."""
+def build_manifest(mc_dir: Path, sync_folders, version: str | None = None):
+    """Returns (manifest dict, problems, skipped). The manifest is only valid if problems is empty.
+
+    sync_folders is a folder -> mode dict (or a tuple of names, which get the default modes)."""
+    rules = sync_folders if isinstance(sync_folders, dict) else modpack.folder_rules(sync_folders)
+    sync_folders = tuple(rules)
     files, problems, skipped, seen = [], [], [], {}
     for folder in sync_folders:
         root = mc_dir / folder
@@ -75,15 +82,16 @@ def build_manifest(mc_dir: Path, sync_folders: tuple[str, ...], version: str | N
                 files.append({"path": rel, "sha256": sha256_of_file(full), "size": size})
     now = datetime.now()
     manifest = {"version": version or now.strftime("%Y.%m.%d-%H%M"),
-                "updated": now.isoformat(timespec="seconds"), "files": files}
+                "updated": now.isoformat(timespec="seconds"), "folders": dict(rules), "files": files}
     if not problems:
         modpack.parse_manifest(manifest, sync_folders)  # exactly what the launcher will run
     return manifest, problems, skipped
 
 
-def check_local(manifest: dict, mc_dir: Path, sync_folders: tuple[str, ...]) -> list[str]:
+def check_local(manifest: dict, mc_dir: Path, sync_folders) -> list[str]:
     """Every listed file exists with the listed size and hash, and nothing unlisted would be removed."""
     parsed = modpack.parse_manifest(manifest, sync_folders)
+    mirrored = [f for f, mode in parsed.folders.items() if mode == modpack.MIRROR]
     errors = []
     listed = set()
     for f in parsed.files:
@@ -95,7 +103,7 @@ def check_local(manifest: dict, mc_dir: Path, sync_folders: tuple[str, ...]) -> 
             errors.append(f"размер не совпадает: {f.path}")
         elif sha256_of_file(p) != f.sha256:
             errors.append(f"хеш не совпадает: {f.path}")
-    for folder in sync_folders:
+    for folder in mirrored:  # update folders keep unlisted files, so only mirror folders can lose any
         root = mc_dir / folder
         if root.is_dir():
             for p in sorted(root.rglob("*")):
@@ -170,7 +178,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.check:
         manifest = json.loads(args.out.read_text(encoding="utf-8"))
         try:
-            errors = check_local(manifest, args.mc_dir, cfg.sync_folders)
+            errors = check_local(manifest, args.mc_dir, cfg.folders)
         except modpack.PackError as exc:
             print(f"!!! Манифест некорректен: {exc}")
             return 1
@@ -180,8 +188,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1 if errors else 0
 
     print(f"Папка .minecraft: {args.mc_dir}")
-    print(f"Синхронизируются: {', '.join(cfg.sync_folders)}")
-    manifest, problems, skipped = build_manifest(args.mc_dir, cfg.sync_folders, args.version)
+    print("Синхронизируются: " + ", ".join(f"{f} ({m})" for f, m in cfg.folders.items()))
+    manifest, problems, skipped = build_manifest(args.mc_dir, cfg.folders, args.version)
     for s in skipped:
         print("  [пропуск]", s)
     if problems:

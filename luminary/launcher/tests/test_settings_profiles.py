@@ -63,7 +63,7 @@ def test_ram_choices_respect_physical_memory():
 def test_profiles_file_matches_launcher_1x_behaviour(paths):
     shipped = profiles.load_catalog(paths.base.parent / "missing.json")
     p = shipped.get(None)
-    assert p.portablemc_version() == "fabric:1.20.1"
+    assert p.portablemc_version() == "fabric:1.20.1:0.19.5"  # the loader the pack was tested on
     assert (p.server.host, p.server.port) == ("135.106.221.145", 27195)
     from conftest import ROOT
     real = profiles.load_catalog(ROOT / "profiles.json")

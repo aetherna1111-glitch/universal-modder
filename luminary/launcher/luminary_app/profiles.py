@@ -157,7 +157,7 @@ FALLBACK = {
     "accounts": {"api_url": "", "required": False},
     "profiles": [{
         "id": "luminary", "name": "Luminary", "minecraft": "1.20.1",
-        "loader": {"type": "fabric", "version": None},
+        "loader": {"type": "fabric", "version": "0.19.5"},
         "server": {"name": "Luminary", "host": "135.106.221.145", "port": 27195},
         "modpack": {"config": "config_updater.json"},
         "java": {"windows": "jre/bin/javaw.exe", "other": "jre/bin/java", "min_version": 17},

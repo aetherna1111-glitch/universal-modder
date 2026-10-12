@@ -142,7 +142,7 @@ class LaunchController(QObject):
                     manifest = modpack.fetch_manifest(pack_cfg)
                     cache = modpack.HashCache(paths.mc_dir / modpack.HASH_CACHE)
                     paths.mc_dir.mkdir(parents=True, exist_ok=True)
-                    plan = modpack.make_plan(manifest, paths.mc_dir, pack_cfg.sync_folders, cache,
+                    plan = modpack.make_plan(manifest, paths.mc_dir, pack_cfg.folders, cache,
                                              lambda i, n, msg: ctx.progress((msg, i / n if n else None)), ctx.cancel)
                     cache.save()
                 except modpack.PackError as exc:

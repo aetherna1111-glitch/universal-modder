@@ -189,8 +189,23 @@ installed launchers only trust the old key. The update host can be any static HT
 and shows a notice. The modpack files themselves are not in this repository or in the archive this work
 started from, so the manifest can only be built on the machine that holds the real pack.
 
-1. Put the exact client files in `.minecraft\<folder>` for each `sync_folders` entry (`mods`, `config`,
-   `defaultconfigs`, `patchouli_books`, `fancymenu_data`), next to `make_manifest.py`.
+**Which folders players get.** Since launcher 2.1.2 the published `manifest.json` lists them itself
+(`"folders"`), so the folder list can change without a new launcher. Each folder has a mode:
+
+| Mode | Behaviour | Use for |
+|---|---|---|
+| `mirror` | The folder becomes an exact copy of the server's. Files the server does not list are moved to `.backup`. | `mods` |
+| `update` | The owner's files are installed and updated. A file is overwritten only when the server's copy changed since the last sync; the player's version is copied to `.backup` first. Files the player added are left alone. Files the server stops shipping are moved to `.backup`. | `config`, `defaultconfigs`, `resourcepacks`, `shaderpacks`, … |
+
+`make_manifest.py` writes `"folders"` from `config_updater.json`: `sync_folders` lists the folders, and the
+optional `folder_modes` object overrides the default mode (`mods` is `mirror`, everything else `update`).
+Launchers refuse a manifest that claims game or player data (`saves`, `versions`, `libraries`, `assets`,
+`logs`, `screenshots`, `crash-reports`, hidden folders, …). Loose files in the root of `.minecraft`
+(`options.txt`, `servers.dat`) are never synced. Launchers older than 2.1.2 ignore `"folders"` and use their
+own list, so publish the 2.1.2 launcher update before the first manifest.
+
+1. Put the exact client files in `.minecraft\<folder>` for each synced folder, next to `make_manifest.py`.
+   Set `sync_folders` (and `folder_modes` if needed) in `config_updater.json`.
 2. Build the manifest:
    ```bat
    python\python.exe make_manifest.py
@@ -199,7 +214,7 @@ started from, so the manifest can only be built on the machine that holds the re
    trailing spaces or dots, `:` or `\` in a name, two files differing only in letter case, symlinks, and
    files over 2 GB. Temp files (`*.part`, `*.tmp`, `Thumbs.db`) are skipped.
 3. `python\python.exe make_manifest.py --check` confirms every listed file still matches. It also lists
-   files that players would have moved to `.backup`.
+   files in `mirror` folders that players would have moved to `.backup`.
 4. Upload the files to the servarium folder at the same relative paths, and upload `manifest.json` last.
    Players who start a launch mid-upload then get either the old pack or the complete new one.
 5. Run `python\python.exe make_manifest.py --check-remote`. It downloads the published manifest and every
@@ -209,8 +224,7 @@ started from, so the manifest can only be built on the machine that holds the re
 
 Launchers download into `.minecraft\.luminary_staging\` and verify every file before anything changes.
 They swap files in only after all downloads verified. An interrupted update resumes on the next Play and
-never leaves a half-updated pack. Files the server no longer lists are moved to
-`.minecraft\.backup\<time>\`.
+never leaves a half-updated pack. Removed or replaced files are kept in `.minecraft\.backup\<time>\`.
 
 ## 5. Minecraft server cutover
 

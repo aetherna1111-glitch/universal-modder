@@ -168,7 +168,7 @@ def test_offline_play_syncs_pack_installs_and_starts_game(app, install):
     pmc = (tmp / "pmc_args.txt").read_text().splitlines()
     assert pmc[pmc.index("--username") + 1] == "Steve"
     assert pmc[pmc.index("--uuid") + 1] == launch.java_offline_uuid("Steve")
-    assert "fabric:1.20.1" in pmc and "--dry" in pmc
+    assert "fabric:1.20.1:0.19.5" in pmc and "--dry" in pmc
     # Java got -Xmx from the RAM setting, offline token, server quick play
     jargs = (tmp / "java_args.txt").read_text().splitlines()
     assert "-Xmx4096M" in jargs and not any(a.startswith("-javaagent") for a in jargs)

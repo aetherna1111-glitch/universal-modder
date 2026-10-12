@@ -48,7 +48,9 @@ class UpdateDialog(_Base):
         self.lay.addWidget(label(f"Версия {plan.manifest.version}", "muted"))
         summary = label(f"Скачать: <b>{len(plan.to_download)}</b> файл(ов), {mb:.1f} МБ<br>"
                         f"Убрать из сборки: <b>{len(plan.to_delete)}</b> файл(ов) "
-                        f"(копии сохраняются в .minecraft/.backup)")
+                        f"(копии сохраняются в .minecraft/.backup)" +
+                        (f"<br>Ваших изменённых файлов, которые заменит сборка: <b>{len(plan.backup_first)}</b> "
+                         f"(ваши версии тоже сохранятся в .backup)" if getattr(plan, "backup_first", None) else ""))
         summary.setTextFormat(Qt.RichText)
         self.lay.addWidget(summary)
         lst = QListWidget()

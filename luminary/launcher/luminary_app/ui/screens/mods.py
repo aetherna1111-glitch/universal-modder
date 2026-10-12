@@ -135,7 +135,7 @@ class ModsScreen(QWidget):
                     cfg = None
             hashes = None
             if cfg is not None:
-                man = modpack.local_manifest(mc, cfg.sync_folders)
+                man = modpack.local_manifest(mc, cfg.folders)
                 if man is not None:
                     hashes = {f.path: f.sha256 for f in man.files}
             cache = modpack.HashCache(mc / modpack.HASH_CACHE)
@@ -245,7 +245,7 @@ class ModsScreen(QWidget):
             manifest = modpack.fetch_manifest(cfg)
             cache = modpack.HashCache(mc / modpack.HASH_CACHE)
             mc.mkdir(parents=True, exist_ok=True)
-            plan = modpack.make_plan(manifest, mc, cfg.sync_folders, cache, cancel=ctx.cancel)
+            plan = modpack.make_plan(manifest, mc, cfg.folders, cache, cancel=ctx.cancel)
             cache.save()
             return cfg, cache, plan
 
