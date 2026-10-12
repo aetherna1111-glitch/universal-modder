@@ -281,6 +281,8 @@ def _download(url: str, part: Path, entry: FileEntry, timeout: float, cancel: th
         have = 0
     headers = {"Range": f"bytes={have}-"} if 0 < have < entry.size else {}
     if have == entry.size:
+        if not part.exists():  # zero-byte file: nothing to download, but the staged file must exist
+            part.touch()
         return
     with _open(url, timeout, headers) as r:
         mode = "ab" if headers and getattr(r, "status", 200) == 206 else "wb"

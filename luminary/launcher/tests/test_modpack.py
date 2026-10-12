@@ -203,3 +203,12 @@ def test_missing_manifest_is_a_clear_error(server):
     root, url = server
     with pytest.raises(PackError, match="manifest.json"):
         modpack.fetch_manifest(PackConfig(url, sync_folders=FOLDERS))
+
+
+def test_zero_byte_files_sync(server, tmp_path):
+    """Regression: empty files (common in config folders) used to abort every update."""
+    root, url = server
+    mc = tmp_path / "mc"
+    publish(root, {"config/empty.cfg": b"", "mods/a.jar": b"A"})
+    sync(PackConfig(url, sync_folders=FOLDERS), mc)
+    assert (mc / "config" / "empty.cfg").is_file() and (mc / "config" / "empty.cfg").stat().st_size == 0

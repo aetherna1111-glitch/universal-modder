@@ -39,11 +39,26 @@ Single source of truth for resuming this work. Keep it short; update at mileston
       real 1.20.1 client rendering another player's skin
 - [x] Docs: docs/DEPLOYMENT.md, docs/SECURITY.md, docs/TESTING.md; CI workflow luminary.yml
 
+## Second pass (2026-10-12)
+- Verified the checkpoint: 50 backend and 91 launcher tests passed, the evidence images exist, and the
+  servarium `manifest.json` still returns 404. No modpack files exist in the repo or the owner's archive.
+- Fixed: zero-byte files in the pack aborted every update (`modpack._download`). Regression test added.
+- `make_manifest.py` now validates with the launcher's own rules, refuses names launchers would reject,
+  writes atomically, and gained `--check` (local) and `--check-remote` (published pack).
+- `launcher.py` startup guard (stdlib only): native message box plus `startup-error.log` instead of a
+  silent pythonw exit.
+- New `package_release.py`: verified, reproducible Windows distribution with checksums.
+- Session-file tests: no plaintext fallback.
+- Launcher tests: 119 passed. Backend: 50 passed.
+- Parallel work: branch `claude/dreamy-knuth-rizfww` builds a Fabric server mod under `luminary/` (src,
+  gradle, docs/decisions). It shares no file with this work except `luminary/README.md`, which both
+  branches create. That file was not edited in this pass; expect a merge conflict there.
+
 ## Owner actions (blocking production use)
 1. Rent a VPS + domain for the accounts service; deploy per docs/DEPLOYMENT.md §1.
 2. Reserve existing player names from usercache.json (§2).
-3. Publish the modpack manifest to servarium (currently 404).
-4. Build Luminary.exe on Windows (`build_starter.bat`), set `accounts.api_url`, ship the launcher.
+3. Publish the modpack: `make_manifest.py`, upload, then `--check-remote` (DEPLOYMENT.md, Publishing the modpack).
+4. Build Luminary.exe on Windows (`build_starter.bat`), set `accounts.api_url`, run `package_release.py`, ship the zip.
 5. Cutover: authlib-injector `-javaagent` + `online-mode=true` + `enforce-secure-profile=false` (§5) -
    needs the hosting panel to accept a JVM argument.
 6. Run the Windows manual test procedure (docs/TESTING.md).

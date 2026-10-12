@@ -1,143 +1,202 @@
-# make_manifest.py — генератор manifest.json для сервера
-# Запускается ТОЛЬКО разработчиком перед загрузкой на сервер.
+# make_manifest.py - builds and verifies manifest.json for the modpack server (developer tool).
 #
-# Использование:
-#   python\python.exe make_manifest.py
+#   python\python.exe make_manifest.py                  build manifest.json from .minecraft\<sync_folders>
+#   python\python.exe make_manifest.py --check          verify manifest.json against the local files
+#   python\python.exe make_manifest.py --check-remote   download every published file and verify it
+#
+# The manifest format is unchanged ({"version", "updated", "files": [{"path", "sha256", "size"}]}), but
+# every entry is validated with the launcher's own rules (luminary_app.modpack.safe_relpath /
+# parse_manifest) before anything is written: one bad name (trailing space, CON.jar, "..", a case-only
+# duplicate) would otherwise make every launcher reject the whole manifest.
+from __future__ import annotations
 
+import argparse
+import hashlib
+import json
 import os
 import sys
-import json
-import hashlib
+import urllib.error
+import urllib.parse
+import urllib.request
 from datetime import datetime
+from pathlib import Path
 
-# =========================================================
-#  НАСТРОЙКИ
-# =========================================================
-BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
-MC_DIR       = os.path.join(BASE_DIR, '.minecraft')
-CONFIG_FILE  = os.path.join(BASE_DIR, 'config_updater.json')
-OUTPUT_FILE  = os.path.join(BASE_DIR, 'manifest.json')
+BASE_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(BASE_DIR))
 
-# =========================================================
-#  ЧТЕНИЕ КОНФИГА
-# =========================================================
-def load_config():
-    if not os.path.exists(CONFIG_FILE):
-        print(f"!!! Не найден {CONFIG_FILE}")
-        print("Создай config_updater.json рядом с launcher.py")
-        sys.exit(1)
+from luminary_app import modpack  # noqa: E402  (same rules as the launcher that consumes the manifest)
 
-    with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-        return json.load(f)
+CONFIG_FILE = BASE_DIR / "config_updater.json"
+SKIP_NAMES = {"thumbs.db", "desktop.ini", ".ds_store"}
+SKIP_SUFFIXES = (".part", ".tmp", ".crdownload")
 
 
-# =========================================================
-#  SHA-256 ХЕШ ФАЙЛА
-# =========================================================
-def sha256_of_file(path, chunk_size=65536):
+def sha256_of_file(path: Path) -> str:
     h = hashlib.sha256()
-    with open(path, 'rb') as f:
-        while True:
-            chunk = f.read(chunk_size)
-            if not chunk:
-                break
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
             h.update(chunk)
     return h.hexdigest()
 
 
-# =========================================================
-#  СБОРКА МАНИФЕСТА
-# =========================================================
-def build_manifest(sync_folders):
-    manifest = {
-        "version": datetime.now().strftime("%Y.%m.%d-%H%M"),
-        "updated": datetime.now().isoformat(timespec='seconds'),
-        "files": []
-    }
-
-    total_files = 0
-    total_size = 0
-
+def build_manifest(mc_dir: Path, sync_folders: tuple[str, ...], version: str | None = None):
+    """Returns (manifest dict, problems, skipped). The manifest is only valid if problems is empty."""
+    files, problems, skipped, seen = [], [], [], {}
     for folder in sync_folders:
-        full_path = os.path.join(MC_DIR, folder)
-        if not os.path.isdir(full_path):
-            print(f"  [пропуск] папка не найдена: {folder}/")
+        root = mc_dir / folder
+        if not root.is_dir():
+            skipped.append(f"{folder}/ (папки нет)")
             continue
-
-        print(f"  [обработка] {folder}/")
-        folder_count = 0
-        folder_size = 0
-
-        for root, dirs, files in os.walk(full_path):
-            for fname in files:
-                fpath = os.path.join(root, fname)
-
-                # путь относительно .minecraft/
-                rel = os.path.relpath(fpath, MC_DIR).replace("\\", "/")
-
-                try:
-                    h = sha256_of_file(fpath)
-                    size = os.path.getsize(fpath)
-                except Exception as e:
-                    print(f"    [ошибка] {rel}: {e}")
+        for dirpath, dirnames, names in os.walk(root):
+            dirnames.sort()
+            for name in sorted(names):
+                full = Path(dirpath) / name
+                rel = full.relative_to(mc_dir).as_posix()
+                if name.lower() in SKIP_NAMES or name.lower().endswith(SKIP_SUFFIXES):
+                    skipped.append(rel)
                     continue
+                if full.is_symlink():
+                    problems.append(f"{rel}: символическая ссылка (положи сам файл)")
+                    continue
+                try:
+                    rel = modpack.safe_relpath(rel, sync_folders)
+                except modpack.PackError as exc:
+                    problems.append(f"{rel}: {exc} (лаунчер отклонит такой манифест)")
+                    continue
+                key = rel.lower()
+                if key in seen:
+                    problems.append(f"{rel}: отличается от {seen[key]} только регистром (на Windows это один файл)")
+                    continue
+                seen[key] = rel
+                size = full.stat().st_size
+                if size > modpack.MAX_FILE_SIZE:
+                    problems.append(f"{rel}: файл больше {modpack.MAX_FILE_SIZE // 1024 ** 3} ГБ")
+                    continue
+                files.append({"path": rel, "sha256": sha256_of_file(full), "size": size})
+    now = datetime.now()
+    manifest = {"version": version or now.strftime("%Y.%m.%d-%H%M"),
+                "updated": now.isoformat(timespec="seconds"), "files": files}
+    if not problems:
+        modpack.parse_manifest(manifest, sync_folders)  # exactly what the launcher will run
+    return manifest, problems, skipped
 
-                manifest["files"].append({
-                    "path": rel,
-                    "sha256": h,
-                    "size": size
-                })
 
-                folder_count += 1
-                folder_size += size
-                total_files += 1
-                total_size += size
+def check_local(manifest: dict, mc_dir: Path, sync_folders: tuple[str, ...]) -> list[str]:
+    """Every listed file exists with the listed size and hash, and nothing unlisted would be removed."""
+    parsed = modpack.parse_manifest(manifest, sync_folders)
+    errors = []
+    listed = set()
+    for f in parsed.files:
+        listed.add(f.path.lower())
+        p = mc_dir / f.path
+        if not p.is_file():
+            errors.append(f"нет файла: {f.path}")
+        elif p.stat().st_size != f.size:
+            errors.append(f"размер не совпадает: {f.path}")
+        elif sha256_of_file(p) != f.sha256:
+            errors.append(f"хеш не совпадает: {f.path}")
+    for folder in sync_folders:
+        root = mc_dir / folder
+        if root.is_dir():
+            for p in sorted(root.rglob("*")):
+                rel = p.relative_to(mc_dir).as_posix()
+                if p.is_file() and rel.lower() not in listed and p.name.lower() not in SKIP_NAMES:
+                    errors.append(f"не в манифесте (у игроков будет убран в .backup): {rel}")
+    return errors
 
-        print(f"             {folder_count} файлов, "
-              f"{folder_size / 1024 / 1024:.2f} МБ")
 
-    return manifest, total_files, total_size
+def check_remote(cfg: modpack.PackConfig, timeout: float = 60) -> tuple[list[str], int]:
+    """Download the published manifest and every file, verifying size and SHA-256. Returns (errors, n)."""
+    manifest = modpack.fetch_manifest(cfg)  # raises PackError, e.g. when manifest.json is missing (404)
+    base = cfg.server_url.rstrip("/") + "/"
+    errors = []
+    for f in manifest.files:
+        url = base + urllib.parse.quote(f.path, safe="/")
+        h, size = hashlib.sha256(), 0
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "LuminaryManifestCheck"})
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                for chunk in iter(lambda: r.read(1 << 20), b""):
+                    h.update(chunk)
+                    size += len(chunk)
+        except urllib.error.HTTPError as exc:
+            errors.append(f"{f.path}: HTTP {exc.code}")
+            continue
+        except (urllib.error.URLError, OSError) as exc:
+            errors.append(f"{f.path}: {getattr(exc, 'reason', exc)}")
+            continue
+        if size != f.size:
+            errors.append(f"{f.path}: размер {size}, в манифесте {f.size}")
+        elif h.hexdigest() != f.sha256:
+            errors.append(f"{f.path}: хеш не совпадает")
+    return errors, len(manifest.files)
 
 
-# =========================================================
-#  MAIN
-# =========================================================
-def main():
-    print("=" * 60)
-    print("  Генератор manifest.json")
-    print("=" * 60)
-    print()
+def _load_cfg(path: Path) -> modpack.PackConfig:
+    cfg = modpack.load_config(path)
+    if cfg is None:
+        sys.exit(f"!!! Не найден {path}")
+    if not cfg.sync_folders:
+        sys.exit("!!! В config_updater.json пустой sync_folders")
+    return cfg
 
-    cfg = load_config()
-    sync_folders = cfg.get("sync_folders", [])
 
-    if not sync_folders:
-        print("!!! В config_updater.json пустой sync_folders")
-        sys.exit(1)
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description="Сборка и проверка manifest.json для сервера сборки")
+    ap.add_argument("--config", type=Path, default=CONFIG_FILE)
+    ap.add_argument("--mc-dir", type=Path, default=BASE_DIR / ".minecraft")
+    ap.add_argument("--out", type=Path, default=BASE_DIR / "manifest.json")
+    ap.add_argument("--version", help="строка версии (по умолчанию дата и время)")
+    mode = ap.add_mutually_exclusive_group()
+    mode.add_argument("--check", action="store_true", help="сверить --out с локальными файлами")
+    mode.add_argument("--check-remote", action="store_true", help="скачать опубликованную сборку и проверить")
+    args = ap.parse_args(argv)
+    cfg = _load_cfg(args.config)
 
-    print(f"Папка .minecraft: {MC_DIR}")
-    print(f"Синхронизируются: {', '.join(sync_folders)}")
-    print()
+    if args.check_remote:
+        print(f"Проверка опубликованной сборки: {cfg.manifest_url}")
+        try:
+            errors, n = check_remote(cfg)
+        except modpack.PackError as exc:
+            print(f"!!! {exc}")
+            return 1
+        for e in errors:
+            print("  ОШИБКА", e)
+        print(f"Файлов: {n}, ошибок: {len(errors)}")
+        return 1 if errors else 0
 
-    manifest, total_files, total_size = build_manifest(sync_folders)
+    if args.check:
+        manifest = json.loads(args.out.read_text(encoding="utf-8"))
+        try:
+            errors = check_local(manifest, args.mc_dir, cfg.sync_folders)
+        except modpack.PackError as exc:
+            print(f"!!! Манифест некорректен: {exc}")
+            return 1
+        for e in errors:
+            print("  ОШИБКА", e)
+        print("Манифест совпадает с файлами" if not errors else f"Ошибок: {len(errors)}")
+        return 1 if errors else 0
 
-    with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
-        json.dump(manifest, f, indent=2, ensure_ascii=False)
-
-    print()
-    print("=" * 60)
-    print(f"  Готово!")
-    print(f"  Версия:  {manifest['version']}")
-    print(f"  Файлов:  {total_files}")
-    print(f"  Размер:  {total_size / 1024 / 1024:.2f} МБ")
-    print(f"  Файл:    {OUTPUT_FILE}")
-    print("=" * 60)
-    print()
-    print("Что делать дальше:")
-    print(f"  1. Загрузи {os.path.basename(OUTPUT_FILE)} на сервер")
-    print(f"  2. Загрузи изменённые файлы из .minecraft/ на сервер")
-    print()
+    print(f"Папка .minecraft: {args.mc_dir}")
+    print(f"Синхронизируются: {', '.join(cfg.sync_folders)}")
+    manifest, problems, skipped = build_manifest(args.mc_dir, cfg.sync_folders, args.version)
+    for s in skipped:
+        print("  [пропуск]", s)
+    if problems:
+        for p in problems:
+            print("  [ОШИБКА]", p)
+        print(f"!!! manifest.json НЕ записан: исправь {len(problems)} файл(ов) и запусти снова.")
+        return 1
+    tmp = args.out.with_suffix(".tmp")
+    tmp.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
+    os.replace(tmp, args.out)
+    total = sum(f["size"] for f in manifest["files"])
+    print(f"Готово: версия {manifest['version']}, файлов {len(manifest['files'])}, "
+          f"{total / 1024 / 1024:.2f} МБ -> {args.out}")
+    print("Дальше: загрузи файлы из .minecraft/<папки> и manifest.json (последним) на сервер, затем\n"
+          "        python\\python.exe make_manifest.py --check-remote")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -101,21 +101,60 @@ Build the console-free starter once on any Windows PC (it uses the C# compiler i
 build_starter.bat        :: creates Luminary.exe next to launcher.py
 ```
 
-What to ship in the launcher zip:
+**Package the release.** Prepare a folder with this directory's files plus the binaries that are not in
+git: `python\` (portable Python 3.11 with PySide6 6.11 and mcstatus, as before), `jre\` (Java 17+),
+`LuminaryLauncher.exe` (PortableMC 5.0.5) and the `Luminary.exe` you just built. Then run:
 
+```bat
+python\python.exe package_release.py . ..\release --version 2.0.0 --zip
 ```
-Luminary.exe  launcher.py  luminary_app\  profiles.json  config_updater.json  make_manifest.py
-assets\  sounds\  luminary.ico  run.bat  run-debug.bat  LuminaryLauncher.exe (PortableMC 5.0.5)
-python\  (portable Python 3.11 with PySide6 6.11 and mcstatus, as before)   jre\  (Java 17+)
-```
+
+The tool refuses to package if:
+
+- a required file is missing, or `Luminary.exe` is not a GUI-subsystem program
+- `profiles.json` or `config_updater.json` is invalid, or the account server is not `https://`
+- our own code contains a machine-specific path or key material
+
+It leaves out per-player data (`launcher_data\`, `logs\`, `runtime\`, `.minecraft\`, `nickname.txt`) and
+developer files. The output is `release\Luminary\` with `SHA256SUMS.txt` and `release-info.json`, plus
+`Luminary-2.0.0.zip`. The zip is byte-for-byte reproducible from the same input, so you can publish its
+SHA-256 next to the download. Run `--check` instead of `--version` to only validate.
 
 The launcher creates `launcher_data\`, `logs\`, `runtime\` (the authlib-injector jar, downloaded once and
 SHA-256 checked) and `.minecraft\` itself. Old `nickname.txt` and `ram.txt` are migrated automatically.
+If the launcher cannot start at all (a broken `python\` folder, or an install in a read-only place such as
+Program Files), it shows a message box and writes `logs\startup-error.log`. If `logs\` is not writable,
+the log goes to `%LOCALAPPDATA%\Luminary\startup-error.log`.
 
-**Modpack.** The servarium folder in `config_updater.json` has no `manifest.json` yet (HTTP 404), so the
-launcher currently plays with whatever is in `.minecraft`, as 1.x did. Publish the pack with the existing
-`make_manifest.py`, then upload `manifest.json` and the files. Set `"block_launch_on_error": true` only
-once the manifest is online.
+### Publishing the modpack
+
+`config_updater.json` points at the servarium folder. On 2026-10-12 that folder still had no
+`manifest.json` (HTTP 404). Until it does, the launcher plays with whatever is in `.minecraft`, as 1.x did,
+and shows a notice. The modpack files themselves are not in this repository or in the archive this work
+started from, so the manifest can only be built on the machine that holds the real pack.
+
+1. Put the exact client files in `.minecraft\<folder>` for each `sync_folders` entry (`mods`, `config`,
+   `defaultconfigs`, `patchouli_books`, `fancymenu_data`), next to `make_manifest.py`.
+2. Build the manifest:
+   ```bat
+   python\python.exe make_manifest.py
+   ```
+   It refuses to write `manifest.json` when a name would be rejected by launchers. That covers `CON.jar`,
+   trailing spaces or dots, `:` or `\` in a name, two files differing only in letter case, symlinks, and
+   files over 2 GB. Temp files (`*.part`, `*.tmp`, `Thumbs.db`) are skipped.
+3. `python\python.exe make_manifest.py --check` confirms every listed file still matches. It also lists
+   files that players would have moved to `.backup`.
+4. Upload the files to the servarium folder at the same relative paths, and upload `manifest.json` last.
+   Players who start a launch mid-upload then get either the old pack or the complete new one.
+5. Run `python\python.exe make_manifest.py --check-remote`. It downloads the published manifest and every
+   file and verifies the size and SHA-256 of each.
+6. Only then set `"block_launch_on_error": true` if you want launches to stop when the pack server is
+   unreachable.
+
+Launchers download into `.minecraft\.luminary_staging\` and verify every file before anything changes.
+They swap files in only after all downloads verified. An interrupted update resumes on the next Play and
+never leaves a half-updated pack. Files the server no longer lists are moved to
+`.minecraft\.backup\<time>\`.
 
 ## 5. Minecraft server cutover
 

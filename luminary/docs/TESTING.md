@@ -1,15 +1,15 @@
 # Testing and verification
 
-Recorded on 2026-10-12 in a Linux container (Python 3.11, PySide6 6.11.2 headless, OpenJDK 21). There was
+Recorded on 2026-10-12 (second pass the same day) in a Linux container (Python 3.11, PySide6 6.11.2 headless, OpenJDK 21). There was
 no Windows machine and no access to the production server.
 
 ## Automated tests
 
 ```sh
 cd luminary/backend  && pytest -q                                   # 50 passed
-cd luminary/launcher && QT_QPA_PLATFORM=offscreen pytest -q tests   # 91 passed
+cd luminary/launcher && QT_QPA_PLATFORM=offscreen pytest -q tests   # 119 passed
 cd <repo root>       && uv run --with pytest pytest -q tests        # toolkit: 87 passed, 1 skipped (unchanged)
-./bin/um publish check . && ./bin/um kb check --index                # 0 failures; 157 notes pass
+./bin/um publish check . && ./bin/um kb check --index                # 0 failures (2 old warnings); 157 notes pass
 ```
 
 `.github/workflows/luminary.yml` runs the first two on every change under `luminary/`.
@@ -25,6 +25,11 @@ cd <repo root>       && uv run --with pytest pytest -q tests        # toolkit: 8
 | Skins | modern/legacy/slim, wrong sizes, GIF/PHP disguised as PNG, bad CRC, truncation, oversize, huge-dimension header refused before decode, metadata stripped, replace/delete/garbage-collect, path traversal on `/textures` |
 | 3D preview | face orientation of all six sides, top-left texel placement, slim arms narrower, legacy legs mirrored, drag/zoom/reset, local PNG validation |
 | API client | the launcher client against the real backend under uvicorn, offline/unreachable server, foreign texture hosts refused |
+| Modpack publishing (`make_manifest.py`) | a generated manifest is accepted by the launcher's own parser and syncs a fresh install end to end. Names launchers would reject are refused (`CON.jar`, trailing space, `:`, case-only duplicates, symlinks), and temp files are skipped. The previous manifest survives a refused build. `--check` finds changed, missing and unlisted files. `--check-remote` finds corrupted and missing published files and an unpublished manifest. |
+| Zero-byte files in the pack | regression test: an empty file in the pack used to make every update fail. Fixed in `modpack._download`. |
+| Startup guard (`launcher.py`) | a missing PySide6 (also in a real subprocess), a read-only folder, and an unwritable `logs\` (falls back to `%LOCALAPPDATA%`) each give a message plus `startup-error.log`. Normal exit codes pass through. |
+| Session file | it holds only protector output, a protector failure writes nothing (no plaintext fallback), and an unreadable file (another user's DPAPI blob) signs out and is deleted. DPAPI itself is Windows-only. |
+| Release packaging (`package_release.py`) | builds from the real sources plus stand-in binaries, with the real starter compiled by Mono. It ships no user data or dev files, `SHA256SUMS` match, and the zip is identical across two builds. It refuses a console starter, a missing Java or PySide6, localhost or plain-http account servers, machine paths and key material. |
 | GUI-only start | starter compiles with Mono to PE subsystem 2 (GUI), argument quoting round-trips under CommandLineToArgvW rules, static guard that every subprocess call hides its console, no `print()` diagnostics |
 
 ## Verified against real software
@@ -51,6 +56,7 @@ cd <repo root>       && uv run --with pytest pytest -q tests        # toolkit: 8
 | Item | Why | How to verify |
 |---|---|---|
 | Windows behaviour: no console on Play, DPAPI session file, `Luminary.exe` at runtime, frameless resize, sounds | no Windows machine | Steps 1–4 below |
+| `Luminary.exe` built by Windows' own csc, and `package_release.py` on the real `python\`/`jre\` folders | no Windows machine and no owner binaries here | DEPLOYMENT.md §3–4, then Step 1 below |
 | Real PortableMC 5.0.5 `--dry` output | building third-party code was refused here, and GitHub downloads are blocked | Step 3; `logs/install-*.log` shows the raw output |
 | The production server and the servarium modpack | no access; the pack has no `manifest.json` yet | DEPLOYMENT.md §5 and `verify_skins.py` |
 | Fabric mods from the real pack on the client | the pack is not published | play once after publishing the pack |
