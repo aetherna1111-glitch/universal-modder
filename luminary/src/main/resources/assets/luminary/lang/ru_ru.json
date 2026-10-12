@@ -1,0 +1,22 @@
+{
+  "luminary.command.not_ready": "Luminary ещё не готов (состояние сервера не загружено)",
+  "luminary.command.status": "Luminary: шаблонов открытий %s, записей каталога %s, выполненных эффектов %s",
+  "luminary.command.observed": "Наблюдение %s записано",
+  "luminary.command.evidence_added": "Свидетельство добавлено к %s",
+  "luminary.command.verified": "%s теперь ПОДТВЕРЖДЕНО",
+  "luminary.command.verified_forced": "%s теперь ПОДТВЕРЖДЕНО (административное решение, записано в историю)",
+  "luminary.command.bad_id": "Некорректный идентификатор: %s",
+  "luminary.catalog.unknown_template": "Нет шаблона открытия с таким id (см. data/<ns>/luminary/discoveries/)",
+  "luminary.catalog.not_observed": "Это открытие ещё не наблюдалось",
+  "luminary.catalog.already_verified": "Это открытие уже подтверждено",
+  "luminary.catalog.not_verified": "Это открытие ещё не подтверждено",
+  "luminary.catalog.already_applied": "Это открытие уже применяется на практике",
+  "luminary.catalog.dependency_unverified": "Предшествующее открытие ещё не подтверждено",
+  "luminary.catalog.need_contributors": "Недостаточно независимых наблюдателей",
+  "luminary.catalog.need_samples": "Недостаточно сданных образцов",
+  "luminary.catalog.need_experiment": "Требуемый эксперимент ещё не записан",
+  "luminary.catalog.duplicate_evidence": "Это свидетельство уже записано",
+  "discovery.luminary.material.first_trace_ore": "Первый след (неизвестный минерал)",
+  "discovery.luminary.phenomenon.deviation_zone": "Зона отклонения",
+  "discovery.luminary.structure.foreign_record": "Чужая запись"
+}

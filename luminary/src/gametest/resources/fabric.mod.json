@@ -1,0 +1,9 @@
+{
+	"schemaVersion": 1,
+	"id": "luminary-gametest",
+	"version": "1.0.0",
+	"name": "Luminary GameTests",
+	"environment": "*",
+	"entrypoints": { "fabric-gametest": ["dev.luminary.gametest.CatalogGameTests"] },
+	"depends": { "luminary": "*", "fabric-api": "*" }
+}

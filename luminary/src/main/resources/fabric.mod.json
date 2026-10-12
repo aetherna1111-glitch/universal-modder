@@ -1,0 +1,18 @@
+{
+	"schemaVersion": 1,
+	"id": "luminary",
+	"version": "${version}",
+	"name": "Luminary",
+	"description": "Civilization progression, shared knowledge (the Catalog of the Unknown), thaumaturgy and an autonomous NPC for a dedicated Minecraft server. Server-authoritative foundation.",
+	"authors": ["Luminary contributors"],
+	"contact": { "sources": "https://github.com/aetherna1111-glitch/universal-modder" },
+	"license": "MIT",
+	"environment": "*",
+	"entrypoints": { "main": ["dev.luminary.fabric.Luminary"] },
+	"depends": {
+		"fabricloader": ">=0.16.0",
+		"minecraft": "1.20.1",
+		"java": ">=17",
+		"fabric-api": "*"
+	}
+}

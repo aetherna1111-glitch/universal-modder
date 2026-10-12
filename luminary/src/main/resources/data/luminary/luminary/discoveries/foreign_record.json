@@ -1,0 +1,7 @@
+{
+  "id": "luminary:structure/foreign_record",
+  "title": "discovery.luminary.structure.foreign_record",
+  "verification": { "minContributors": 2 },
+  "dependsOn": ["luminary:phenomenon/deviation_zone"],
+  "visibility": "restricted"
+}

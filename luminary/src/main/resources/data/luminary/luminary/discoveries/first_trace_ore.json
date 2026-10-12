@@ -1,0 +1,6 @@
+{
+  "id": "luminary:material/first_trace_ore",
+  "title": "discovery.luminary.material.first_trace_ore",
+  "verification": { "minContributors": 2, "minSamples": 8 },
+  "visibility": "public_when_verified"
+}

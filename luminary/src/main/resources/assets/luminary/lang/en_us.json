@@ -1,0 +1,22 @@
+{
+  "luminary.command.not_ready": "Luminary is not ready yet (server state not loaded)",
+  "luminary.command.status": "Luminary: %s discovery templates, %s catalog records, %s executed effects",
+  "luminary.command.observed": "Observation of %s recorded",
+  "luminary.command.evidence_added": "Evidence added to %s",
+  "luminary.command.verified": "%s is now VERIFIED",
+  "luminary.command.verified_forced": "%s is now VERIFIED (administrative override, recorded)",
+  "luminary.command.bad_id": "Invalid identifier: %s",
+  "luminary.catalog.unknown_template": "No discovery template with that id (check data/<ns>/luminary/discoveries/)",
+  "luminary.catalog.not_observed": "That discovery has not been observed yet",
+  "luminary.catalog.already_verified": "That discovery is already verified",
+  "luminary.catalog.not_verified": "That discovery is not verified yet",
+  "luminary.catalog.already_applied": "That discovery is already in practical use",
+  "luminary.catalog.dependency_unverified": "A prerequisite discovery is not verified yet",
+  "luminary.catalog.need_contributors": "Not enough distinct contributors yet",
+  "luminary.catalog.need_samples": "Not enough samples handed in yet",
+  "luminary.catalog.need_experiment": "A required experiment has not been recorded yet",
+  "luminary.catalog.duplicate_evidence": "That evidence was already recorded",
+  "discovery.luminary.material.first_trace_ore": "The First Trace (unknown mineral)",
+  "discovery.luminary.phenomenon.deviation_zone": "A zone of deviation",
+  "discovery.luminary.structure.foreign_record": "The Foreign Record"
+}

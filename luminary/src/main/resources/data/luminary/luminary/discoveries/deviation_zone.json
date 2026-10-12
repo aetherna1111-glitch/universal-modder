@@ -1,0 +1,7 @@
+{
+  "id": "luminary:phenomenon/deviation_zone",
+  "title": "discovery.luminary.phenomenon.deviation_zone",
+  "verification": { "minContributors": 3, "experiments": ["luminary:experiment/compass_drift"] },
+  "dependsOn": ["luminary:material/first_trace_ore"],
+  "visibility": "public_when_verified"
+}

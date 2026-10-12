@@ -1,0 +1,9 @@
+pluginManagement {
+	repositories {
+		maven { name = 'Fabric'; url = 'https://maven.fabricmc.net/' }
+		maven { name = 'MavenCentralMirror'; url = 'https://repo1.maven.org/maven2/' }
+		mavenCentral()
+		gradlePluginPortal()
+	}
+}
+rootProject.name = 'luminary'
