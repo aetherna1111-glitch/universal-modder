@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "default_profile": "luminary",
+  "accounts": {
+    "api_url": "",
+    "required": false
+  },
+  "authlib_injector": {
+    "version": "1.2.8",
+    "url": "https://authlib-injector.yushi.moe/artifact/56/authlib-injector-1.2.8.jar",
+    "sha256": "9c7f4343e6c82034958ffb48c14a2cb0c85928be7283103ce17da00c6d5a7b10"
+  },
+  "profiles": [
+    {
+      "id": "luminary",
+      "name": "Luminary",
+      "minecraft": "1.20.1",
+      "loader": {"type": "fabric", "version": null},
+      "server": {"name": "Luminary", "host": "135.106.221.145", "port": 27195},
+      "modpack": {"config": "config_updater.json"},
+      "java": {"windows": "jre/bin/javaw.exe", "other": "jre/bin/java", "min_version": 17}
+    }
+  ]
+}

@@ -1,0 +1,205 @@
+import hashlib
+import json
+import threading
+from functools import partial
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+
+import pytest
+
+from luminary_app import modpack
+from luminary_app.modpack import PackConfig, PackError, safe_relpath
+
+FOLDERS = ("mods", "config")
+
+
+class RangeHandler(SimpleHTTPRequestHandler):
+    """Static files with single-range support; can be told to cut a transfer short."""
+    fail_after: dict = {}
+    requests: list = []
+
+    def log_message(self, *a):
+        pass
+
+    def do_GET(self):
+        RangeHandler.requests.append((self.path, self.headers.get("Range")))
+        path = Path(self.translate_path(self.path))
+        if not path.is_file():
+            self.send_error(404)
+            return
+        data = path.read_bytes()
+        start = 0
+        rng = self.headers.get("Range")
+        if rng and rng.startswith("bytes="):
+            start = int(rng[6:].split("-")[0])
+            self.send_response(206)
+            self.send_header("Content-Range", f"bytes {start}-{len(data) - 1}/{len(data)}")
+        else:
+            self.send_response(200)
+        body = data[start:]
+        cut = RangeHandler.fail_after.pop(self.path, None)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body if cut is None else body[:cut])
+
+
+@pytest.fixture
+def server(tmp_path):
+    root = tmp_path / "srv"
+    root.mkdir()
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), partial(RangeHandler, directory=str(root)))
+    t = threading.Thread(target=httpd.serve_forever, daemon=True)
+    t.start()
+    RangeHandler.requests.clear()
+    RangeHandler.fail_after.clear()
+    yield root, f"http://127.0.0.1:{httpd.server_address[1]}/pack/"
+    httpd.shutdown()
+
+
+def publish(root: Path, files: dict[str, bytes], version="v1"):
+    pack = root / "pack"
+    if pack.exists():
+        import shutil
+        shutil.rmtree(pack)
+    entries = []
+    for rel, data in files.items():
+        p = pack / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(data)
+        entries.append({"path": rel, "sha256": hashlib.sha256(data).hexdigest(), "size": len(data)})
+    (pack / "manifest.json").write_text(json.dumps({"version": version, "files": entries}))
+
+
+def sync(cfg, mc):
+    m = modpack.fetch_manifest(cfg)
+    cache = modpack.HashCache(mc / modpack.HASH_CACHE)
+    plan = modpack.make_plan(m, mc, cfg.sync_folders, cache)
+    return plan, modpack.apply_plan(plan, cfg, mc, cache, retries=2)
+
+
+@pytest.mark.parametrize("bad", [
+    "../evil.jar", "mods/../../evil.jar", "/etc/passwd", "C:/Windows/x.dll", "mods\\..\\x", "saves/world.dat",
+    "mods", "mods//x.jar", "mods/./x.jar", "mods/CON.jar", "mods/x.jar ", "", "mods/\x00.jar",
+])
+def test_unsafe_manifest_paths_rejected(bad):
+    with pytest.raises(PackError):
+        safe_relpath(bad, FOLDERS)
+
+
+def test_safe_paths_kept():
+    assert safe_relpath("mods/Some Mod 1.2.jar", FOLDERS) == "mods/Some Mod 1.2.jar"
+    assert safe_relpath("config/sub/a.toml", FOLDERS) == "config/sub/a.toml"
+
+
+def test_manifest_with_traversal_is_refused_entirely(server, tmp_path):
+    root, url = server
+    (root / "pack").mkdir()
+    (root / "pack" / "manifest.json").write_text(json.dumps({"files": [
+        {"path": "mods/ok.jar", "sha256": "0" * 64, "size": 1},
+        {"path": "mods/../../../evil.bat", "sha256": "0" * 64, "size": 1}]}))
+    with pytest.raises(PackError):
+        modpack.fetch_manifest(PackConfig(url, sync_folders=FOLDERS))
+
+
+def test_config_requires_https(tmp_path):
+    p = tmp_path / "c.json"
+    p.write_text(json.dumps({"server_url": "http://example.org/pack/", "sync_folders": ["mods"]}))
+    with pytest.raises(PackError):
+        modpack.load_config(p)
+    p.write_text(json.dumps({"server_url": "https://example.org/pack/", "sync_folders": ["../x"]}))
+    with pytest.raises(PackError):
+        modpack.load_config(p)
+
+
+def test_shipped_config_loads():
+    from conftest import ROOT
+    cfg = modpack.load_config(ROOT / "config_updater.json")
+    assert cfg.manifest_url.endswith("/manifest.json") and "mods" in cfg.sync_folders
+
+
+def test_full_sync_update_and_backup(server, tmp_path):
+    root, url = server
+    mc = tmp_path / "mc"
+    (mc / "mods").mkdir(parents=True)
+    (mc / "mods" / "user-extra.jar").write_bytes(b"mine")
+    publish(root, {"mods/a mod.jar": b"A" * 1000, "config/a.toml": b"x=1"})
+    cfg = PackConfig(url, sync_folders=FOLDERS)
+    plan, (down, deleted) = sync(cfg, mc)
+    assert (down, deleted) == (2, 1)
+    assert (mc / "mods" / "a mod.jar").read_bytes() == b"A" * 1000
+    backups = list((mc / ".backup").rglob("user-extra.jar"))
+    assert len(backups) == 1 and backups[0].read_bytes() == b"mine"
+    assert modpack.local_version(mc) == "v1"
+    assert not (mc / modpack.STAGING).exists()
+
+    # Second run: nothing to do, and hashes come from the cache (no file re-read needed).
+    m = modpack.fetch_manifest(cfg)
+    cache = modpack.HashCache(mc / modpack.HASH_CACHE)
+    plan = modpack.make_plan(m, mc, FOLDERS, cache)
+    assert plan.empty and plan.up_to_date == 2 and not cache.dirty
+
+    # Locally modified config is restored from the server.
+    (mc / "config" / "a.toml").write_bytes(b"x=2")
+    plan, (down, _) = sync(cfg, mc)
+    assert down == 1 and (mc / "config" / "a.toml").read_bytes() == b"x=1"
+
+
+def test_hash_mismatch_never_reaches_the_pack(server, tmp_path):
+    root, url = server
+    mc = tmp_path / "mc"
+    publish(root, {"mods/a.jar": b"good"})
+    (root / "pack" / "mods" / "a.jar").write_bytes(b"evil")  # server file no longer matches manifest
+    with pytest.raises(PackError):
+        sync(PackConfig(url, sync_folders=FOLDERS), mc)
+    assert not (mc / "mods" / "a.jar").exists()
+
+
+def test_interrupted_download_leaves_pack_untouched_and_resumes(server, tmp_path):
+    root, url = server
+    mc = tmp_path / "mc"
+    publish(root, {"mods/a.jar": b"old"}, version="v1")
+    cfg = PackConfig(url, sync_folders=FOLDERS)
+    sync(cfg, mc)
+    big = bytes(range(256)) * 8192  # 2 MiB: several 256 KiB chunks
+    publish(root, {"mods/a.jar": b"new", "mods/big.jar": big}, version="v2")
+
+    cancel = threading.Event()
+    m = modpack.fetch_manifest(cfg)
+    cache = modpack.HashCache(mc / modpack.HASH_CACHE)
+    plan = modpack.make_plan(m, mc, FOLDERS, cache)
+    seen = []
+
+    def progress(done, total, msg):
+        seen.append(msg)
+        if done > 300_000:
+            cancel.set()
+
+    with pytest.raises(modpack.Cancelled):
+        modpack.apply_plan(plan, cfg, mc, cache, progress=progress, cancel=cancel)
+    # Nothing swapped in: old file intact, new file absent, version unchanged.
+    assert (mc / "mods" / "a.jar").read_bytes() == b"old"
+    assert not (mc / "mods" / "big.jar").exists()
+    assert modpack.local_version(mc) == "v1"
+    partial_file = mc / modpack.STAGING / "mods" / "big.jar.part"
+    assert partial_file.exists() and 0 < partial_file.stat().st_size < len(big)
+
+    RangeHandler.requests.clear()
+    sync(cfg, mc)
+    assert (mc / "mods" / "big.jar").read_bytes() == big
+    assert any(r == "/pack/mods/big.jar" and rng and rng != "bytes=0-" for r, rng in RangeHandler.requests)
+    assert modpack.local_version(mc) == "v2"
+
+
+def test_truncated_transfer_is_retried(server, tmp_path):
+    root, url = server
+    mc = tmp_path / "mc"
+    publish(root, {"mods/a.jar": b"Z" * 5000})
+    RangeHandler.fail_after["/pack/mods/a.jar"] = 100
+    sync(PackConfig(url, sync_folders=FOLDERS), mc)
+    assert (mc / "mods" / "a.jar").read_bytes() == b"Z" * 5000
+
+
+def test_missing_manifest_is_a_clear_error(server):
+    root, url = server
+    with pytest.raises(PackError, match="manifest.json"):
+        modpack.fetch_manifest(PackConfig(url, sync_folders=FOLDERS))
