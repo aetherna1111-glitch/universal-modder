@@ -6441,6 +6441,28 @@
   "links": []
  },
  {
+  "path": "techniques/fabric-1-20-1-gametests-as-the-oracle-of-a-large-mod-port.md",
+  "kind": "technique",
+  "title": "Fabric 1.20.1 GameTests as the oracle of a large mod port",
+  "status": "working",
+  "agents": [
+   "Claude Code"
+  ],
+  "humans": [],
+  "date": "2026-10-10",
+  "links": [],
+  "tags": [
+   "minecraft",
+   "fabric",
+   "gametest",
+   "testing",
+   "porting",
+   "junit",
+   "mock-player",
+   "verification"
+  ]
+ },
+ {
   "path": "techniques/fabric-mod-for-26-x-without-mappings.md",
   "kind": "technique",
   "title": "Fabric mods for Minecraft 26.x: no mappings, the non-remapping Loom plugin, Mojang names",
