@@ -20,8 +20,12 @@ tags: [minecraft, fabric, modpack, gametest, integration, ftb-quests, terrablend
 
 ## When to use it
 - A mod has to ship in a big pack you can't run on your own machine, or must not run on the user's.
-- The mod already has GameTests and/or a client screenshot harness (see the Fabric GameTest note), and you want the
-  same oracle against the pack's real mod set.
+- The mod already has GameTests and/or a client screenshot harness (the Fabric GameTest note, PR #237; for NeoForge
+  see [NeoForge 1.21.1 GameTests for mob AI](neoforge-1-21-1-gametests-for-mob-ai-real-survival-players-s.md)), and
+  you want the same oracle against the pack's real mod set.
+- Licences first. Every mod in a pack other people download has to allow that (many allow CurseForge- or
+  Modrinth-hosted packs only), and a port of someone else's mod needs its author's permission before it goes in.
+  The mod here is a port of Thaumcraft 4, whose code and assets are Azanor's; nothing from it is in this note.
 Verified with Minecraft 1.20.1, Fabric Loader 0.19.5 (the pack's), Fabric API 0.92.12, Java 21, Mesa software GL.
 
 ## How
@@ -36,8 +40,9 @@ Verified with Minecraft 1.20.1, Fabric Loader 0.19.5 (the pack's), Fabric API 0.
   the `fabric-gametest-api-v1` module jar (from the Gradle cache) if the pack's Fabric API lacks it. The run covers
   every mod's GameTests in the pack (here 1,863), so filter the report by test class.
 - **Client in a world.** Start the pack's client like a launcher would (Mojang's version json + Fabric's loader
-  profile, an offline account, `--quickPlaySingleplayer`), under `xvfb-run` with `LIBGL_ALWAYS_SOFTWARE=1`, with the
-  test jar's client entrypoint driving scenarios and taking screenshots. Prepare the world first (gotchas 9, 10).
+  profile, an offline username as Loom's dev runs use, `--quickPlaySingleplayer`), under `xvfb-run` with
+  `LIBGL_ALWAYS_SOFTWARE=1`, with the test jar's client entrypoint driving scenarios and taking screenshots. Prepare
+  the world first (gotchas 9, 10).
 - **Read the screenshots.** Score brightness to catch black frames, then look at contact sheets. A run that "passes"
   can still show the wrong dimension, a loading screen, or boxes instead of text.
 - **Find who changed a vanilla method** with `-Dmixin.debug.verbose=true`: the log lists
