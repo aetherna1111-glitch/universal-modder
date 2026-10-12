@@ -1,0 +1,5 @@
+{
+  "id": "luminary:npc/ascending_intelligence",
+  "name": "npc.luminary.ascending_intelligence",
+  "dialogue": "luminary:dialogue/ascending_intelligence"
+}

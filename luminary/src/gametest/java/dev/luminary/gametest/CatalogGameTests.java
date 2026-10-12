@@ -143,8 +143,9 @@ public final class CatalogGameTests implements FabricGameTest {
 		ServerCommandSource console = ctx.getWorld().getServer().getCommandSource();
 		LuminaryId thaumaturgy = LuminaryId.parse("luminary:story/thaumaturgy");
 		LuminaryId hum = LuminaryId.parse("luminary:clue/ore_hum"), compass = LuminaryId.parse("luminary:clue/compass_lie"), record = LuminaryId.parse("luminary:clue/record_author");
-		if (rt.story().definitions().phasesInOrder().size() != 7 || rt.story().definitions().clues().size() != 3 || rt.story().definitions().branches().size() != 3) {
-			throw new GameTestException("expected the bundled 7 phases, 3 clues, 3 branches");
+		if (rt.story().definitions().phasesInOrder().size() != 7 || rt.story().definitions().clue(record).isEmpty()
+				|| rt.story().definitions().clue(hum).isEmpty() || rt.story().definitions().branches().size() != 3) {
+			throw new GameTestException("expected the bundled 7 phases, 3 branches and the bundled clues (other data packs may add more clues)");
 		}
 		// The progression test (same server) may already have auto-advanced the story to Phase I (first_trace, autoAdvance),
 		// so only assert that no admin-only phase has been entered yet.

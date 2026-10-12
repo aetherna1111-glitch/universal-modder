@@ -1,0 +1,4 @@
+{ "id": "luminary-gametest:dialogue/test", "lines": [
+  { "text": "gametest.line.greeting", "priority": 0 },
+  { "text": "gametest.clue.test_secret", "priority": 5, "clue": "luminary-gametest:clue/test_secret" }
+] }

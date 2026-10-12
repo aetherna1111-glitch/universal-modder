@@ -17,6 +17,12 @@ import dev.luminary.core.progression.Technology;
 import dev.luminary.core.story.Clue;
 import dev.luminary.core.story.StoryCondition;
 import dev.luminary.core.story.StoryPhase;
+import dev.luminary.core.npc.DialogueProvider;
+import dev.luminary.core.npc.NpcDefinition;
+import dev.luminary.core.npc.NpcDialogueService;
+import dev.luminary.core.npc.NpcRoster;
+import dev.luminary.fabric.npc.LuminaryNpcEntity;
+import dev.luminary.fabric.npc.NpcService;
 import dev.luminary.fabric.LuminaryRuntime;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.command.argument.EntityArgumentType;
@@ -52,6 +58,12 @@ import java.util.UUID;
  * /luminary story set &lt;phase&gt;                          (op 4)  administrative phase change, recorded
  * /luminary story branch &lt;branch&gt;                      (op 4)  commit to a strategic approach
  * /luminary story reveal &lt;clue&gt;                        (op 3)  surface a clue; refused while locked, no override exists
+ * /luminary npc list                                   (op 2)  roster: body, position, players remembered
+ * /luminary npc spawn &lt;npc&gt;                            (op 3)  one body per NPC, at the executor's position
+ * /luminary npc despawn &lt;npc&gt;                          (op 3)
+ * /luminary npc follow &lt;npc&gt; &lt;player&gt; | stop           (op 3)
+ * /luminary npc talk &lt;npc&gt;                             (op 2)  talk without clicking (needs a player executor and a present body)
+ * /luminary npc provider &lt;scripted|disabled&gt;           (op 4)  swap the dialogue provider until restart
  * </pre>
  */
 public final class LuminaryCommands {
@@ -116,7 +128,98 @@ public final class LuminaryCommands {
 								.then(CommandManager.argument("id", IdentifierArgumentType.identifier()).executes(LuminaryCommands::branch)))
 						.then(CommandManager.literal("reveal")
 								.requires(src -> src.hasPermissionLevel(3))
-								.then(CommandManager.argument("id", IdentifierArgumentType.identifier()).executes(LuminaryCommands::reveal)))));
+								.then(CommandManager.argument("id", IdentifierArgumentType.identifier()).executes(LuminaryCommands::reveal))))
+				.then(CommandManager.literal("npc")
+						.then(CommandManager.literal("list").executes(LuminaryCommands::npcList))
+						.then(CommandManager.literal("spawn")
+								.requires(src -> src.hasPermissionLevel(3))
+								.then(CommandManager.argument("id", IdentifierArgumentType.identifier()).executes(LuminaryCommands::npcSpawn)))
+						.then(CommandManager.literal("despawn")
+								.requires(src -> src.hasPermissionLevel(3))
+								.then(CommandManager.argument("id", IdentifierArgumentType.identifier()).executes(LuminaryCommands::npcDespawn)))
+						.then(CommandManager.literal("follow")
+								.requires(src -> src.hasPermissionLevel(3))
+								.then(CommandManager.argument("id", IdentifierArgumentType.identifier())
+										.then(CommandManager.literal("stop").executes(ctx -> npcFollow(ctx, null)))
+										.then(CommandManager.argument("player", EntityArgumentType.player())
+												.executes(ctx -> npcFollow(ctx, EntityArgumentType.getPlayer(ctx, "player"))))))
+						.then(CommandManager.literal("talk")
+								.then(CommandManager.argument("id", IdentifierArgumentType.identifier()).executes(LuminaryCommands::npcTalk)))
+						.then(CommandManager.literal("provider")
+								.requires(src -> src.hasPermissionLevel(4))
+								.then(CommandManager.argument("provider", com.mojang.brigadier.arguments.StringArgumentType.word())
+										.executes(LuminaryCommands::npcProvider)))));
+	}
+
+	private static int npcList(CommandContext<ServerCommandSource> ctx) {
+		return runtime(ctx.getSource()).map(rt -> {
+			NpcService npc = rt.npc();
+			ctx.getSource().sendFeedback(() -> Text.translatable("luminary.command.npc_provider_is", npc.dialogue().provider().id()), false);
+			for (NpcDefinition d : npc.dialogue().definitions().npcs()) {
+				Optional<NpcRoster.NpcRecord> r = npc.roster().get(d.id());
+				boolean present = npc.body(d.id()).isPresent();
+				String body = present ? "present" : r.flatMap(NpcRoster.NpcRecord::entityUuid).map(u -> "missing body").orElse("never spawned");
+				String where = r.flatMap(NpcRoster.NpcRecord::dimension).map(dim -> dim + " " + BlockPos.fromLong(r.get().lastPosPacked()).toShortString()).orElse("-");
+				int players = r.map(x -> x.players().size()).orElse(0);
+				ctx.getSource().sendFeedback(() -> Text.literal(" - " + d.id() + "  " + Text.translatable(d.nameKey()).getString() + "  " + body + "  last=" + where + "  players=" + players), false);
+			}
+			return npc.dialogue().definitions().npcs().size();
+		}).orElse(0);
+	}
+
+	private static int npcSpawn(CommandContext<ServerCommandSource> ctx) {
+		return runtime(ctx.getSource()).map(rt -> {
+			LuminaryId id = parseId(ctx);
+			Result r = rt.npc().spawn(id, ctx.getSource().getWorld(), ctx.getSource().getPosition());
+			return report(ctx.getSource(), r, "luminary.command.npc_spawned", id);
+		}).orElse(0);
+	}
+
+	private static int npcDespawn(CommandContext<ServerCommandSource> ctx) {
+		return runtime(ctx.getSource()).map(rt -> {
+			LuminaryId id = parseId(ctx);
+			return report(ctx.getSource(), rt.npc().despawn(id), "luminary.command.npc_despawned", id);
+		}).orElse(0);
+	}
+
+	private static int npcFollow(CommandContext<ServerCommandSource> ctx, ServerPlayerEntity player) {
+		return runtime(ctx.getSource()).map(rt -> {
+			LuminaryId id = parseId(ctx);
+			Result r = rt.npc().follow(id, player == null ? null : player.getUuid());
+			return report(ctx.getSource(), r, player == null ? "luminary.command.npc_follow_stopped" : "luminary.command.npc_following", id);
+		}).orElse(0);
+	}
+
+	private static int npcTalk(CommandContext<ServerCommandSource> ctx) {
+		return runtime(ctx.getSource()).map(rt -> {
+			LuminaryId id = parseId(ctx);
+			ServerPlayerEntity player = ctx.getSource().getPlayer();
+			if (player == null) {
+				ctx.getSource().sendError(Text.translatable("luminary.command.needs_player"));
+				return 0;
+			}
+			Optional<LuminaryNpcEntity> body = rt.npc().body(id);
+			if (body.isEmpty()) {
+				ctx.getSource().sendError(Text.translatable(NpcService.REASON_NOT_PRESENT));
+				return 0;
+			}
+			Optional<NpcDialogueService.Turn> turn = rt.npc().talk(body.get(), player);
+			return turn.isPresent() ? 1 : 0;
+		}).orElse(0);
+	}
+
+	private static int npcProvider(CommandContext<ServerCommandSource> ctx) {
+		return runtime(ctx.getSource()).map(rt -> {
+			String id = com.mojang.brigadier.arguments.StringArgumentType.getString(ctx, "provider");
+			Optional<DialogueProvider> provider = dev.luminary.fabric.LuminaryRuntime.providerFor(id);
+			if (provider.isEmpty()) {
+				ctx.getSource().sendError(Text.translatable("luminary.command.npc_unknown_provider", id));
+				return 0;
+			}
+			rt.setDialogueProvider(provider.get());
+			ctx.getSource().sendFeedback(() -> Text.translatable("luminary.command.npc_provider_set", id), true);
+			return 1;
+		}).orElse(0);
 	}
 
 	private static int storyStatus(CommandContext<ServerCommandSource> ctx) {

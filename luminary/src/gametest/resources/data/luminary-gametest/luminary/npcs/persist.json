@@ -1,0 +1,5 @@
+{
+  "id": "luminary-gametest:npc/persist",
+  "name": "gametest.npc.test",
+  "dialogue": "luminary-gametest:dialogue/test"
+}

@@ -3,6 +3,14 @@ package dev.luminary.fabric;
 import dev.luminary.core.catalog.CatalogService;
 import dev.luminary.core.progression.ProgressionService;
 import dev.luminary.core.story.StoryController;
+import dev.luminary.core.npc.DialogueProvider;
+import dev.luminary.core.npc.DisabledDialogueProvider;
+import dev.luminary.core.npc.NpcDialogueService;
+import dev.luminary.core.npc.ScriptedDialogueProvider;
+import dev.luminary.fabric.config.LuminaryConfig;
+import dev.luminary.fabric.npc.NpcService;
+import dev.luminary.fabric.state.NpcWorldState;
+import net.fabricmc.loader.api.FabricLoader;
 import dev.luminary.core.events.EventBus;
 import dev.luminary.core.persistence.CivilizationState;
 import dev.luminary.fabric.definitions.Definitions;
@@ -23,14 +31,22 @@ public final class LuminaryRuntime {
 
 	private final MinecraftServer server;
 	private final LuminaryWorldState worldState;
+	private final NpcWorldState npcState;
 	private final EventBus events;
+	private DialogueProvider dialogueProvider;
 	private CatalogService catalog;
 	private ProgressionService progression;
 	private StoryController story;
+	private NpcService npc;
 
-	private LuminaryRuntime(MinecraftServer server, LuminaryWorldState worldState) {
+	private LuminaryRuntime(MinecraftServer server, LuminaryWorldState worldState, NpcWorldState npcState, LuminaryConfig config) {
 		this.server = server;
 		this.worldState = worldState;
+		this.npcState = npcState;
+		this.dialogueProvider = providerFor(config.dialogueProvider()).orElseGet(() -> {
+			Luminary.LOGGER.warn("[luminary] unknown dialogueProvider '{}' in config; dialogue disabled", config.dialogueProvider());
+			return new DisabledDialogueProvider();
+		});
 		this.events = new EventBus((event, listener, error) ->
 				Luminary.LOGGER.error("[luminary] listener {} failed on {}", listener.getClass().getName(), event, error));
 		rebuildServices(DefinitionsReloadListener.current());
@@ -48,6 +64,26 @@ public final class LuminaryRuntime {
 		this.progression.start();
 		this.story = new StoryController(worldState.state().story(), definitions.story(), progression::holds, bus, Clock.systemUTC(), worldState::markDirty);
 		this.story.start();
+		NpcDialogueService dialogue = new NpcDialogueService(definitions.npcs(), npcState.roster(), story, dialogueProvider, Clock.systemUTC(), npcState::markDirty);
+		this.npc = new NpcService(server, npcState, dialogue, Clock.systemUTC());
+	}
+
+	/** Known providers by id. External/model-backed providers would be added here (and nowhere else). */
+	public static Optional<DialogueProvider> providerFor(String id) {
+		switch (id) {
+			case ScriptedDialogueProvider.ID:
+				return Optional.of(new ScriptedDialogueProvider());
+			case DisabledDialogueProvider.ID:
+				return Optional.of(new DisabledDialogueProvider());
+			default:
+				return Optional.empty();
+		}
+	}
+
+	/** Swaps the dialogue provider at runtime (admin command, tests). Survives reloads until the server restarts. */
+	public void setDialogueProvider(DialogueProvider provider) {
+		this.dialogueProvider = provider;
+		this.npc.dialogue().setProvider(provider);
 	}
 
 	private EventBus eventsRebuilt() {
@@ -57,7 +93,9 @@ public final class LuminaryRuntime {
 
 	static void start(MinecraftServer server) {
 		LuminaryWorldState state = LuminaryWorldState.get(server);
-		current = new LuminaryRuntime(server, state);
+		NpcWorldState npcState = NpcWorldState.get(server);
+		LuminaryConfig config = LuminaryConfig.load(FabricLoader.getInstance().getConfigDir().resolve(Luminary.MOD_ID + ".json"));
+		current = new LuminaryRuntime(server, state, npcState, config);
 		Luminary.LOGGER.info("[luminary] state loaded: {} catalog records, {} unlocked technologies, era {}, story phase {}, {} executed effects; definitions: {} templates, {} eras, {} technologies, {} phases, {} clues",
 				state.state().catalog().size(), state.state().progression().unlocked().size(), state.state().progression().currentEra().map(Object::toString).orElse("-"),
 				state.state().story().currentPhase().map(Object::toString).orElse("-"),
@@ -69,6 +107,7 @@ public final class LuminaryRuntime {
 	static void stop(MinecraftServer server) {
 		if (current != null && current.server == server) {
 			current.worldState.markDirty();   // vanilla saves persistent states during shutdown
+			current.npcState.markDirty();
 			current = null;
 		}
 	}
@@ -87,6 +126,10 @@ public final class LuminaryRuntime {
 
 	public StoryController story() {
 		return story;
+	}
+
+	public NpcService npc() {
+		return npc;
 	}
 
 	public CivilizationState state() {

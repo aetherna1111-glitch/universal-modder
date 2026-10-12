@@ -18,6 +18,13 @@ import dev.luminary.core.story.StoryBranch;
 import dev.luminary.core.story.StoryCondition;
 import dev.luminary.core.story.StoryDefinitions;
 import dev.luminary.core.story.StoryPhase;
+import dev.luminary.core.npc.DialogueLine;
+import dev.luminary.core.npc.DialogueScript;
+import dev.luminary.core.npc.NpcDefinition;
+import dev.luminary.core.npc.NpcDefinitions;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 import dev.luminary.fabric.Luminary;
 import dev.luminary.fabric.LuminaryRuntime;
 import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
@@ -44,6 +51,8 @@ import java.util.stream.Collectors;
  * data/&lt;ns&gt;/luminary/story/phases/*.json   → StoryPhase
  * data/&lt;ns&gt;/luminary/story/clues/*.json    → Clue
  * data/&lt;ns&gt;/luminary/story/branches/*.json → StoryBranch
+ * data/&lt;ns&gt;/luminary/npcs/*.json            → NpcDefinition
+ * data/&lt;ns&gt;/luminary/dialogues/*.json       → DialogueScript
  * </pre>
  * A file with an error is reported with its path and skipped. If cross-references do not validate, the whole new set
  * is rejected and the previous definitions stay in force, so a bad reload never empties the game.
@@ -67,6 +76,7 @@ public final class DefinitionsReloadListener implements SimpleSynchronousResourc
 		Templates templates = new Templates();
 		ProgressionDefinitions progression = new ProgressionDefinitions();
 		StoryDefinitions story = new StoryDefinitions();
+		NpcDefinitions npcs = new NpcDefinitions();
 		int[] errors = {0};
 		load(manager, "luminary/discoveries", errors, (json, file) -> templates.add(parseTemplate(json, file)));
 		load(manager, "luminary/eras", errors, (json, file) -> progression.addEra(parseEra(json, file)));
@@ -74,28 +84,42 @@ public final class DefinitionsReloadListener implements SimpleSynchronousResourc
 		load(manager, "luminary/story/branches", errors, (json, file) -> story.addBranch(parseBranch(json, file)));
 		load(manager, "luminary/story/phases", errors, (json, file) -> story.addPhase(parsePhase(json, file)));
 		load(manager, "luminary/story/clues", errors, (json, file) -> story.addClue(parseClue(json, file)));
+		load(manager, "luminary/dialogues", errors, (json, file) -> npcs.addDialogue(parseDialogue(json, file)));
+		load(manager, "luminary/npcs", errors, (json, file) -> npcs.addNpc(parseNpc(json, file)));
 		try {
 			templates.validate();
 			Set<LuminaryId> known = templates.all().stream().map(DiscoveryTemplate::id).collect(Collectors.toSet());
 			progression.validate(known);
 			story.validate();
-			// story conditions may reference progression ids: check them with the same rules
+			npcs.validate(story);
+			for (StoryCondition c : npcs.conditions()) {
+				if (c instanceof StoryCondition.BranchChosen b && story.branch(b.branch()).isEmpty()) {
+					throw new IllegalStateException("dialogue condition requires unknown branch " + b.branch());
+				}
+				if (c instanceof StoryCondition.ClueRevealed r && story.clue(r.clue()).isEmpty()) {
+					throw new IllegalStateException("dialogue condition requires unknown clue " + r.clue());
+				}
+				if (c instanceof StoryCondition.PhaseAtLeast p && story.phase(p.phase()).isEmpty()) {
+					throw new IllegalStateException("dialogue condition requires unknown phase " + p.phase());
+				}
+			}
+			// story and dialogue conditions may reference progression ids: check them with the same rules
 			ProgressionDefinitions probe = new ProgressionDefinitions();
 			progression.erasInOrder().forEach(probe::addEra);
 			progression.technologies().forEach(probe::addTechnology);
 			probe.addTechnology(new Technology(new LuminaryId(Luminary.MOD_ID, "internal/story_conditions_probe"),
 					progression.firstEra().map(Era::id).orElseThrow(() -> new IllegalStateException("story definitions need at least one era")),
-					"internal", new HashSet<>(story.progressionPrerequisites()), Set.of(), Set.of()));
+					"internal", allProgressionPrerequisites(story, npcs), Set.of(), Set.of()));
 			probe.validate(known);
 		} catch (IllegalStateException | java.util.NoSuchElementException e) {
 			Luminary.LOGGER.error("[luminary] definitions rejected, keeping previous set: {}", e.getMessage());
 			return;
 		}
-		current = new Definitions(templates, progression, story);
+		current = new Definitions(templates, progression, story, npcs);
 		LuminaryRuntime.get().ifPresent(rt -> rt.rebuildServices(current));
-		Luminary.LOGGER.info("[luminary] loaded {} discovery templates, {} eras, {} technologies, {} story phases, {} clues, {} branches ({} files with errors)",
+		Luminary.LOGGER.info("[luminary] loaded {} discovery templates, {} eras, {} technologies, {} story phases, {} clues, {} branches, {} npcs, {} dialogues ({} files with errors)",
 				templates.size(), progression.erasInOrder().size(), progression.technologies().size(),
-				story.phasesInOrder().size(), story.clues().size(), story.branches().size(), errors[0]);
+				story.phasesInOrder().size(), story.clues().size(), story.branches().size(), npcs.npcs().size(), npcs.dialogues().size(), errors[0]);
 	}
 
 	private static void load(ResourceManager manager, String folder, int[] errors, BiConsumer<JsonObject, Identifier> sink) {
@@ -140,6 +164,36 @@ public final class DefinitionsReloadListener implements SimpleSynchronousResourc
 		LuminaryId era = LuminaryId.parse(require(json, "era", file).getAsString());
 		String titleKey = json.has("title") ? json.get("title").getAsString() : "technology." + id.namespace() + "." + id.path().replace('/', '.');
 		return new Technology(id, era, titleKey, prerequisites(json, file), ids(json, "applies"), ids(json, "grants"));
+	}
+
+	private static Set<Prerequisite> allProgressionPrerequisites(StoryDefinitions story, NpcDefinitions npcs) {
+		Set<Prerequisite> out = new HashSet<>(story.progressionPrerequisites());
+		for (StoryCondition c : npcs.conditions()) {
+			if (c instanceof StoryCondition.Progression p) {
+				out.add(p.prerequisite());
+			}
+		}
+		return out;
+	}
+
+	static NpcDefinition parseNpc(JsonObject json, Identifier file) {
+		LuminaryId id = LuminaryId.parse(require(json, "id", file).getAsString());
+		String nameKey = json.has("name") ? json.get("name").getAsString() : "npc." + id.namespace() + "." + id.path().replace('/', '.');
+		return new NpcDefinition(id, nameKey, LuminaryId.parse(require(json, "dialogue", file).getAsString()));
+	}
+
+	/**
+	 * {@code {"id":"ns:dialogue/x","lines":[{"text":"lang.key","priority":0,"conditions":[...],"clue":"ns:clue/y"}]}}
+	 */
+	static DialogueScript parseDialogue(JsonObject json, Identifier file) {
+		LuminaryId id = LuminaryId.parse(require(json, "id", file).getAsString());
+		List<DialogueLine> lines = new ArrayList<>();
+		for (JsonElement el : require(json, "lines", file).getAsJsonArray()) {
+			JsonObject l = el.getAsJsonObject();
+			lines.add(new DialogueLine(require(l, "text", file).getAsString(), l.has("priority") ? l.get("priority").getAsInt() : 0,
+					conditions(l, "conditions", file), l.has("clue") ? Optional.of(LuminaryId.parse(l.get("clue").getAsString())) : Optional.empty()));
+		}
+		return new DialogueScript(id, lines);
 	}
 
 	static StoryBranch parseBranch(JsonObject json, Identifier file) {

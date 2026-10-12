@@ -1,0 +1,68 @@
+{
+  "id": "luminary:dialogue/ascending_intelligence",
+  "lines": [
+    {
+      "text": "dialogue.luminary.ai.greeting_1",
+      "priority": 0
+    },
+    {
+      "text": "dialogue.luminary.ai.greeting_2",
+      "priority": 0
+    },
+    {
+      "text": "dialogue.luminary.ai.ore_verified",
+      "priority": 1,
+      "conditions": [
+        {
+          "type": "discovery_verified",
+          "discovery": "luminary:material/first_trace_ore"
+        }
+      ]
+    },
+    {
+      "text": "dialogue.luminary.ai.branch_investigation",
+      "priority": 1,
+      "conditions": [
+        {
+          "type": "branch_chosen",
+          "branch": "luminary:story/branch/investigation"
+        }
+      ]
+    },
+    {
+      "text": "dialogue.luminary.ai.branch_containment",
+      "priority": 1,
+      "conditions": [
+        {
+          "type": "branch_chosen",
+          "branch": "luminary:story/branch/containment"
+        }
+      ]
+    },
+    {
+      "text": "dialogue.luminary.ai.branch_exploitation",
+      "priority": 1,
+      "conditions": [
+        {
+          "type": "branch_chosen",
+          "branch": "luminary:story/branch/exploitation"
+        }
+      ]
+    },
+    {
+      "text": "story.clue.luminary.ore_hum",
+      "priority": 5,
+      "clue": "luminary:clue/ore_hum"
+    },
+    {
+      "text": "story.clue.luminary.compass_lie",
+      "priority": 5,
+      "clue": "luminary:clue/compass_lie"
+    },
+    {
+      "text": "story.clue.luminary.record_author",
+      "priority": 5,
+      "clue": "luminary:clue/record_author"
+    }
+  ]
+}

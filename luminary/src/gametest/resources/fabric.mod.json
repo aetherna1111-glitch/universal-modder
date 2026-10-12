@@ -4,6 +4,14 @@
 	"version": "1.0.0",
 	"name": "Luminary GameTests",
 	"environment": "*",
-	"entrypoints": { "fabric-gametest": ["dev.luminary.gametest.CatalogGameTests"] },
-	"depends": { "luminary": "*", "fabric-api": "*" }
+	"entrypoints": {
+		"fabric-gametest": [
+			"dev.luminary.gametest.CatalogGameTests",
+			"dev.luminary.gametest.NpcGameTests"
+		]
+	},
+	"depends": {
+		"luminary": "*",
+		"fabric-api": "*"
+	}
 }

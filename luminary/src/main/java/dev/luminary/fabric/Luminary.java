@@ -2,6 +2,8 @@ package dev.luminary.fabric;
 
 import dev.luminary.fabric.command.LuminaryCommands;
 import dev.luminary.fabric.definitions.DefinitionsReloadListener;
+import dev.luminary.fabric.npc.NpcEntities;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
@@ -19,10 +21,13 @@ public final class Luminary implements ModInitializer {
 
 	@Override
 	public void onInitialize() {
+		NpcEntities.register();
 		ResourceManagerHelper.get(ResourceType.SERVER_DATA).registerReloadListener(new DefinitionsReloadListener());
 		LuminaryCommands.register();
 		ServerLifecycleEvents.SERVER_STARTED.register(LuminaryRuntime::start);
 		ServerLifecycleEvents.SERVER_STOPPING.register(LuminaryRuntime::stop);
+		ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> LuminaryRuntime.get().ifPresent(rt -> rt.npc().onEntityLoad(entity, world)));
+		ServerEntityEvents.ENTITY_UNLOAD.register((entity, world) -> LuminaryRuntime.get().ifPresent(rt -> rt.npc().onEntityUnload(entity, world)));
 		LOGGER.info("Luminary {} initialized (core schema v{})", versionString(),
 				dev.luminary.core.persistence.CivilizationState.CURRENT_SCHEMA_VERSION);
 	}

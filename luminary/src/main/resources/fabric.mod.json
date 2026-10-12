@@ -8,7 +8,10 @@
 	"contact": { "sources": "https://github.com/aetherna1111-glitch/universal-modder" },
 	"license": "MIT",
 	"environment": "*",
-	"entrypoints": { "main": ["dev.luminary.fabric.Luminary"] },
+	"entrypoints": {
+		"main": ["dev.luminary.fabric.Luminary"],
+		"client": ["dev.luminary.fabric.client.LuminaryClient"]
+	},
 	"depends": {
 		"fabricloader": ">=0.16.0",
 		"minecraft": "1.20.1",
