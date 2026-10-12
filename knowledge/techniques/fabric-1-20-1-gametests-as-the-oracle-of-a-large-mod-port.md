@@ -61,9 +61,12 @@ and 1.7.4, Gradle 8.8, Java 17 (JDK 21 running Gradle), on Linux and Windows 10.
    - **Fix:** a separate `batchId` for tests that add in-world players; wait past the invulnerability; remove the
      player with `world.removePlayer(player, DISCARDED)`. Use the off-world `createMockSurvivalPlayer()` when only a
      `PlayerEntity` argument is needed. 1.20.1 has no `createMockPlayer()`.
+   - **Also:** the in-world player is creative (its `isCreative()` returns true), so mobs that ignore creative
+     players never target it. The NeoForge 1.21.1 GameTest note (gotcha 1) hits the same wall and builds a real
+     survival `ServerPlayer` instead.
 4. **A Fabric `FakePlayer` never takes damage.**
    - **Cause:** it overrides `isInvulnerableTo` to return true (fabric-events-interaction 0.6.6).
-   - **Fix:** use `TestContext.createMockSurvivalPlayer()` and attack with `damageSources().playerAttack(other)`,
+   - **Fix:** use `TestContext.createMockSurvivalPlayer()` and attack with `getDamageSources().playerAttack(other)`,
      which is not scaled by difficulty (`mobAttack` is). The `generic` damage type is in `#minecraft:bypasses_armor`,
      so it cannot test armour.
 5. **Equipment hooks never run on a `FakePlayer`.**
@@ -75,13 +78,16 @@ and 1.7.4, Gradle 8.8, Java 17 (JDK 21 running Gradle), on Linux and Windows 10.
      `getEntitiesByClass` misses them.
    - **Fix:** `world.setChunkForced(cx, cz, true)` for the test's duration.
 7. **A dimension test finds no world.**
-   - **Cause:** the test server builds a flat world with only the vanilla dimensions; datapack dimensions do not
-     exist there (the NeoForge 1.21.1 GameTest note reports the same).
+   - **Cause:** `TestServer.create` builds the world from the `minecraft:flat` world preset (overworld, nether, end)
+     against an empty dimension registry, so datapack dimensions never exist there (the NeoForge 1.21.1 dimension
+     note, gotcha 1, reports the same).
    - **Fix:** run the dimension's content in the overworld by calling the generator directly; check the dimension
      itself with a client run.
 8. **A mob standing on a pressure plate never presses it.**
-   - **Cause:** `setAiDisabled(true)` mobs skip their block-collision callbacks (observed; the code path was not
-     traced).
+   - **Cause:** `setAiDisabled(true)` mobs never move, so they never run their block-collision callbacks. In 1.20.1
+     `LivingEntity.travel` does nothing unless `isLogicalSideForUpdatingMovement()`, which for a mob without a rider
+     is `canMoveVoluntarily()`, and `MobEntity` returns false there when its AI is disabled. `Entity.move`, which
+     calls `tryCheckBlockCollision`, is never reached (traced in the 1.20.1 bytecode during review).
    - **Fix:** use an item entity or a mob with AI.
 9. **One device test wrecks another test's structure.**
    - **Cause:** long-reach logic (a 64-block digging ray, a golem's item search) crosses into the neighbouring test
@@ -89,9 +95,12 @@ and 1.7.4, Gradle 8.8, Java 17 (JDK 21 running Gradle), on Linux and Windows 10.
    - **Fix:** wall the reach off with an unbreakable block (bedrock stops the ray when hardness < 0), or size the
      structure to the reach.
 10. **`succeedWhen` does not compile.**
-    - **Fix:** in 1.20.1 Yarn the "succeed when" call is `TestContext.addFinalTask(Runnable)`. Most of the 323 tests
-      instead schedule their checks with `runAtTick` / `waitAndRun` / `runAtEveryTick` and end with
-      `ctx.complete()`.
+    - **Cause:** Yarn names. In Yarn 1.20.1+build.10, Mojang's `succeedWhen` (retry the check every tick until it
+      passes) is `TestContext.addInstantFinalTask(Runnable)`. `addFinalTask(Runnable)` is Mojang's `succeedIf`: a
+      check expected to pass straight away (it queues the check with an expected delay of 0 ticks, and a later pass
+      fails the test with "Succeeded in invalid tick"). The names read the wrong way round.
+    - **Fix:** look the method up by its Mojang name, or avoid both: most of the 323 tests schedule their checks with
+      `runAtTick` / `waitAndRun` / `runAtEveryTick` and end with `ctx.complete()`.
 11. **A test-only mod crashes with `NoClassDefFoundError` for its bundled library.**
     - **Cause:** a mod added with `modGametestRuntimeOnly` does not get its jar-in-jar libraries loaded in a dev run.
     - **Fix:** put the nested jars on the runtime classpath (`gametestRuntimeOnly files(...)`).
@@ -149,5 +158,10 @@ and 1.7.4, Gradle 8.8, Java 17 (JDK 21 running Gradle), on Linux and Windows 10.
 ## Seen in
 - `games/minecraft/porting-thaumcraft-4-1-7-10-forge-to-minecraft-1-20-1-fabric.md`: 323 GameTests across 49 test
   classes, one per ported subsystem.
-- `techniques/neoforge-1-21-1-gametests-for-mob-ai-real-survival-players-s.md`: the same dimension limit and mock
-  player traps on NeoForge 1.21.1.
+- `techniques/neoforge-1-21-1-gametests-for-mob-ai-real-survival-players-s.md`: the creative in-world mock player
+  and other mob-AI traps on NeoForge 1.21.1;
+  `games/minecraft/neoforge-1-21-1-custom-dimension-and-tool-tier.md`: the same missing datapack dimensions.
+- `techniques/a-scenario-harness-in-a-minecraft-fabric-dev-client-real-cli.md`: the client-side checks GameTests
+  cannot make (real clicks, screens, rendering, natural worlds).
+- Related: `techniques/prove-your-replay-bench-can-fail-mutant-builds-exposed-four-.md` (making sure a check can
+  fail, gotcha 1) and `techniques/oracles-how-agents-know-a-mod-works.md`.
