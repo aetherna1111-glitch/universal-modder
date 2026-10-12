@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Большие папки, которые НЕ надо заливать
+python/
+jre/
+.minecraft/
+
+# Логи и кеши
+*.log
+cache/
+logs/
+
+# Системные
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# Исполняемые файлы (большие, не нужны в репо)
+LuminaryLauncher.exe
+*.exe

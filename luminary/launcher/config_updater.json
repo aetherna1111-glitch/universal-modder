@@ -1,0 +1,16 @@
+{
+    "server_url": "https://world-endpoints.servarium.ru/client-packs/9672f925-73cf-4bbc-9a67-f2244db81a1d/",
+    "manifest_name": "manifest.json",
+    "timeout": 30,
+    "sync_folders": [
+        "mods",
+        "config",
+        "defaultconfigs",
+        "patchouli_books",
+        "fancymenu_data"
+    ],
+    "backup_before_delete": true,
+    "backup_folder": ".backup",
+    "block_launch_on_error": false,
+    "auto_update": false
+}
