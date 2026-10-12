@@ -6,7 +6,12 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.luminary.core.ids.LuminaryId;
+import dev.luminary.core.npc.memory.MemoryEntry;
+import dev.luminary.core.npc.memory.MemoryKind;
+import dev.luminary.core.npc.memory.MemoryStore;
+import dev.luminary.core.npc.memory.Provenance;
 import dev.luminary.core.npc.task.NpcAction;
+import java.util.Optional;
 import dev.luminary.core.npc.task.NpcTask;
 import dev.luminary.core.npc.task.TaskLedger;
 import dev.luminary.core.npc.task.TaskState;
@@ -62,6 +67,21 @@ public final class NpcStateCodec {
 			r.authorizedContainers().forEach(containers::add);
 			o.add("containers", containers);
 			r.task().ifPresent(t -> o.add("task", taskToJson(t)));
+			JsonArray memories = new JsonArray();
+			for (MemoryEntry e : r.memory().all()) {
+				JsonObject m = new JsonObject();
+				m.addProperty("id", e.id().toString());
+				m.addProperty("kind", e.kind().name());
+				e.player().ifPresent(pl -> m.addProperty("player", pl.toString()));
+				e.topicKey().ifPresent(t -> m.addProperty("topic", t));
+				m.addProperty("text", e.text());
+				m.addProperty("at", e.at().toString());
+				m.addProperty("lastUsed", e.lastUsed().toString());
+				m.addProperty("importance", e.importance());
+				m.addProperty("provenance", e.provenance().name());
+				memories.add(m);
+			}
+			o.add("memories", memories);
 			npcs.add(id.toString(), o);
 		});
 		root.add("npcs", npcs);
@@ -142,6 +162,17 @@ public final class NpcStateCodec {
 			}
 			if (o.has("task")) {
 				NpcRoster.Restore.task(roster, id, taskFromJson(o.getAsJsonObject("task")));
+			}
+			if (o.has("memories")) {
+				MemoryStore store = roster.ensureRecord(id).memory();
+				for (JsonElement el : o.getAsJsonArray("memories")) {
+					JsonObject m = el.getAsJsonObject();
+					MemoryStore.Restore.entry(store, new MemoryEntry(UUID.fromString(m.get("id").getAsString()), MemoryKind.valueOf(m.get("kind").getAsString()),
+							m.has("player") ? Optional.of(UUID.fromString(m.get("player").getAsString())) : Optional.empty(),
+							m.has("topic") ? Optional.of(m.get("topic").getAsString()) : Optional.empty(),
+							m.get("text").getAsString(), Instant.parse(m.get("at").getAsString()), Instant.parse(m.get("lastUsed").getAsString()),
+							m.get("importance").getAsDouble(), Provenance.valueOf(m.get("provenance").getAsString())));
+				}
 			}
 			if (o.has("players")) {
 				for (Map.Entry<String, JsonElement> pe : o.getAsJsonObject("players").entrySet()) {

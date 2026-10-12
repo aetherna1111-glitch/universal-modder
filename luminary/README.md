@@ -14,22 +14,24 @@ slice**; design and research live in `../docs/research/luminary-2026-10-11/` (st
 | Pure-Java core: Story — ordered phases (admin-controlled; opt-in auto-advance on explicit conditions), strategic branches, authored clues with reveal conditions and no override, full phase history; schema v3 | **implemented, unit-tested** |
 | Pure-Java core: NPC — definitions, data-driven dialogue scripts with story conditions and clue lines, `DialogueProvider` abstraction with `scripted` (default) and `disabled` providers, roster (one body per NPC, per-player memory), own persisted state `luminary_npc.dat` | **implemented, unit-tested** |
 | Pure-Java core: NPC tasks — typed `NpcAction` (`GatherWood`), validator chain, explicit task states, item ledger, authorized containers, persisted in-flight task | **implemented, unit-tested** |
-| Pure-Java core: language-model layer — `LlmProvider` with `none` (default), `ollama` and `openai` (any OpenAI-compatible endpoint) backends; async off the game thread, connect/request timeouts, 64 KiB response cap, concurrency limit, exponential cooldown, loopback-only endpoints unless allow-listed, API key from the environment only, JSONL journal | **implemented, unit-tested against a mock HTTP server** (65 tests in total); **not yet used by dialogue** |
+| Pure-Java core: language-model layer — `LlmProvider` with `none` (default), `ollama` and `openai` (any OpenAI-compatible endpoint) backends; async off the game thread, connect/request timeouts, 64 KiB response cap, concurrency limit, exponential cooldown, loopback-only endpoints unless allow-listed, API key from the environment only, JSONL journal | **implemented, unit-tested against a mock HTTP server**; **not yet used by dialogue** |
+| Pure-Java core: NPC memory — typed entries (stable facts, interactions, events, promises, relationships, observations, clues, assumptions) with provenance and trust, topic supersession, per-player and global caps that never evict promises, budgeted relevance retrieval, deterministic summarization; every Catalog/Progression/Story event becomes an observed memory of every NPC | **implemented, unit-tested** (72 tests in total) |
 | Fabric layer: mod init, `PersistentState` (`<world>/data/luminary.dat`), data-pack loader (discoveries, eras, technologies, story phases/clues/branches, npcs, dialogues), `/luminary catalog`, `/luminary progression`, `/luminary story`, `/luminary npc` commands, en/ru lang | **implemented**; covered by 9 GameTests |
 | Fabric layer: NPC entity (`luminary:npc`, persistent, never despawns, right-click to talk), roster reconciliation on entity load/unload (duplicates discarded, missing bodies forgotten), follow goal, `config/luminary.json` (`dialogueProvider`), placeholder client renderer (default player model) | **implemented**; entity + dialogue covered by GameTests; **client rendering not verified** (no client in CI) |
 | Fabric layer: task executor — real block breaking (`ServerWorld.breakBlock`, loot tables), item-entity collection into the NPC's own inventory, insertion into the authorized container's `Inventory`, per-step re-validation, resume after reload; `/luminary npc task` and `/luminary npc container` commands | **implemented**; covered by 8 GameTests incl. item accounting |
-| Gameplay enforcement of capabilities (recipe/item gates), City (facilities), further NPC tasks (furnaces, milking, withdraw), model-backed dialogue and intent planning on top of the LLM layer, structured NPC memory, GeckoLib model, mod integrations | **designed, not implemented** — see the research set |
+| Fabric layer: chat intake — the nearest NPC within 8 blocks hears a player's chat message, remembers it and answers that player; `/luminary npc memory` commands | **implemented**; covered by 2 GameTests |
+| Gameplay enforcement of capabilities (recipe/item gates), City (facilities), further NPC tasks (furnaces, milking, withdraw), model-backed dialogue and intent planning on top of the LLM and memory layers, GeckoLib model, mod integrations | **designed, not implemented** — see the research set |
 | Thaumcraft 4 port bridge (`dev.luminary.api` plugin entrypoint) | **proposed**, needs the port maintainers |
 
 Nothing here grants items, unlocks recipes or changes gameplay yet. The slice proves the architecture: a Minecraft-free
 core, server-side rules, persistence with migrations, admin commands, and an in-world test harness.
 
-## Last recorded verification (2026-10-12, slice 6, JDK 21 runtime, `release 17`)
+## Last recorded verification (2026-10-12, slice 7, JDK 21 runtime, `release 17`)
 
 | Check | Result |
 |---|---|
-| `./gradlew build` (compile main/test/gametest, 65 unit tests, jar) | passed; `build/libs/luminary-0.1.0.jar` (266 KB) |
-| `./gradlew runGametest` (headless 1.20.1 server, Fabric API 0.92.12, Loader 0.19.5) | "All 18 required tests passed" |
+| `./gradlew build` (compile main/test/gametest, 72 unit tests, jar) | passed; `build/libs/luminary-0.1.0.jar` (294 KB) |
+| `./gradlew runGametest` (headless 1.20.1 server, Fabric API 0.92.12, Loader 0.19.5) | "All 20 required tests passed" |
 | `um publish check luminary` | 0 failures (1 warning in the ignored `.gradle/` cache) |
 | Not verified | a real dedicated server with players; the integrated client and the NPC renderer; any other mod loaded alongside; a real Ollama or hosted model endpoint (only the mock server was exercised) |
 
@@ -78,10 +80,13 @@ cd luminary
 /luminary npc task gather <npc> <log pos> <container pos> [maxLogs]   [3]  validated gather-wood task
 /luminary npc task status <npc>                 [2]  state, failure reason, ledger (broken / collected / deposited)
 /luminary npc task cancel <npc>                 [3]  marks the task FAILED(cancelled); carried items stay with the NPC
+/luminary npc memory <npc> [player]             [2]  what the NPC remembers (newest 30), optionally about one player
+/luminary npc memory note <npc> <text>          [3]  add an authored stable fact (the NPC's teaching knowledge)
 /luminary llm status                            [2]  provider, model, endpoint, health, request counters
 /luminary llm ping                              [4]  one tiny request to the configured model; the reply or failure arrives asynchronously
 ```
-Players talk by right-clicking the NPC. Lines arrive in chat as `<NPC name> line`.
+Players talk by right-clicking the NPC **or by chatting within 8 blocks of it**; lines arrive in chat as `<NPC name> line`.
+The chat message itself is never consumed or changed.
 Ids are Minecraft identifiers: always write the namespace (`luminary:material/first_trace_ore`).
 
 ## Data packs: discovery templates
@@ -233,11 +238,33 @@ task runs.
 Nothing in gameplay calls the model yet: dialogue still uses the `scripted` provider. The next slices add structured
 memory and then a model-backed dialogue provider on top of this layer (ADR-0007).
 
+## NPC memory (slice 7)
+
+Each NPC has a `MemoryStore` persisted in `luminary_npc.dat`. Entries carry a kind, an optional player, an optional
+topic key, bounded text (240 chars), timestamps, importance and a **provenance**: `OBSERVED_IN_WORLD` and `AUTHORED`
+(trust 3) > `PLAYER_SAID` (2) > `MODEL_INFERRED` (1).
+
+- **Sources**: a chat utterance near the NPC (`PLAYER_SAID`), meetings and first contact (`OBSERVED_IN_WORLD`),
+  clues the NPC itself revealed, administrator notes (`AUTHORED`), and every civilization event: first observer of a
+  discovery, status changes, technology unlocks, eras, story phases and branches (`NpcMemoryObserver`, provenance
+  `OBSERVED_IN_WORLD`). Nothing a model says can enter memory above trust 1.
+- **Supersession**: a new entry with the same player and topic key and equal or higher trust replaces the old one
+  (kept in a short superseded list); a lower-trust entry is rejected, so a model's guess never overrides a fact.
+- **Caps**: 64 entries per player, 4096 per NPC; eviction removes the lowest-scoring entries and never a `PROMISE`.
+- **Retrieval** (`MemoryRetriever`): score = recency with a half-life per kind + importance + player match +
+  keyword overlap; promises to the current player rank first; another player's small talk is never selected; budgets
+  of 12 entries / 1500 characters per interaction. Selected entries have `lastUsed` refreshed.
+- **Summarization** (`MemorySummarizer`): past 12 interactions with one player, all but the newest 6 collapse into one
+  deterministic `SIGNIFICANT_EVENT` (count, date range, keywords). No model involved.
+
+Dialogue providers receive the retrieved entries and the utterance in the `DialogueRequest`; the `scripted` provider
+ignores them, a model-backed provider (next slice) will use them as context.
+
 ## Layout
 
 ```
 src/main/java/dev/luminary/core/        pure Java (no net.minecraft / net.fabricmc imports; enforced by a test)
-  ids/ events/ catalog/ progression/ story/ npc/ npc/task/ npc/llm/ persistence/
+  ids/ events/ catalog/ progression/ story/ npc/ npc/task/ npc/llm/ npc/memory/ persistence/
 src/main/java/dev/luminary/fabric/      Minecraft-facing: Luminary (init), LuminaryRuntime, state/, command/, definitions/, npc/, npc/task/, config/, client/
 src/test/java/                          JUnit 5
 src/gametest/java/                      Fabric GameTests (second Loom mod "luminary-gametest", never shipped)

@@ -6,6 +6,7 @@ import dev.luminary.core.story.StoryController;
 import dev.luminary.core.npc.DialogueProvider;
 import dev.luminary.core.npc.DisabledDialogueProvider;
 import dev.luminary.core.npc.NpcDialogueService;
+import dev.luminary.core.npc.memory.NpcMemoryObserver;
 import dev.luminary.core.npc.ScriptedDialogueProvider;
 import dev.luminary.fabric.config.LuminaryConfig;
 import dev.luminary.fabric.npc.NpcService;
@@ -67,6 +68,7 @@ public final class LuminaryRuntime {
 		this.story = new StoryController(worldState.state().story(), definitions.story(), progression::holds, bus, Clock.systemUTC(), worldState::markDirty);
 		this.story.start();
 		NpcDialogueService dialogue = new NpcDialogueService(definitions.npcs(), npcState.roster(), story, dialogueProvider, Clock.systemUTC(), npcState::markDirty);
+		new NpcMemoryObserver(() -> definitions.npcs().npcs(), npcState.roster(), npcState::markDirty).subscribe(bus);
 		this.npc = new NpcService(server, npcState, dialogue, Clock.systemUTC());
 	}
 

@@ -25,6 +25,10 @@ import dev.luminary.fabric.npc.LuminaryNpcEntity;
 import dev.luminary.fabric.npc.NpcService;
 import dev.luminary.core.npc.llm.LlmMessage;
 import dev.luminary.core.npc.llm.LlmRequest;
+import dev.luminary.core.npc.memory.MemoryEntry;
+import dev.luminary.core.npc.memory.MemoryKind;
+import dev.luminary.core.npc.memory.MemoryStore;
+import dev.luminary.core.npc.memory.Provenance;
 import dev.luminary.core.npc.task.NpcAction;
 import dev.luminary.core.npc.task.NpcTask;
 import net.minecraft.command.argument.BlockPosArgumentType;
@@ -72,6 +76,8 @@ import java.util.UUID;
  * /luminary npc container allow|deny &lt;npc&gt; &lt;pos&gt;       (op 3)  authorize a deposit container (persisted)
  * /luminary npc task gather &lt;npc&gt; &lt;log pos&gt; &lt;container pos&gt; [maxLogs]   (op 3)  validated gather-wood task
  * /luminary npc task status &lt;npc&gt; | cancel &lt;npc&gt;        (op 2 / op 3)
+ * /luminary npc memory &lt;npc&gt; [player]                 (op 2)  what the NPC remembers (optionally about one player)
+ * /luminary npc memory note &lt;npc&gt; &lt;text...&gt;            (op 3)  an authored stable fact the NPC knows (teaching role)
  * /luminary llm status                                 (op 2)  provider, model, health, counters
  * /luminary llm ping                                   (op 4)  one tiny request to the configured model; answer arrives asynchronously
  * </pre>
@@ -167,6 +173,16 @@ public final class LuminaryCommands {
 								.then(CommandManager.literal("deny")
 										.then(CommandManager.argument("id", IdentifierArgumentType.identifier())
 												.then(CommandManager.argument("pos", BlockPosArgumentType.blockPos()).executes(ctx -> container(ctx, false))))))
+						.then(CommandManager.literal("memory")
+								.then(CommandManager.literal("note")
+										.requires(src -> src.hasPermissionLevel(3))
+										.then(CommandManager.argument("id", IdentifierArgumentType.identifier())
+												.then(CommandManager.argument("text", com.mojang.brigadier.arguments.StringArgumentType.greedyString())
+														.executes(LuminaryCommands::memoryNote))))
+								.then(CommandManager.argument("id", IdentifierArgumentType.identifier())
+										.executes(ctx -> memoryList(ctx, null))
+										.then(CommandManager.argument("player", EntityArgumentType.player())
+												.executes(ctx -> memoryList(ctx, EntityArgumentType.getPlayer(ctx, "player"))))))
 						.then(CommandManager.literal("task")
 								.then(CommandManager.literal("status")
 										.then(CommandManager.argument("id", IdentifierArgumentType.identifier()).executes(LuminaryCommands::taskStatus)))
@@ -237,6 +253,34 @@ public final class LuminaryCommands {
 		return runtime(ctx.getSource()).map(rt -> {
 			Result r = rt.npc().assign(id, new NpcAction.GatherWood(target.asLong(), container.asLong(), maxLogs));
 			return report(ctx.getSource(), r, "luminary.command.task_assigned", id);
+		}).orElse(0);
+	}
+
+	private static int memoryList(CommandContext<ServerCommandSource> ctx, ServerPlayerEntity player) {
+		return runtime(ctx.getSource()).map(rt -> {
+			LuminaryId id = parseId(ctx);
+			MemoryStore store = rt.npc().dialogue().memory(id);
+			java.util.List<MemoryEntry> entries = player == null ? store.all() : store.forPlayer(player.getUuid());
+			ctx.getSource().sendFeedback(() -> Text.translatable("luminary.command.memory_count", id.toString(), entries.size(), store.size()), false);
+			entries.stream().sorted(java.util.Comparator.comparing(MemoryEntry::at).reversed()).limit(30).forEach(e ->
+					ctx.getSource().sendFeedback(() -> Text.literal(" - [" + e.kind() + "/" + e.provenance() + "] " + e.at().toString().substring(0, 16) + " " + e.text()), false));
+			return entries.size();
+		}).orElse(0);
+	}
+
+	private static int memoryNote(CommandContext<ServerCommandSource> ctx) {
+		return runtime(ctx.getSource()).map(rt -> {
+			LuminaryId id = parseId(ctx);
+			if (rt.npc().dialogue().definitions().npc(id).isEmpty()) {
+				ctx.getSource().sendError(Text.translatable(NpcService.REASON_UNKNOWN_NPC));
+				return 0;
+			}
+			String text = com.mojang.brigadier.arguments.StringArgumentType.getString(ctx, "text");
+			MemoryStore store = rt.npc().dialogue().memory(id);
+			store.add(MemoryEntry.of(MemoryKind.STABLE_FACT, null, null, text, Instant.now(), Provenance.AUTHORED), Instant.now());
+			rt.npc().markDirty();
+			ctx.getSource().sendFeedback(() -> Text.translatable("luminary.command.memory_noted", id.toString()), true);
+			return 1;
 		}).orElse(0);
 	}
 

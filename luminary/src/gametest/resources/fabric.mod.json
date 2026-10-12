@@ -9,7 +9,8 @@
 			"dev.luminary.gametest.CatalogGameTests",
 			"dev.luminary.gametest.NpcGameTests",
 			"dev.luminary.gametest.TaskGameTests",
-			"dev.luminary.gametest.LlmGameTests"
+			"dev.luminary.gametest.LlmGameTests",
+			"dev.luminary.gametest.MemoryGameTests"
 		]
 	},
 	"depends": {

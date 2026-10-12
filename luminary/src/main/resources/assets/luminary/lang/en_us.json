@@ -96,5 +96,7 @@
   "luminary.command.llm_status": "Language model: provider %s, model %s, endpoint %s, %s. %s",
   "luminary.command.llm_ping_sent": "Ping sent to provider %s; the answer arrives when the model replies",
   "luminary.command.llm_ping_ok": "Model answered in %s ms: %s",
-  "luminary.command.llm_ping_failed": "Model request failed (%s): %s"
+  "luminary.command.llm_ping_failed": "Model request failed (%s): %s",
+  "luminary.command.memory_count": "%s remembers %s entries (of %s in total)",
+  "luminary.command.memory_noted": "Note added to the memory of %s"
 }

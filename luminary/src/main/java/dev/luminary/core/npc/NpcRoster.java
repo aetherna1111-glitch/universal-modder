@@ -1,6 +1,7 @@
 package dev.luminary.core.npc;
 
 import dev.luminary.core.ids.LuminaryId;
+import dev.luminary.core.npc.memory.MemoryStore;
 import dev.luminary.core.npc.task.NpcTask;
 
 import java.time.Instant;
@@ -35,6 +36,12 @@ public final class NpcRoster {
 		private final Map<UUID, PlayerMemory> players = new TreeMap<>();
 		private final Set<Long> authorizedContainers = new TreeSet<>();
 		private NpcTask task;
+		private final MemoryStore memory = new MemoryStore();
+
+		/** Structured memory (facts, events, promises, observations); see {@code core.npc.memory}. */
+		public MemoryStore memory() {
+			return memory;
+		}
 
 		/** Containers (packed block positions) this NPC may deposit into. Set by administrators only. */
 		public Set<Long> authorizedContainers() {
@@ -127,6 +134,11 @@ public final class NpcRoster {
 		if (r != null) {
 			r.entityUuid = null;
 		}
+	}
+
+	/** Returns the record for {@code npc}, creating it; used by services that write memory before any body exists. */
+	public NpcRecord ensureRecord(LuminaryId npc) {
+		return ensure(npc);
 	}
 
 	public void authorizeContainer(LuminaryId npc, long pos) {

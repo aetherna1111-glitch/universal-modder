@@ -133,6 +133,11 @@ public final class NpcService {
 		return state.roster();
 	}
 
+	/** Persist roster/memory changes made directly by commands. */
+	public void markDirty() {
+		state.markDirty();
+	}
+
 	// ------------------------------------------------------------------ bodies
 
 	/** The living body of {@code npc} in any loaded world, if the roster's entity exists. */
@@ -239,13 +244,42 @@ public final class NpcService {
 
 	// ------------------------------------------------------------------ conversation
 
+	public static final double CHAT_RANGE = 8.0;
+
+	/**
+	 * Chat intake: the nearest NPC body within {@link #CHAT_RANGE} blocks of the player hears the message and answers
+	 * that player. The chat message itself is never consumed or altered. Returns the turn when an NPC answered.
+	 */
+	public Optional<NpcDialogueService.Turn> onPlayerChat(PlayerEntity player, String text) {
+		if (!(player.getWorld() instanceof ServerWorld world) || text == null || text.isBlank()) {
+			return Optional.empty();
+		}
+		LuminaryNpcEntity nearest = null;
+		double best = CHAT_RANGE * CHAT_RANGE;
+		for (LuminaryNpcEntity npc : world.getEntitiesByClass(LuminaryNpcEntity.class, player.getBoundingBox().expand(CHAT_RANGE), e -> e.npcId().isPresent())) {
+			double d = npc.squaredDistanceTo(player);
+			if (d <= best && state.roster().isBody(npc.npcId().get(), npc.getUuid())) {
+				best = d;
+				nearest = npc;
+			}
+		}
+		if (nearest == null) {
+			return Optional.empty();
+		}
+		return talk(nearest, player, Optional.of(text));
+	}
+
 	/** One conversation turn; the line goes to the player's chat as "<NPC name> line". Never throws. */
 	public Optional<NpcDialogueService.Turn> talk(LuminaryNpcEntity npc, PlayerEntity player) {
+		return talk(npc, player, Optional.empty());
+	}
+
+	public Optional<NpcDialogueService.Turn> talk(LuminaryNpcEntity npc, PlayerEntity player, Optional<String> utterance) {
 		if (npc.npcId().isEmpty()) {
 			return Optional.empty();
 		}
 		LuminaryId id = npc.npcId().get();
-		Optional<NpcDialogueService.Turn> turn = dialogue.talk(id, player.getUuid(), player.getGameProfile().getName());
+		Optional<NpcDialogueService.Turn> turn = dialogue.talk(id, player.getUuid(), player.getGameProfile().getName(), utterance);
 		Text name = npc.getCustomName() != null ? npc.getCustomName() : Text.literal(id.toString());
 		String textKey = turn.map(NpcDialogueService.Turn::textKey).orElse(NpcDialogueService.FALLBACK_TEXT_KEY);
 		player.sendMessage(Text.empty().append(Text.literal("<").append(name).append("> ").formatted(Formatting.GOLD))
