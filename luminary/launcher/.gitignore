@@ -22,3 +22,8 @@ desktop.ini
 # Исполняемые файлы (большие, не нужны в репо)
 LuminaryLauncher.exe
 *.exe
+# Launcher 2.x runtime data (per install, never committed)
+launcher_data/
+runtime/
+nickname.txt
+ram.txt
