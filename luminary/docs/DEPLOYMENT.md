@@ -172,6 +172,8 @@ To publish a new version from the main copy of the launcher:
    ```
 3. Upload `out\launcher\<version>\` to the servarium `launcher` folder first, then `launcher.json` last.
 4. Run `python\python.exe publish_launcher.py verify`. It downloads the release and checks the signature
+   servarium refuses empty files. You don't need them: launchers create empty files themselves, and
+   `publish` refuses to release new empty files.
    and every file.
 
 The signing key (`luminary-update.key`) is the only secret here. Anyone who has it can publish code to every

@@ -111,6 +111,8 @@ def check_remote(cfg: modpack.PackConfig, timeout: float = 60) -> tuple[list[str
     base = cfg.server_url.rstrip("/") + "/"
     errors = []
     for f in manifest.files:
+        if f.size == 0:
+            continue  # the launcher creates empty files itself; servarium refuses to store them
         url = base + urllib.parse.quote(f.path, safe="/")
         h, size = hashlib.sha256(), 0
         try:

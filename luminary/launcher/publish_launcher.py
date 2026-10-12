@@ -80,6 +80,13 @@ def cmd_publish(args) -> int:
               "игроков отклоняли бы следующие. Впиши ключ из `keygen` в profiles.json.")
         return 1
     files = selfupdate.collect_files(source)
+    empty = [f.path for f in files if f.size == 0]
+    if empty:
+        print("!!! пустые файлы нельзя загрузить на servarium, а лаунчеры 2.1.0 ждут их с сервера. "
+              "Добавь в каждый хотя бы строку комментария:")
+        for e in empty:
+            print("   ", e)
+        return 1
     names = {f.path for f in files}
     if "launcher.py" not in names or "luminary_app/main.py" not in names:
         print("!!! в папке нет программы лаунчера")
@@ -118,6 +125,8 @@ def cmd_verify(args) -> int:
         return 1
     errors = 0
     for f in release.files:
+        if f.size == 0:
+            continue  # launchers create empty files themselves; hosts like servarium refuse them
         try:
             data = urllib.request.urlopen(cfg.file_url(release.version, f.path), timeout=60).read()
         except Exception as exc:  # noqa: BLE001

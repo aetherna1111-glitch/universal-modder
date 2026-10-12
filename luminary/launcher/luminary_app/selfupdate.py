@@ -272,7 +272,12 @@ def stage(cfg: UpdateConfig, base: Path, release: Release, progress=None, cancel
         if cancel is not None and cancel.is_set():
             raise UpdateError("обновление отменено")
         dest = staging / f.path
-        if not (dest.is_file() and dest.stat().st_size == f.size and sha256_file(dest) == f.sha256):
+        if f.size == 0:  # nothing to download (some hosts, e.g. servarium, refuse empty files)
+            if f.sha256 != hashlib.sha256(b"").hexdigest():
+                raise UpdateError(f"{f.path}: неверный хеш пустого файла")
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(b"")
+        elif not (dest.is_file() and dest.stat().st_size == f.size and sha256_file(dest) == f.sha256):
             dest.parent.mkdir(parents=True, exist_ok=True)
             try:
                 data = _get(cfg.file_url(release.version, f.path), timeout, MAX_FILE)

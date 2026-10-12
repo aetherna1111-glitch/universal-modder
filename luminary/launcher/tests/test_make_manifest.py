@@ -133,6 +133,7 @@ def test_check_remote_detects_corrupt_and_missing_files(mc, server):
     assert n == 4
     assert any("fabric-api.jar" in e and "хеш" in e for e in errors)
     assert any("a.toml" in e and "404" in e for e in errors)
+    assert not any("empty.cfg" in e for e in errors)  # empty files are never fetched (servarium refuses them)
 
 
 def test_check_remote_reports_unpublished_manifest(server):

@@ -243,3 +243,41 @@ def test_ui_service_stages_update_and_offers_restart(tmp_path, host, keys, monke
     assert offered == [newer] and selfupdate.pending_version(install) == newer
     assert newer in win.settings_page.update_status.text()
     win.close(); state.runner.shutdown()
+
+
+def test_empty_files_are_created_locally_not_downloaded(tmp_path, host, keys):
+    """servarium refuses to store empty files; launchers must not depend on them being on the host."""
+    host_root, url = host
+    key_file, secret, pub = keys
+    install = make_tree(tmp_path / "player", "2.0.0", url, pub)
+    src = make_tree(tmp_path / "publisher", "2.0.1", url, pub)
+    (src / "luminary_app" / "empty_marker.py").write_bytes(b"")
+    # publish by hand (the tool refuses empty files on purpose), then drop the empty file from the host
+    files = selfupdate.collect_files(src)
+    target = host_root / "launcher" / "2.0.1"
+    for f in files:
+        (target / f.path).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(src / f.path, target / f.path)
+    (host_root / "launcher" / "launcher.json").write_bytes(selfupdate.make_manifest("2.0.1", files, secret))
+    (target / "luminary_app" / "empty_marker.py").unlink()
+    cfg = UpdateConfig(url, pub)
+    selfupdate.stage(cfg, install, selfupdate.check(cfg, install, "2.0.0"))
+    assert selfupdate.apply_pending(install, "2.0.0") == "2.0.1"
+    marker = install / "luminary_app" / "empty_marker.py"
+    assert marker.is_file() and marker.stat().st_size == 0
+    assert publish_launcher.main(["verify", url, "--public-key", pub.hex()]) == 0  # empty file not required
+
+
+def test_publish_refuses_empty_files(tmp_path, host, keys):
+    host_root, url = host
+    key_file, _, pub = keys
+    src = make_tree(tmp_path / "publisher", "2.0.1", url, pub)
+    (src / "luminary_app" / "blank.py").write_bytes(b"")
+    assert publish_launcher.main(["publish", str(src), str(host_root / "launcher"), "--key", str(key_file)]) == 1
+    assert not (host_root / "launcher" / "launcher.json").exists()
+
+
+def test_shipped_launcher_has_no_empty_files():
+    empty = [p.relative_to(ROOT).as_posix() for d in ("luminary_app", "assets", "sounds")
+             for p in (ROOT / d).rglob("*") if p.is_file() and p.stat().st_size == 0 and "__pycache__" not in p.parts]
+    assert empty == []

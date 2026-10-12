@@ -87,6 +87,14 @@ Single source of truth for resuming this work. Keep it short; update at mileston
 - Owner action: upload the prepared `launcher/` folder (2.1.0) to servarium. Later updates follow
   DEPLOYMENT.md, "Launcher auto-update".
 
+## Sixth pass (2026-10-12): 2.1.0 published by the owner
+- The owner uploaded `client-pack/launcher/` to servarium. `publish_launcher.py verify` against the live
+  host shows a valid signature and 54/56 files available. The 2 missing ones are empty `__init__.py` files
+  that servarium refuses to store; installed 2.1.0 launchers already have them, so nothing breaks.
+- Hardened anyway: launchers create empty release files locally, `verify` and `make_manifest
+  --check-remote` skip them, `publish` refuses empty files, and the two `__init__.py` files now have a
+  docstring. Launcher tests: 153 passed.
+
 ## Owner actions (blocking production use)
 1. Rent a VPS + domain for the accounts service; deploy per docs/DEPLOYMENT.md §1.
 2. Reserve existing player names from usercache.json (§2).
