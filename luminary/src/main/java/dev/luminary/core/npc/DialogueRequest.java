@@ -15,7 +15,8 @@ import java.util.UUID;
  * entries relevant to this player and utterance.
  */
 public record DialogueRequest(LuminaryId npc, DialogueScript script, UUID player, String playerName,
-							  Optional<NpcRoster.PlayerMemory> memory, Optional<String> playerUtterance, List<MemoryEntry> memories) {
+							  Optional<NpcRoster.PlayerMemory> memory, Optional<String> playerUtterance, List<MemoryEntry> memories,
+							  List<String> persona) {
 	public DialogueRequest {
 		Objects.requireNonNull(npc);
 		Objects.requireNonNull(script);
@@ -24,5 +25,6 @@ public record DialogueRequest(LuminaryId npc, DialogueScript script, UUID player
 		Objects.requireNonNull(memory);
 		Objects.requireNonNull(playerUtterance);
 		memories = List.copyOf(memories);
+		persona = List.copyOf(persona);
 	}
 }

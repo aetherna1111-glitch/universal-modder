@@ -1,0 +1,6 @@
+{
+  "id": "luminary-gametest:npc/model_fallback",
+  "name": "gametest.npc.test",
+  "dialogue": "luminary-gametest:dialogue/model_fallback",
+  "persona": ["A test persona line; the model is absent in this test."]
+}

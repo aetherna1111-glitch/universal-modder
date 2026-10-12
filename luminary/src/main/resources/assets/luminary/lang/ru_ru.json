@@ -65,7 +65,7 @@
   "luminary.command.npc_following": "NPC %s теперь следует за игроком",
   "luminary.command.npc_follow_stopped": "NPC %s перестал следовать",
   "luminary.command.npc_provider_set": "Провайдер диалогов: %s (до перезапуска; значение по умолчанию — в config/luminary.json)",
-  "luminary.command.npc_unknown_provider": "Неизвестный провайдер диалогов «%s» (известны: scripted, disabled)",
+  "luminary.command.npc_unknown_provider": "Неизвестный провайдер диалогов «%s» (известны: scripted, disabled, model)",
   "luminary.command.needs_player": "Команду должен выполнять игрок",
   "luminary.npc.unknown": "Нет определения NPC с таким id (см. data/<ns>/luminary/npcs/)",
   "luminary.npc.already_present": "У этого NPC уже есть тело в загруженном мире",
@@ -98,5 +98,6 @@
   "luminary.command.llm_ping_ok": "Модель ответила за %s мс: %s",
   "luminary.command.llm_ping_failed": "Запрос к модели не удался (%s): %s",
   "luminary.command.memory_count": "%s помнит %s записей (всего %s)",
-  "luminary.command.memory_noted": "Заметка добавлена в память %s"
+  "luminary.command.memory_noted": "Заметка добавлена в память %s",
+  "npc.luminary.model_line": "(реплика модели)"
 }

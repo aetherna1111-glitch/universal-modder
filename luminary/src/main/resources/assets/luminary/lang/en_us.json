@@ -65,7 +65,7 @@
   "luminary.command.npc_following": "NPC %s is now following",
   "luminary.command.npc_follow_stopped": "NPC %s stopped following",
   "luminary.command.npc_provider_set": "Dialogue provider set to %s (until restart; config/luminary.json holds the default)",
-  "luminary.command.npc_unknown_provider": "Unknown dialogue provider '%s' (known: scripted, disabled)",
+  "luminary.command.npc_unknown_provider": "Unknown dialogue provider '%s' (known: scripted, disabled, model)",
   "luminary.command.needs_player": "This command needs a player executor",
   "luminary.npc.unknown": "No NPC definition with that id (check data/<ns>/luminary/npcs/)",
   "luminary.npc.already_present": "That NPC already has a body in a loaded world",
@@ -98,5 +98,6 @@
   "luminary.command.llm_ping_ok": "Model answered in %s ms: %s",
   "luminary.command.llm_ping_failed": "Model request failed (%s): %s",
   "luminary.command.memory_count": "%s remembers %s entries (of %s in total)",
-  "luminary.command.memory_noted": "Note added to the memory of %s"
+  "luminary.command.memory_noted": "Note added to the memory of %s",
+  "npc.luminary.model_line": "(model line)"
 }

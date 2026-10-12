@@ -8,6 +8,8 @@ import dev.luminary.core.npc.DisabledDialogueProvider;
 import dev.luminary.core.npc.NpcDialogueService;
 import dev.luminary.core.npc.memory.NpcMemoryObserver;
 import dev.luminary.core.npc.ScriptedDialogueProvider;
+import dev.luminary.core.npc.ModelDialogueProvider;
+import java.time.Duration;
 import dev.luminary.fabric.config.LuminaryConfig;
 import dev.luminary.fabric.npc.NpcService;
 import dev.luminary.fabric.state.NpcWorldState;
@@ -36,6 +38,7 @@ public final class LuminaryRuntime {
 	private final EventBus events;
 	private DialogueProvider dialogueProvider;
 	private final LlmService llm;
+	private final Duration dialogueTimeout;
 	private CatalogService catalog;
 	private ProgressionService progression;
 	private StoryController story;
@@ -46,6 +49,7 @@ public final class LuminaryRuntime {
 		this.worldState = worldState;
 		this.npcState = npcState;
 		this.llm = new LlmService(server, config.llm(), config.llmLogContent());
+		this.dialogueTimeout = config.dialogueTimeout();
 		this.dialogueProvider = providerFor(config.dialogueProvider()).orElseGet(() -> {
 			Luminary.LOGGER.warn("[luminary] unknown dialogueProvider '{}' in config; dialogue disabled", config.dialogueProvider());
 			return new DisabledDialogueProvider();
@@ -67,18 +71,22 @@ public final class LuminaryRuntime {
 		this.progression.start();
 		this.story = new StoryController(worldState.state().story(), definitions.story(), progression::holds, bus, Clock.systemUTC(), worldState::markDirty);
 		this.story.start();
-		NpcDialogueService dialogue = new NpcDialogueService(definitions.npcs(), npcState.roster(), story, dialogueProvider, Clock.systemUTC(), npcState::markDirty);
+		NpcDialogueService dialogue = new NpcDialogueService(definitions.npcs(), npcState.roster(), story, () -> progression.state().currentEra(),
+				dialogueProvider, Clock.systemUTC(), npcState::markDirty, server);
 		new NpcMemoryObserver(() -> definitions.npcs().npcs(), npcState.roster(), npcState::markDirty).subscribe(bus);
 		this.npc = new NpcService(server, npcState, dialogue, Clock.systemUTC());
 	}
 
-	/** Known providers by id. External/model-backed providers would be added here (and nowhere else). */
-	public static Optional<DialogueProvider> providerFor(String id) {
+	/** Known providers by id: scripted, disabled, model (the model provider wraps the configured LLM and falls back to scripted). */
+	public Optional<DialogueProvider> providerFor(String id) {
 		switch (id) {
 			case ScriptedDialogueProvider.ID:
 				return Optional.of(new ScriptedDialogueProvider());
 			case DisabledDialogueProvider.ID:
 				return Optional.of(new DisabledDialogueProvider());
+			case ModelDialogueProvider.ID:
+				return Optional.of(new ModelDialogueProvider(llm.journaled("dialogue"), new ScriptedDialogueProvider(), dialogueTimeout,
+						msg -> Luminary.LOGGER.info("[luminary] dialogue: {}", msg)));
 			default:
 				return Optional.empty();
 		}

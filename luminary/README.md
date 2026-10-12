@@ -14,24 +14,25 @@ slice**; design and research live in `../docs/research/luminary-2026-10-11/` (st
 | Pure-Java core: Story — ordered phases (admin-controlled; opt-in auto-advance on explicit conditions), strategic branches, authored clues with reveal conditions and no override, full phase history; schema v3 | **implemented, unit-tested** |
 | Pure-Java core: NPC — definitions, data-driven dialogue scripts with story conditions and clue lines, `DialogueProvider` abstraction with `scripted` (default) and `disabled` providers, roster (one body per NPC, per-player memory), own persisted state `luminary_npc.dat` | **implemented, unit-tested** |
 | Pure-Java core: NPC tasks — typed `NpcAction` (`GatherWood`), validator chain, explicit task states, item ledger, authorized containers, persisted in-flight task | **implemented, unit-tested** |
-| Pure-Java core: language-model layer — `LlmProvider` with `none` (default), `ollama` and `openai` (any OpenAI-compatible endpoint) backends; async off the game thread, connect/request timeouts, 64 KiB response cap, concurrency limit, exponential cooldown, loopback-only endpoints unless allow-listed, API key from the environment only, JSONL journal | **implemented, unit-tested against a mock HTTP server**; **not yet used by dialogue** |
-| Pure-Java core: NPC memory — typed entries (stable facts, interactions, events, promises, relationships, observations, clues, assumptions) with provenance and trust, topic supersession, per-player and global caps that never evict promises, budgeted relevance retrieval, deterministic summarization; every Catalog/Progression/Story event becomes an observed memory of every NPC | **implemented, unit-tested** (72 tests in total) |
+| Pure-Java core: language-model layer — `LlmProvider` with `none` (default), `ollama` and `openai` (any OpenAI-compatible endpoint) backends; async off the game thread, connect/request timeouts, 64 KiB response cap, concurrency limit, exponential cooldown, loopback-only endpoints unless allow-listed, API key from the environment only, JSONL journal | **implemented, unit-tested against a mock HTTP server** |
+| Pure-Java core: NPC memory — typed entries (stable facts, interactions, events, promises, relationships, observations, clues, assumptions) with provenance and trust, topic supersession, per-player and global caps that never evict promises, budgeted relevance retrieval, deterministic summarization; every Catalog/Progression/Story event becomes an observed memory of every NPC | **implemented, unit-tested** |
+| Pure-Java core: model-backed dialogue — `model` provider on top of the LLM layer: persona + retrieved memories + public context + only the clues the story allows right now go into one structured request; the reply `{line, clue?, note?}` is validated (bounded line, clue outside the allowed set dropped, note stored as `MODEL_INFERRED`); any failure or timeout falls back to the `scripted` provider; the dialogue service is asynchronous and finishes every turn on the server thread | **implemented, unit-tested** (79 tests in total, incl. end-to-end through the HTTP client against a loopback Ollama look-alike) |
 | Fabric layer: mod init, `PersistentState` (`<world>/data/luminary.dat`), data-pack loader (discoveries, eras, technologies, story phases/clues/branches, npcs, dialogues), `/luminary catalog`, `/luminary progression`, `/luminary story`, `/luminary npc` commands, en/ru lang | **implemented**; covered by 9 GameTests |
 | Fabric layer: NPC entity (`luminary:npc`, persistent, never despawns, right-click to talk), roster reconciliation on entity load/unload (duplicates discarded, missing bodies forgotten), follow goal, `config/luminary.json` (`dialogueProvider`), placeholder client renderer (default player model) | **implemented**; entity + dialogue covered by GameTests; **client rendering not verified** (no client in CI) |
 | Fabric layer: task executor — real block breaking (`ServerWorld.breakBlock`, loot tables), item-entity collection into the NPC's own inventory, insertion into the authorized container's `Inventory`, per-step re-validation, resume after reload; `/luminary npc task` and `/luminary npc container` commands | **implemented**; covered by 8 GameTests incl. item accounting |
 | Fabric layer: chat intake — the nearest NPC within 8 blocks hears a player's chat message, remembers it and answers that player; `/luminary npc memory` commands | **implemented**; covered by 2 GameTests |
-| Gameplay enforcement of capabilities (recipe/item gates), City (facilities), further NPC tasks (furnaces, milking, withdraw), model-backed dialogue and intent planning on top of the LLM and memory layers, GeckoLib model, mod integrations | **designed, not implemented** — see the research set |
+| Gameplay enforcement of capabilities (recipe/item gates), City (facilities), further NPC tasks (furnaces, milking, withdraw), model-driven intent planning (model proposes a typed action, the validators decide), autonomy loop, GeckoLib model, mod integrations | **designed, not implemented** — see the research set |
 | Thaumcraft 4 port bridge (`dev.luminary.api` plugin entrypoint) | **proposed**, needs the port maintainers |
 
 Nothing here grants items, unlocks recipes or changes gameplay yet. The slice proves the architecture: a Minecraft-free
 core, server-side rules, persistence with migrations, admin commands, and an in-world test harness.
 
-## Last recorded verification (2026-10-12, slice 7, JDK 21 runtime, `release 17`)
+## Last recorded verification (2026-10-12, slice 8, JDK 21 runtime, `release 17`)
 
 | Check | Result |
 |---|---|
-| `./gradlew build` (compile main/test/gametest, 72 unit tests, jar) | passed; `build/libs/luminary-0.1.0.jar` (294 KB) |
-| `./gradlew runGametest` (headless 1.20.1 server, Fabric API 0.92.12, Loader 0.19.5) | "All 20 required tests passed" |
+| `./gradlew build` (compile main/test/gametest, 79 unit tests, jar) | passed |
+| `./gradlew runGametest` (headless 1.20.1 server, Fabric API 0.92.12, Loader 0.19.5) | "All 21 required tests passed" |
 | `um publish check luminary` | 0 failures (1 warning in the ignored `.gradle/` cache) |
 | Not verified | a real dedicated server with players; the integrated client and the NPC renderer; any other mod loaded alongside; a real Ollama or hosted model endpoint (only the mock server was exercised) |
 
@@ -75,7 +76,7 @@ cd luminary
 /luminary npc despawn <npc>                     [3]  removes the body; memory and record stay
 /luminary npc follow <npc> <player> | stop      [3]  follow order (walks to within ~2.5 blocks, repaths once per second)
 /luminary npc talk <npc>                        [2]  talk without clicking (player executor, body must be present)
-/luminary npc provider <scripted|disabled>      [4]  swap the dialogue provider until restart
+/luminary npc provider <scripted|disabled|model> [4]  swap the dialogue provider until restart
 /luminary npc container allow|deny <npc> <pos>  [3]  authorize (persisted) a container the NPC may deposit into
 /luminary npc task gather <npc> <log pos> <container pos> [maxLogs]   [3]  validated gather-wood task
 /luminary npc task status <npc>                 [2]  state, failure reason, ledger (broken / collected / deposited)
@@ -153,7 +154,8 @@ The bundled phases are the seven working titles from the vision (0 Zero Meridian
 
 ```json
 { "id": "luminary:npc/ascending_intelligence", "name": "npc.luminary.ascending_intelligence",
-  "dialogue": "luminary:dialogue/ascending_intelligence" }
+  "dialogue": "luminary:dialogue/ascending_intelligence",
+  "persona": [ "An old intelligence that remembers the first fire.", "Speaks briefly, asks before telling." ] }
 
 { "id": "luminary:dialogue/ascending_intelligence", "lines": [
   { "text": "dialogue.luminary.ai.greeting_1", "priority": 0 },
@@ -170,8 +172,12 @@ rotate per player (the roster remembers the last line each player heard). Speaki
 `StoryController.reveal`, so story conditions can never be bypassed by dialogue — a provider that names a clue the
 story refuses gets the fallback line instead (ADR-0005). Every meeting is remembered (count, first/last time, name).
 
+`persona` (optional, strings) is ignored by the `scripted` provider and becomes the character section of the model
+prompt for the `model` provider.
+
 `config/luminary.json`: `{ "dialogueProvider": "scripted" }` — or `"disabled"` (NPCs answer with the fallback line
-"…" and gameplay continues). No external service, key or network call exists in this slice.
+"…" and gameplay continues), or `"model"` (see "Model-backed dialogue" below; without a configured model it behaves
+like `scripted`).
 
 Persistence: the body is a normal entity saved with its chunk (`LuminaryNpc` id, follow target); identity, last
 position and memory live in `<world>/data/luminary_npc.dat` (own schema, version 1). On entity load the roster
@@ -235,8 +241,8 @@ task runs.
 - Journal: `logs/luminary/llm.jsonl`, one line per request (provider, model, purpose, sizes, latency, outcome),
   4 MiB rotation with 3 archives.
 
-Nothing in gameplay calls the model yet: dialogue still uses the `scripted` provider. The next slices add structured
-memory and then a model-backed dialogue provider on top of this layer (ADR-0007).
+The only gameplay caller of this layer is the `model` dialogue provider (slice 8); intent planning will be the second
+(ADR-0007).
 
 ## NPC memory (slice 7)
 
@@ -258,7 +264,38 @@ topic key, bounded text (240 chars), timestamps, importance and a **provenance**
   deterministic `SIGNIFICANT_EVENT` (count, date range, keywords). No model involved.
 
 Dialogue providers receive the retrieved entries and the utterance in the `DialogueRequest`; the `scripted` provider
-ignores them, a model-backed provider (next slice) will use them as context.
+ignores them, the `model` provider puts them into its prompt.
+
+## Model-backed dialogue (slice 8)
+
+`"dialogueProvider": "model"` plus a configured `llm` block (and `llm.dialogueTimeoutSeconds`, default 8). Or at
+runtime: `/luminary npc provider model`.
+
+A turn (right-click or a chat line heard within 8 blocks) becomes **one** structured request:
+
+- system message: the fixed frame (stay in character, answer in the player's language, at most two sentences, know
+  only what is listed, never invent discoveries/technologies/story events, never reveal anything outside the list),
+  the NPC `persona`, the public context (current era, story phase, chosen branch, clues already public), the retrieved
+  memories each tagged `[KIND/PROVENANCE]`, and the **allowed clues**: exactly the clues `StoryController.revealable()`
+  returns right now, with their text;
+- user message: `<player name>: <utterance>` (or a note that the player approached silently).
+
+The reply must be one JSON object `{"line": string, "clue": id|null, "note": string|null}` (schema forwarded to the
+backend). Validation in `ModelDialogueProvider`: the line is required, newlines flattened, cut at 300 characters; a
+`clue` that is not in the allowed set (or not an id) is dropped with a log line and the line is still spoken; the
+`note` (cut at 160) is stored as `UNVERIFIED_ASSUMPTION` with provenance `MODEL_INFERRED`, so it can never supersede
+an observed fact. The reveal itself still goes through `StoryController.reveal` on the server thread (ADR-0005), so
+even an accepted clue is refused if the story changed in the meantime.
+
+Failure paths all end in the `scripted` provider's line: model unhealthy or `none` (no request is made), transport or
+HTTP error, timeout (`dialogueTimeoutSeconds`), non-JSON or empty reply. The NPC therefore always answers, and the
+server thread never waits: `NpcDialogueService.talk` returns a `CompletableFuture<Optional<Turn>>` and finishes
+(reveal, memory writes, roster bookkeeping) via the server executor. The model never has a write path to Catalog,
+Progression, Story, the world or memory above trust 1 (ADR-0009).
+
+Model lines are sent as literal text (`npc.luminary.model_line` carries the `%s`); scripted lines stay translation
+keys. The journal (`logs/luminary/llm.jsonl`) records each dialogue request under purpose `dialogue`; prompt and
+reply text only with `llm.logContent = true`.
 
 ## Layout
 

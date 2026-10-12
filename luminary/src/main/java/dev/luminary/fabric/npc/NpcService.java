@@ -250,9 +250,9 @@ public final class NpcService {
 	 * Chat intake: the nearest NPC body within {@link #CHAT_RANGE} blocks of the player hears the message and answers
 	 * that player. The chat message itself is never consumed or altered. Returns the turn when an NPC answered.
 	 */
-	public Optional<NpcDialogueService.Turn> onPlayerChat(PlayerEntity player, String text) {
+	public java.util.concurrent.CompletableFuture<Optional<NpcDialogueService.Turn>> onPlayerChat(PlayerEntity player, String text) {
 		if (!(player.getWorld() instanceof ServerWorld world) || text == null || text.isBlank()) {
-			return Optional.empty();
+			return java.util.concurrent.CompletableFuture.completedFuture(Optional.empty());
 		}
 		LuminaryNpcEntity nearest = null;
 		double best = CHAT_RANGE * CHAT_RANGE;
@@ -264,31 +264,35 @@ public final class NpcService {
 			}
 		}
 		if (nearest == null) {
-			return Optional.empty();
+			return java.util.concurrent.CompletableFuture.completedFuture(Optional.empty());
 		}
 		return talk(nearest, player, Optional.of(text));
 	}
 
-	/** One conversation turn; the line goes to the player's chat as "<NPC name> line". Never throws. */
-	public Optional<NpcDialogueService.Turn> talk(LuminaryNpcEntity npc, PlayerEntity player) {
+	/**
+	 * One conversation turn; the line goes to the player's chat as "<NPC name> line" when the answer is ready
+	 * (immediately for scripted dialogue, later for a model). Never throws; the future never fails.
+	 */
+	public java.util.concurrent.CompletableFuture<Optional<NpcDialogueService.Turn>> talk(LuminaryNpcEntity npc, PlayerEntity player) {
 		return talk(npc, player, Optional.empty());
 	}
 
-	public Optional<NpcDialogueService.Turn> talk(LuminaryNpcEntity npc, PlayerEntity player, Optional<String> utterance) {
+	public java.util.concurrent.CompletableFuture<Optional<NpcDialogueService.Turn>> talk(LuminaryNpcEntity npc, PlayerEntity player, Optional<String> utterance) {
 		if (npc.npcId().isEmpty()) {
-			return Optional.empty();
+			return java.util.concurrent.CompletableFuture.completedFuture(Optional.empty());
 		}
 		LuminaryId id = npc.npcId().get();
-		Optional<NpcDialogueService.Turn> turn = dialogue.talk(id, player.getUuid(), player.getGameProfile().getName(), utterance);
 		Text name = npc.getCustomName() != null ? npc.getCustomName() : Text.literal(id.toString());
-		String textKey = turn.map(NpcDialogueService.Turn::textKey).orElse(NpcDialogueService.FALLBACK_TEXT_KEY);
-		player.sendMessage(Text.empty().append(Text.literal("<").append(name).append("> ").formatted(Formatting.GOLD))
-				.append(Text.translatable(textKey)), false);
-		if (turn.isEmpty()) {
-			Luminary.LOGGER.warn("[luminary] player {} talked to NPC body {} with unknown definition {}", player.getGameProfile().getName(), npc.getUuid(), id);
-		}
-		state.markDirty();
-		return turn;
+		return dialogue.talk(id, player.getUuid(), player.getGameProfile().getName(), utterance).thenApply(turn -> {
+			Text line = turn.flatMap(NpcDialogueService.Turn::literalText).map(t -> (Text) Text.literal(t))
+					.orElseGet(() -> Text.translatable(turn.map(NpcDialogueService.Turn::textKey).orElse(NpcDialogueService.FALLBACK_TEXT_KEY)));
+			player.sendMessage(Text.empty().append(Text.literal("<").append(name).append("> ").formatted(Formatting.GOLD)).append(line), false);
+			if (turn.isEmpty()) {
+				Luminary.LOGGER.warn("[luminary] player {} talked to NPC body {} with unknown definition {}", player.getGameProfile().getName(), npc.getUuid(), id);
+			}
+			state.markDirty();
+			return turn;
+		});
 	}
 
 	private static String dimension(ServerWorld world) {

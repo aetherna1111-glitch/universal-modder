@@ -179,7 +179,13 @@ public final class DefinitionsReloadListener implements SimpleSynchronousResourc
 	static NpcDefinition parseNpc(JsonObject json, Identifier file) {
 		LuminaryId id = LuminaryId.parse(require(json, "id", file).getAsString());
 		String nameKey = json.has("name") ? json.get("name").getAsString() : "npc." + id.namespace() + "." + id.path().replace('/', '.');
-		return new NpcDefinition(id, nameKey, LuminaryId.parse(require(json, "dialogue", file).getAsString()));
+		List<String> persona = new ArrayList<>();
+		if (json.has("persona")) {
+			for (JsonElement el : json.getAsJsonArray("persona")) {
+				persona.add(el.getAsString());
+			}
+		}
+		return new NpcDefinition(id, nameKey, LuminaryId.parse(require(json, "dialogue", file).getAsString()), persona);
 	}
 
 	/**

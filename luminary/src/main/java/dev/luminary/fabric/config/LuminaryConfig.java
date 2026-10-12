@@ -26,11 +26,12 @@ import java.util.Set;
  * <pre>
  * { "dialogueProvider": "scripted",
  *   "llm": { "provider": "none", "endpoint": "http://127.0.0.1:11434", "model": "qwen2.5:7b",
- *            "requestTimeoutSeconds": 20, "maxConcurrent": 2, "allowedHosts": [], "logContent": false } }
+ *            "requestTimeoutSeconds": 20, "dialogueTimeoutSeconds": 8, "maxConcurrent": 2, "allowedHosts": [], "logContent": false } }
+ * dialogueProvider: scripted (default) | disabled | model (needs llm.provider other than none; falls back to scripted)
  * </pre>
  */
-public record LuminaryConfig(String dialogueProvider, LlmConfig llm, boolean llmLogContent) {
-	public static final LuminaryConfig DEFAULTS = new LuminaryConfig("scripted", LlmConfig.DISABLED, false);
+public record LuminaryConfig(String dialogueProvider, LlmConfig llm, boolean llmLogContent, Duration dialogueTimeout) {
+	public static final LuminaryConfig DEFAULTS = new LuminaryConfig("scripted", LlmConfig.DISABLED, false, Duration.ofSeconds(8));
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
 	public static LuminaryConfig load(Path file) {
@@ -42,13 +43,14 @@ public record LuminaryConfig(String dialogueProvider, LlmConfig llm, boolean llm
 		Optional<String> key = Optional.ofNullable(apiKeyFromEnv).map(String::trim).filter(s -> !s.isEmpty());
 		if (!Files.exists(file)) {
 			write(file, DEFAULTS);
-			return new LuminaryConfig(DEFAULTS.dialogueProvider(), DEFAULTS.llm().withApiKey(key), false);
+			return new LuminaryConfig(DEFAULTS.dialogueProvider(), DEFAULTS.llm().withApiKey(key), false, DEFAULTS.dialogueTimeout());
 		}
 		try {
 			JsonObject o = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8)).getAsJsonObject();
 			String provider = o.has("dialogueProvider") ? o.get("dialogueProvider").getAsString() : DEFAULTS.dialogueProvider();
 			LlmConfig llm = LlmConfig.DISABLED;
 			boolean logContent = false;
+			Duration dialogueTimeout = DEFAULTS.dialogueTimeout();
 			if (o.has("llm") && o.get("llm").isJsonObject()) {
 				JsonObject l = o.getAsJsonObject("llm");
 				if (l.has("apiKey")) {
@@ -71,11 +73,14 @@ public record LuminaryConfig(String dialogueProvider, LlmConfig llm, boolean llm
 						hosts, Optional.empty(),
 						Duration.ofSeconds(l.has("keepAliveSeconds") ? l.get("keepAliveSeconds").getAsLong() : 300));
 				logContent = l.has("logContent") && l.get("logContent").getAsBoolean();
+				if (l.has("dialogueTimeoutSeconds")) {
+					dialogueTimeout = Duration.ofSeconds(l.get("dialogueTimeoutSeconds").getAsLong());
+				}
 			}
-			return new LuminaryConfig(provider, llm.withApiKey(key), logContent);
+			return new LuminaryConfig(provider, llm.withApiKey(key), logContent, dialogueTimeout);
 		} catch (IOException | RuntimeException e) {
 			Luminary.LOGGER.error("[luminary] cannot read {}; using defaults ({})", file, e.getMessage());
-			return new LuminaryConfig(DEFAULTS.dialogueProvider(), DEFAULTS.llm().withApiKey(key), false);
+			return new LuminaryConfig(DEFAULTS.dialogueProvider(), DEFAULTS.llm().withApiKey(key), false, DEFAULTS.dialogueTimeout());
 		}
 	}
 
@@ -90,6 +95,7 @@ public record LuminaryConfig(String dialogueProvider, LlmConfig llm, boolean llm
 			llm.addProperty("endpoint", config.llm().endpoint().toString());
 			llm.addProperty("model", config.llm().model());
 			llm.addProperty("requestTimeoutSeconds", config.llm().requestTimeout().toSeconds());
+			llm.addProperty("dialogueTimeoutSeconds", config.dialogueTimeout().toSeconds());
 			llm.addProperty("maxConcurrent", config.llm().maxConcurrent());
 			llm.add("allowedHosts", new JsonArray());
 			llm.addProperty("logContent", config.llmLogContent());

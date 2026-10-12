@@ -111,24 +111,24 @@ public final class NpcGameTests implements FabricGameTest {
 		PlayerEntity mock = ctx.createMockSurvivalPlayer();
 		PlayerEntity player = mock;
 		// 1. clue locked (signal unset): greeting
-		NpcDialogueService.Turn t1 = npc.talk(body, player).orElseThrow(() -> new GameTestException("talk returned nothing"));
+		NpcDialogueService.Turn t1 = npc.talk(body, player).join().orElseThrow(() -> new GameTestException("talk returned nothing"));
 		if (!t1.textKey().equals("gametest.line.greeting") || rt.story().state().isRevealed(SECRET)) {
 			throw new GameTestException("locked clue must not be spoken; got " + t1.textKey());
 		}
 		// 2. prerequisite satisfied through Progression → the NPC reveals the clue via StoryController
 		rt.progression().setSignal(UNLOCK, 1, "gametest");
-		NpcDialogueService.Turn t2 = npc.talk(body, player).orElseThrow();
+		NpcDialogueService.Turn t2 = npc.talk(body, player).join().orElseThrow();
 		if (!t2.textKey().equals("gametest.clue.test_secret") || !t2.revealedClue().equals(Optional.of(SECRET)) || !rt.story().state().isRevealed(SECRET)) {
 			throw new GameTestException("clue must be revealed once its condition holds; got " + t2.textKey());
 		}
 		// 3. revealed clues are not repeated; memory counts every meeting
-		NpcDialogueService.Turn t3 = npc.talk(body, player).orElseThrow();
+		NpcDialogueService.Turn t3 = npc.talk(body, player).join().orElseThrow();
 		if (!t3.textKey().equals("gametest.line.greeting") || t3.interactions() != 3) {
 			throw new GameTestException("after the reveal the NPC returns to its lines; interactions=" + t3.interactions());
 		}
 		// 4. disabled provider: fallback line, no exception, meeting still remembered
 		rt.setDialogueProvider(new DisabledDialogueProvider());
-		NpcDialogueService.Turn t4 = npc.talk(body, player).orElseThrow();
+		NpcDialogueService.Turn t4 = npc.talk(body, player).join().orElseThrow();
 		if (!t4.textKey().equals(NpcDialogueService.FALLBACK_TEXT_KEY) || t4.fromProvider() || t4.interactions() != 4) {
 			throw new GameTestException("disabled provider must fall back safely; got " + t4.textKey());
 		}
@@ -138,7 +138,7 @@ public final class NpcGameTests implements FabricGameTest {
 		ghost.setNpcId(LuminaryId.parse("luminary-gametest:npc/ghost"));
 		ghost.refreshPositionAndAngles(pos.x, pos.y, pos.z + 1, 0, 0);
 		ctx.getWorld().spawnEntity(ghost);
-		if (npc.talk(ghost, player).isPresent()) {
+		if (npc.talk(ghost, player).join().isPresent()) {
 			throw new GameTestException("unknown definition must yield an empty turn (fallback text was sent)");
 		}
 		ghost.discard();

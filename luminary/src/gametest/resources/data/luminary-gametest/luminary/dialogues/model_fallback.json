@@ -1,0 +1,3 @@
+{ "id": "luminary-gametest:dialogue/model_fallback", "lines": [
+  { "text": "gametest.line.model_greeting", "priority": 0 }
+] }

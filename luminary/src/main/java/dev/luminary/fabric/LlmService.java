@@ -52,6 +52,30 @@ public final class LlmService {
 	}
 
 	/**
+	 * The provider seen through the journal: every request made via the returned view is recorded under
+	 * {@code purpose}, exactly like {@link #ask}. Results are still delivered on provider threads; callers hop to the
+	 * server thread themselves (the dialogue service does so through its server executor).
+	 */
+	public LlmProvider journaled(String purpose) {
+		LlmProvider inner = provider;
+		return new LlmProvider() {
+			@Override public String id() { return inner.id(); }
+			@Override public String model() { return inner.model(); }
+			@Override public boolean healthy() { return inner.healthy(); }
+			@Override public dev.luminary.core.npc.llm.LlmStats stats() { return inner.stats(); }
+			@Override public void close() { /* owned by the service */ }
+
+			@Override
+			public CompletableFuture<LlmResponse> complete(LlmRequest request) {
+				CompletableFuture<LlmResponse> future = inner.complete(request);
+				future.whenComplete((response, error) ->
+						journal.record(inner.id(), inner.model(), request, response, error == null ? null : asLlmException(error), purpose));
+				return future;
+			}
+		};
+	}
+
+	/**
 	 * Sends a request and delivers the outcome on the server thread. Exactly one of the two arguments of
 	 * {@code onServerThread} is non-null. {@code purpose} is a short label for the journal (dialogue, intent, ping).
 	 */

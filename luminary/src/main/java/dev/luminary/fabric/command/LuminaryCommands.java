@@ -359,15 +359,15 @@ public final class LuminaryCommands {
 				ctx.getSource().sendError(Text.translatable(NpcService.REASON_NOT_PRESENT));
 				return 0;
 			}
-			Optional<NpcDialogueService.Turn> turn = rt.npc().talk(body.get(), player);
-			return turn.isPresent() ? 1 : 0;
+			rt.npc().talk(body.get(), player);
+			return 1;
 		}).orElse(0);
 	}
 
 	private static int npcProvider(CommandContext<ServerCommandSource> ctx) {
 		return runtime(ctx.getSource()).map(rt -> {
 			String id = com.mojang.brigadier.arguments.StringArgumentType.getString(ctx, "provider");
-			Optional<DialogueProvider> provider = dev.luminary.fabric.LuminaryRuntime.providerFor(id);
+			Optional<DialogueProvider> provider = rt.providerFor(id);
 			if (provider.isEmpty()) {
 				ctx.getSource().sendError(Text.translatable("luminary.command.npc_unknown_provider", id));
 				return 0;

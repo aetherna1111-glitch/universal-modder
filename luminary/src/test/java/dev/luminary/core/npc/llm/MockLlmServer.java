@@ -14,26 +14,26 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 /** A loopback HTTP server that answers like Ollama or an OpenAI-compatible endpoint, with programmable behaviour. */
-final class MockLlmServer implements AutoCloseable {
-	record Seen(String path, Map<String, List<String>> headers, String body) {}
+public final class MockLlmServer implements AutoCloseable {
+	public record Seen(String path, Map<String, List<String>> headers, String body) {}
 
 	private final HttpServer server;
-	final List<Seen> seen = new ArrayList<>();
-	final AtomicInteger hits = new AtomicInteger();
-	volatile Function<String, Reply> handler;
+	public final List<Seen> seen = new ArrayList<>();
+	public final AtomicInteger hits = new AtomicInteger();
+	public volatile Function<String, Reply> handler;
 
-	record Reply(int status, String body, long delayMillis) {
-		static Reply ok(String body) { return new Reply(200, body, 0); }
+	public record Reply(int status, String body, long delayMillis) {
+		public static Reply ok(String body) { return new Reply(200, body, 0); }
 	}
 
-	MockLlmServer() throws IOException {
+	public MockLlmServer() throws IOException {
 		server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
 		server.createContext("/", this::handle);
 		server.setExecutor(java.util.concurrent.Executors.newCachedThreadPool());
 		server.start();
 	}
 
-	String url() {
+	public String url() {
 		return "http://127.0.0.1:" + server.getAddress().getPort();
 	}
 
@@ -59,7 +59,7 @@ final class MockLlmServer implements AutoCloseable {
 		}
 	}
 
-	static String ollamaBody(String content) {
+	public static String ollamaBody(String content) {
 		return "{\"model\":\"m\",\"message\":{\"role\":\"assistant\",\"content\":" + com.google.gson.JsonParser.parseString("\"" + content.replace("\"", "\\\"") + "\"") + "},\"done\":true}";
 	}
 
