@@ -92,4 +92,23 @@ class NpcTaskTest {
 		// a v1 document without containers/task still loads
 		assertTrue(codec.decode("{\"schemaVersion\":1,\"npcs\":{\"luminary:npc/x\":{\"pos\":0,\"players\":{}}}}").get(LuminaryId.of("npc/x")).orElseThrow().task().isEmpty());
 	}
+
+	@Test
+	void everyActionTypeAndTheRequesterSurviveTheCodec() {
+		java.util.UUID alice = java.util.UUID.nameUUIDFromBytes("alice".getBytes());
+		NpcStateCodec codec = NpcStateCodec.production();
+		for (NpcAction action : java.util.List.of(new NpcAction.MoveTo(5L), new NpcAction.Deposit(6L),
+				new NpcAction.Withdraw(6L, "minecraft:oak_log", 3), new NpcAction.GatherWood(1L, 6L, 2))) {
+			NpcRoster r = new NpcRoster();
+			NpcTask t = new NpcTask(java.util.UUID.randomUUID(), action, java.time.Instant.parse("2026-10-12T00:00:00Z"), alice);
+			t.ledger().withdrawn("minecraft:oak_log", 2);
+			r.startTask(AI, t);
+			String json = codec.encode(r);
+			NpcTask ct = codec.decode(json).get(AI).orElseThrow().task().orElseThrow();
+			assertEquals(action, ct.action());
+			assertEquals(java.util.Optional.of(alice), ct.requestedBy());
+			assertEquals(2, ct.ledger().withdrawn().get("minecraft:oak_log"));
+			assertEquals(json, codec.encode(codec.decode(json)));
+		}
+	}
 }

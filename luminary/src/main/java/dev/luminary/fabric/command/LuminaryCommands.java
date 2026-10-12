@@ -161,6 +161,14 @@ public final class LuminaryCommands {
 												.executes(ctx -> npcFollow(ctx, EntityArgumentType.getPlayer(ctx, "player"))))))
 						.then(CommandManager.literal("talk")
 								.then(CommandManager.argument("id", IdentifierArgumentType.identifier()).executes(LuminaryCommands::npcTalk)))
+						.then(CommandManager.literal("planner")
+								.requires(src -> src.hasPermissionLevel(4))
+								.then(CommandManager.argument("planner", com.mojang.brigadier.arguments.StringArgumentType.word())
+										.executes(LuminaryCommands::npcPlanner)))
+						.then(CommandManager.literal("intent")
+								.then(CommandManager.argument("id", IdentifierArgumentType.identifier())
+										.then(CommandManager.argument("text", com.mojang.brigadier.arguments.StringArgumentType.greedyString())
+												.executes(LuminaryCommands::npcIntent))))
 						.then(CommandManager.literal("provider")
 								.requires(src -> src.hasPermissionLevel(4))
 								.then(CommandManager.argument("provider", com.mojang.brigadier.arguments.StringArgumentType.word())
@@ -189,6 +197,22 @@ public final class LuminaryCommands {
 								.then(CommandManager.literal("cancel")
 										.requires(src -> src.hasPermissionLevel(3))
 										.then(CommandManager.argument("id", IdentifierArgumentType.identifier()).executes(LuminaryCommands::taskCancel)))
+								.then(CommandManager.literal("move")
+										.requires(src -> src.hasPermissionLevel(3))
+										.then(CommandManager.argument("id", IdentifierArgumentType.identifier())
+												.then(CommandManager.argument("target", BlockPosArgumentType.blockPos()).executes(LuminaryCommands::taskMove))))
+								.then(CommandManager.literal("deposit")
+										.requires(src -> src.hasPermissionLevel(3))
+										.then(CommandManager.argument("id", IdentifierArgumentType.identifier())
+												.then(CommandManager.argument("container", BlockPosArgumentType.blockPos()).executes(LuminaryCommands::taskDeposit))))
+								.then(CommandManager.literal("withdraw")
+										.requires(src -> src.hasPermissionLevel(3))
+										.then(CommandManager.argument("id", IdentifierArgumentType.identifier())
+												.then(CommandManager.argument("container", BlockPosArgumentType.blockPos())
+														.then(CommandManager.argument("item", IdentifierArgumentType.identifier())
+																.executes(ctx -> taskWithdraw(ctx, 1))
+																.then(CommandManager.argument("count", IntegerArgumentType.integer(1))
+																		.executes(ctx -> taskWithdraw(ctx, IntegerArgumentType.getInteger(ctx, "count"))))))))
 								.then(CommandManager.literal("gather")
 										.requires(src -> src.hasPermissionLevel(3))
 										.then(CommandManager.argument("id", IdentifierArgumentType.identifier())
@@ -256,6 +280,58 @@ public final class LuminaryCommands {
 		}).orElse(0);
 	}
 
+	private static int taskMove(CommandContext<ServerCommandSource> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+		LuminaryId id = parseId(ctx);
+		BlockPos target = BlockPosArgumentType.getLoadedBlockPos(ctx, "target");
+		return runtime(ctx.getSource()).map(rt -> report(ctx.getSource(), rt.npc().assign(id, new NpcAction.MoveTo(target.asLong())), "luminary.command.task_assigned", id)).orElse(0);
+	}
+
+	private static int taskDeposit(CommandContext<ServerCommandSource> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+		LuminaryId id = parseId(ctx);
+		BlockPos container = BlockPosArgumentType.getLoadedBlockPos(ctx, "container");
+		return runtime(ctx.getSource()).map(rt -> report(ctx.getSource(), rt.npc().assign(id, new NpcAction.Deposit(container.asLong())), "luminary.command.task_assigned", id)).orElse(0);
+	}
+
+	private static int taskWithdraw(CommandContext<ServerCommandSource> ctx, int count) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+		LuminaryId id = parseId(ctx);
+		BlockPos container = BlockPosArgumentType.getLoadedBlockPos(ctx, "container");
+		String item = IdentifierArgumentType.getIdentifier(ctx, "item").toString();
+		return runtime(ctx.getSource()).map(rt -> report(ctx.getSource(), rt.npc().assign(id, new NpcAction.Withdraw(container.asLong(), item, count)), "luminary.command.task_assigned", id)).orElse(0);
+	}
+
+	private static int npcPlanner(CommandContext<ServerCommandSource> ctx) {
+		return runtime(ctx.getSource()).map(rt -> {
+			String id = com.mojang.brigadier.arguments.StringArgumentType.getString(ctx, "planner");
+			Optional<dev.luminary.core.npc.intent.IntentPlanner> planner = rt.plannerFor(id);
+			if (planner.isEmpty()) {
+				ctx.getSource().sendError(Text.translatable("luminary.command.npc_unknown_planner", id));
+				return 0;
+			}
+			rt.setIntentPlanner(planner.get());
+			ctx.getSource().sendFeedback(() -> Text.translatable("luminary.command.npc_planner_set", id), true);
+			return 1;
+		}).orElse(0);
+	}
+
+	/** Says something to an NPC from anywhere (no distance rule): the same path a nearby chat line takes. */
+	private static int npcIntent(CommandContext<ServerCommandSource> ctx) {
+		return runtime(ctx.getSource()).map(rt -> {
+			LuminaryId id = parseId(ctx);
+			ServerPlayerEntity player = ctx.getSource().getPlayer();
+			if (player == null) {
+				ctx.getSource().sendError(Text.translatable("luminary.command.needs_player"));
+				return 0;
+			}
+			Optional<LuminaryNpcEntity> body = rt.npc().body(id);
+			if (body.isEmpty()) {
+				ctx.getSource().sendError(Text.translatable(NpcService.REASON_NOT_PRESENT));
+				return 0;
+			}
+			rt.npc().request(body.get(), player, com.mojang.brigadier.arguments.StringArgumentType.getString(ctx, "text"));
+			return 1;
+		}).orElse(0);
+	}
+
 	private static int memoryList(CommandContext<ServerCommandSource> ctx, ServerPlayerEntity player) {
 		return runtime(ctx.getSource()).map(rt -> {
 			LuminaryId id = parseId(ctx);
@@ -295,6 +371,7 @@ public final class LuminaryCommands {
 			NpcTask t = task.get();
 			ctx.getSource().sendFeedback(() -> Text.literal(t.action().type() + " " + t.state() + t.failureReason().map(f -> " (" + f + ")").orElse("")
 					+ "  broken=" + t.ledger().blocksBroken() + " collected=" + t.ledger().collected() + " deposited=" + t.ledger().deposited()
+					+ (t.ledger().withdrawn().isEmpty() ? "" : " withdrawn=" + t.ledger().withdrawn()) + t.requestedBy().map(u -> " requestedBy=" + u).orElse("")
 					+ "  containers=" + rt.npc().roster().get(id).map(r -> r.authorizedContainers().size()).orElse(0)), false);
 			return 1;
 		}).orElse(0);
@@ -311,6 +388,7 @@ public final class LuminaryCommands {
 		return runtime(ctx.getSource()).map(rt -> {
 			NpcService npc = rt.npc();
 			ctx.getSource().sendFeedback(() -> Text.translatable("luminary.command.npc_provider_is", npc.dialogue().provider().id()), false);
+			ctx.getSource().sendFeedback(() -> Text.translatable("luminary.command.npc_planner_is", npc.planner().id()), false);
 			for (NpcDefinition d : npc.dialogue().definitions().npcs()) {
 				Optional<NpcRoster.NpcRecord> r = npc.roster().get(d.id());
 				boolean present = npc.body(d.id()).isPresent();

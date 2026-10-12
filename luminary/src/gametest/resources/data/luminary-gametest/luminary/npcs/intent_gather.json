@@ -1,0 +1,5 @@
+{
+  "id": "luminary-gametest:npc/intent_gather",
+  "name": "gametest.npc.test",
+  "dialogue": "luminary-gametest:dialogue/test"
+}

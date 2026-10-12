@@ -13,6 +13,7 @@ public final class TaskLedger {
 	private int blocksBroken;
 	private final Map<String, Integer> collected = new TreeMap<>();
 	private final Map<String, Integer> deposited = new TreeMap<>();
+	private final Map<String, Integer> withdrawn = new TreeMap<>();
 
 	public int blocksBroken() {
 		return blocksBroken;
@@ -24,6 +25,14 @@ public final class TaskLedger {
 
 	public Map<String, Integer> deposited() {
 		return Collections.unmodifiableMap(deposited);
+	}
+
+	public Map<String, Integer> withdrawn() {
+		return Collections.unmodifiableMap(withdrawn);
+	}
+
+	public int withdrawnTotal() {
+		return withdrawn.values().stream().mapToInt(Integer::intValue).sum();
 	}
 
 	public int collectedTotal() {
@@ -50,12 +59,24 @@ public final class TaskLedger {
 		}
 	}
 
+	public void withdrawn(String itemId, int count) {
+		if (count > 0) {
+			withdrawn.merge(itemId, count, Integer::sum);
+		}
+	}
+
 	/** Codec only. */
 	public static TaskLedger restore(int blocksBroken, Map<String, Integer> collected, Map<String, Integer> deposited) {
+		return restore(blocksBroken, collected, deposited, Map.of());
+	}
+
+	/** Codec only. */
+	public static TaskLedger restore(int blocksBroken, Map<String, Integer> collected, Map<String, Integer> deposited, Map<String, Integer> withdrawn) {
 		TaskLedger l = new TaskLedger();
 		l.blocksBroken = blocksBroken;
 		l.collected.putAll(collected);
 		l.deposited.putAll(deposited);
+		l.withdrawn.putAll(withdrawn);
 		return l;
 	}
 }

@@ -5,6 +5,16 @@ import dev.luminary.core.ids.LuminaryId;
 import dev.luminary.core.npc.NpcDefinition;
 import dev.luminary.core.npc.NpcDialogueService;
 import dev.luminary.core.npc.NpcRoster;
+import dev.luminary.core.npc.intent.Intent;
+import dev.luminary.core.npc.intent.IntentCandidates;
+import dev.luminary.core.npc.intent.IntentPlanner;
+import dev.luminary.core.npc.intent.IntentRequest;
+import dev.luminary.core.npc.memory.MemoryEntry;
+import dev.luminary.core.npc.memory.MemoryKind;
+import dev.luminary.core.npc.memory.MemoryRetriever;
+import dev.luminary.core.npc.memory.MemoryStore;
+import dev.luminary.core.npc.memory.Provenance;
+import dev.luminary.fabric.npc.intent.CandidateScanner;
 import dev.luminary.core.npc.task.ActionContext;
 import dev.luminary.core.npc.task.ActionValidator;
 import dev.luminary.core.npc.task.NpcAction;
@@ -24,8 +34,11 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 
 import java.time.Clock;
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Bridges NPC entities and the roster: spawning (one body per definition), reconciliation when entities load
@@ -43,6 +56,8 @@ public final class NpcService {
 	private final NpcDialogueService dialogue;
 	private final Clock clock;
 	private final TaskExecutor executor;
+	private final CandidateScanner scanner;
+	private IntentPlanner planner = IntentPlanner.none();
 
 	public NpcService(MinecraftServer server, NpcWorldState state, NpcDialogueService dialogue, Clock clock) {
 		this.server = server;
@@ -50,10 +65,19 @@ public final class NpcService {
 		this.dialogue = dialogue;
 		this.clock = clock;
 		this.executor = new TaskExecutor(TaskRules.DEFAULTS, state::markDirty);
+		this.scanner = new CandidateScanner(TaskRules.DEFAULTS);
 	}
 
 	public TaskExecutor executor() {
 		return executor;
+	}
+
+	public IntentPlanner planner() {
+		return planner;
+	}
+
+	public void setPlanner(IntentPlanner planner) {
+		this.planner = java.util.Objects.requireNonNull(planner);
 	}
 
 	// ------------------------------------------------------------------ tasks
@@ -74,6 +98,11 @@ public final class NpcService {
 	 * the executor re-checks on every step. Untrusted callers (commands, future planners) only ever reach this method.
 	 */
 	public Result assign(LuminaryId npc, NpcAction action) {
+		return assign(npc, action, null);
+	}
+
+	/** As {@link #assign(LuminaryId, NpcAction)}; {@code requestedBy} is the player whose words created the task (remembered as a promise). */
+	public Result assign(LuminaryId npc, NpcAction action, UUID requestedBy) {
 		if (dialogue.definitions().npc(npc).isEmpty()) {
 			return Result.fail(REASON_UNKNOWN_NPC);
 		}
@@ -90,12 +119,70 @@ public final class NpcService {
 		if (!validation.ok()) {
 			return validation;
 		}
-		NpcTask task = new NpcTask(UUID.randomUUID(), action, clock.instant());
+		NpcTask task = new NpcTask(UUID.randomUUID(), action, clock.instant(), requestedBy);
 		if (!state.roster().startTask(npc, task)) {
 			return Result.fail(ActionValidator.REASON_TASK_ACTIVE);
 		}
+		if (requestedBy != null) {
+			Instant now = clock.instant();
+			dialogue.memory(npc).add(MemoryEntry.of(MemoryKind.PROMISE, requestedBy, "task/" + task.id(),
+					"Promised " + nameOf(npc, requestedBy) + ": " + describe(action), now, Provenance.OBSERVED_IN_WORLD), now);
+		}
 		state.markDirty();
 		return Result.OK;
+	}
+
+	/** Human-readable action summary for memory, chat and commands. */
+	public static String describe(NpcAction action) {
+		if (action instanceof NpcAction.GatherWood g) {
+			return "gather " + g.maxLogs() + " logs at " + BlockPos.fromLong(g.targetPos()).toShortString() + " into the container at " + BlockPos.fromLong(g.containerPos()).toShortString();
+		}
+		if (action instanceof NpcAction.MoveTo m) {
+			return "go to " + BlockPos.fromLong(m.targetPos()).toShortString();
+		}
+		if (action instanceof NpcAction.Deposit d) {
+			return "deposit everything into the container at " + BlockPos.fromLong(d.containerPos()).toShortString();
+		}
+		if (action instanceof NpcAction.Withdraw w) {
+			return "take " + w.count() + " " + w.itemId() + " from the container at " + BlockPos.fromLong(w.containerPos()).toShortString();
+		}
+		return action.type();
+	}
+
+	private String nameOf(LuminaryId npc, UUID player) {
+		var online = server.getPlayerManager().getPlayer(player);
+		if (online != null) {
+			return online.getGameProfile().getName();
+		}
+		return state.roster().get(npc).flatMap(r -> r.player(player)).map(NpcRoster.PlayerMemory::nameAtLastMeeting).orElse("someone");
+	}
+
+	/** A task reached a terminal state: the NPC remembers the outcome (replacing the promise) and tells the requester. */
+	private void onTaskFinished(LuminaryId npc, NpcTask task) {
+		Instant now = clock.instant();
+		String outcome = task.state() == dev.luminary.core.npc.task.TaskState.COMPLETED ? "Completed" : "Failed (" + task.failureReason().orElse("?") + ")";
+		String ledger = task.ledger().blocksBroken() > 0 || task.ledger().collectedTotal() > 0 || task.ledger().depositedTotal() > 0 || task.ledger().withdrawnTotal() > 0
+				? " [broken " + task.ledger().blocksBroken() + ", collected " + task.ledger().collectedTotal() + ", deposited " + task.ledger().depositedTotal()
+				+ ", withdrawn " + task.ledger().withdrawnTotal() + "]" : "";
+		UUID requester = task.requestedBy().orElse(null);
+		String who = requester != null ? " for " + nameOf(npc, requester) : "";
+		dialogue.memory(npc).add(MemoryEntry.of(MemoryKind.SIGNIFICANT_EVENT, requester, "task/" + task.id(),
+				outcome + ": " + describe(task.action()) + who + ledger, now, Provenance.OBSERVED_IN_WORLD), now);
+		if (requester != null) {
+			var player = server.getPlayerManager().getPlayer(requester);
+			if (player != null) {
+				Text name = body(npc).map(b -> b.getCustomName() != null ? b.getCustomName() : Text.literal(npc.toString())).orElse(Text.literal(npc.toString()));
+				Text line = task.state() == dev.luminary.core.npc.task.TaskState.COMPLETED
+						? Text.translatable("npc.luminary.task.done", describe(task.action()))
+						: Text.translatable("npc.luminary.task.failed", describe(task.action()), Text.translatable(reasonKey(task.failureReason().orElse(""))));
+				player.sendMessage(Text.empty().append(Text.literal("<").append(name).append("> ").formatted(Formatting.GOLD)).append(line), false);
+			}
+		}
+		state.markDirty();
+	}
+
+	private static String reasonKey(String failure) {
+		return failure.startsWith("luminary.") ? failure : "luminary.task.fail." + failure;
 	}
 
 	public Result cancelTask(LuminaryId npc) {
@@ -103,9 +190,10 @@ public final class NpcService {
 		if (record.isEmpty() || !record.get().hasActiveTask()) {
 			return Result.fail("luminary.task.none_active");
 		}
-		record.get().task().orElseThrow().fail(NpcTask.FAIL_CANCELLED);
+		NpcTask task = record.get().task().orElseThrow();
+		task.fail(NpcTask.FAIL_CANCELLED);
 		body(npc).ifPresent(b -> b.getNavigation().stop());
-		state.markDirty();
+		onTaskFinished(npc, task);
 		return Result.OK;
 	}
 
@@ -120,7 +208,11 @@ public final class NpcService {
 		}
 		state.roster().get(id).ifPresent(record -> {
 			if (record.hasActiveTask()) {
+				NpcTask task = record.task().orElseThrow();
 				executor.tick(body, record);
+				if (!task.isActive()) {
+					onTaskFinished(id, task);
+				}
 			}
 		});
 	}
@@ -250,9 +342,9 @@ public final class NpcService {
 	 * Chat intake: the nearest NPC body within {@link #CHAT_RANGE} blocks of the player hears the message and answers
 	 * that player. The chat message itself is never consumed or altered. Returns the turn when an NPC answered.
 	 */
-	public java.util.concurrent.CompletableFuture<Optional<NpcDialogueService.Turn>> onPlayerChat(PlayerEntity player, String text) {
+	public CompletableFuture<ChatOutcome> onPlayerChat(PlayerEntity player, String text) {
 		if (!(player.getWorld() instanceof ServerWorld world) || text == null || text.isBlank()) {
-			return java.util.concurrent.CompletableFuture.completedFuture(Optional.empty());
+			return CompletableFuture.completedFuture(ChatOutcome.NONE);
 		}
 		LuminaryNpcEntity nearest = null;
 		double best = CHAT_RANGE * CHAT_RANGE;
@@ -264,9 +356,94 @@ public final class NpcService {
 			}
 		}
 		if (nearest == null) {
-			return java.util.concurrent.CompletableFuture.completedFuture(Optional.empty());
+			return CompletableFuture.completedFuture(ChatOutcome.NONE);
 		}
-		return talk(nearest, player, Optional.of(text));
+		return request(nearest, player, text);
+	}
+
+	/** What happened to one chat line: an intent (maybe with an assignment result) and/or a dialogue turn. */
+	public record ChatOutcome(Optional<Intent> intent, Optional<Result> assignment, Optional<NpcDialogueService.Turn> turn) {
+		public static final ChatOutcome NONE = new ChatOutcome(Optional.empty(), Optional.empty(), Optional.empty());
+
+		public boolean heard() {
+			return intent.isPresent() || turn.isPresent();
+		}
+	}
+
+	/**
+	 * A player's words to an NPC: the planner looks for work first (among what the scanner saw around the body);
+	 * an action goes through {@link #assign} like any command and the NPC answers with the result; when the words
+	 * were not a request for work the line becomes an ordinary dialogue turn. Everything game-side runs on the server
+	 * thread; the planner may complete later (model) or at once (keyword rules).
+	 */
+	public CompletableFuture<ChatOutcome> request(LuminaryNpcEntity npc, PlayerEntity player, String text) {
+		if (npc.npcId().isEmpty() || !(npc.getWorld() instanceof ServerWorld world)) {
+			return CompletableFuture.completedFuture(ChatOutcome.NONE);
+		}
+		LuminaryId id = npc.npcId().get();
+		Optional<NpcDefinition> def = dialogue.definitions().npc(id);
+		if (def.isEmpty()) {
+			return talk(npc, player, Optional.of(text)).thenApply(turn -> new ChatOutcome(Optional.empty(), Optional.empty(), turn));
+		}
+		NpcRoster.NpcRecord record = state.roster().ensureRecord(id);
+		IntentCandidates candidates = scanner.scan(world, npc, record, player);
+		MemoryStore memory = dialogue.memory(id);
+		List<MemoryEntry> relevant = MemoryRetriever.select(memory, new MemoryRetriever.Query(player.getUuid(), MemoryRetriever.keywords(text), 8, 800), clock.instant());
+		IntentRequest request = new IntentRequest(id, player.getUuid(), player.getGameProfile().getName(), text, def.get().persona(), relevant, candidates, record.hasActiveTask());
+		CompletableFuture<Optional<Intent>> planned;
+		try {
+			planned = planner.plan(request);
+		} catch (RuntimeException e) {
+			Luminary.LOGGER.warn("[luminary] intent planner {} failed: {}", planner.id(), e.toString());
+			planned = CompletableFuture.completedFuture(Optional.empty());
+		}
+		CompletableFuture<ChatOutcome> result = new CompletableFuture<>();
+		planned.whenComplete((intent, error) -> {
+			Optional<Intent> safe = error == null && intent != null ? intent : Optional.empty();
+			server.execute(() -> {
+				try {
+					if (safe.isEmpty()) {
+						talk(npc, player, Optional.of(text)).whenComplete((turn, e2) ->
+								result.complete(new ChatOutcome(Optional.empty(), Optional.empty(), e2 == null && turn != null ? turn : Optional.empty())));
+						return;
+					}
+					result.complete(carryOut(npc, id, player, text, safe.get()));
+				} catch (RuntimeException e) {
+					Luminary.LOGGER.warn("[luminary] intent handling failed for {}: {}", id, e.toString());
+					result.complete(ChatOutcome.NONE);
+				}
+			});
+		});
+		return result;
+	}
+
+	/** Server thread: remember the words, assign if there is an action, answer. */
+	private ChatOutcome carryOut(LuminaryNpcEntity npc, LuminaryId id, PlayerEntity player, String text, Intent intent) {
+		Instant now = clock.instant();
+		MemoryStore memory = dialogue.memory(id);
+		String name = player.getGameProfile().getName();
+		memory.add(MemoryEntry.of(MemoryKind.RECENT_INTERACTION, player.getUuid(), null, name + " asked: " + (text.length() > 200 ? text.substring(0, 200) : text), now, Provenance.PLAYER_SAID), now);
+		state.roster().remember(id, player.getUuid(), name, now, intent.replyKey().orElse(DialogueResponseKeys.INTENT));
+		Optional<Result> assignment = Optional.empty();
+		if (intent.action().isPresent()) {
+			assignment = Optional.of(assign(id, intent.action().get(), player.getUuid()));
+		}
+		Text npcName = npc.getCustomName() != null ? npc.getCustomName() : Text.literal(id.toString());
+		Text line;
+		if (assignment.isPresent() && !assignment.get().ok()) {
+			line = Text.translatable("npc.luminary.intent.cannot", Text.translatable(assignment.get().reasonKey()));
+		} else if (intent.literalReply().isPresent()) {
+			line = Text.literal(intent.literalReply().get());
+		} else {
+			line = Text.translatable(intent.replyKey().orElse(Intent.REPLY_WILL_DO));
+		}
+		player.sendMessage(Text.empty().append(Text.literal("<").append(npcName).append("> ").formatted(Formatting.GOLD)).append(line), false);
+		state.markDirty();
+		return new ChatOutcome(Optional.of(intent), assignment, Optional.empty());
+	}
+
+	private static final class DialogueResponseKeys {
+		static final String INTENT = "npc.luminary.intent.will_do";
 	}
 
 	/**

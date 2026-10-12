@@ -7,6 +7,10 @@ import dev.luminary.fabric.npc.LuminaryNpcEntity;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.inventory.Inventory;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraft.registry.Registries;
+import net.minecraft.util.Identifier;
 import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
@@ -68,6 +72,49 @@ public final class WorldActionContext implements ActionContext {
 		int free = 0;
 		for (int i = 0; i < inv.size(); i++) {
 			if (inv.getStack(i).isEmpty()) {
+				free++;
+			}
+		}
+		return free;
+	}
+
+	@Override
+	public int containerCount(long pos, String itemId) {
+		BlockEntity be = world.getBlockEntity(BlockPos.fromLong(pos));
+		if (!(be instanceof Inventory inv)) {
+			return -1;
+		}
+		Identifier id = Identifier.tryParse(itemId);
+		if (id == null || !Registries.ITEM.containsId(id)) {
+			return 0;
+		}
+		Item item = Registries.ITEM.get(id);
+		int n = 0;
+		for (int i = 0; i < inv.size(); i++) {
+			ItemStack s = inv.getStack(i);
+			if (!s.isEmpty() && s.isOf(item)) {
+				n += s.getCount();
+			}
+		}
+		return n;
+	}
+
+	@Override
+	public boolean itemExists(String itemId) {
+		Identifier id = Identifier.tryParse(itemId);
+		return id != null && Registries.ITEM.containsId(id);
+	}
+
+	@Override
+	public int heldItemCount() {
+		return npc.heldCount();
+	}
+
+	@Override
+	public int heldFreeSlots() {
+		int free = 0;
+		for (int i = 0; i < npc.heldItems().size(); i++) {
+			if (npc.heldItems().getStack(i).isEmpty()) {
 				free++;
 			}
 		}

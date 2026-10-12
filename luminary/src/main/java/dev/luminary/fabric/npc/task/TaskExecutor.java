@@ -14,7 +14,9 @@ import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.inventory.SimpleInventory;
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraft.util.Identifier;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.tag.ItemTags;
 import net.minecraft.server.world.ServerWorld;
@@ -68,21 +70,48 @@ public final class TaskExecutor {
 			return false;
 		}
 		NpcTask task = maybe.get();
-		if (!(task.action() instanceof NpcAction.GatherWood action)) {
+		if (task.action() instanceof NpcAction.GatherWood action) {
+			switch (task.state()) {
+				case VALIDATED -> stepValidated(npc, world, record, task, action.targetPos(), TaskState.MOVING_TO_TARGET);
+				case MOVING_TO_TARGET -> stepMoveTo(npc, world, task, BlockPos.fromLong(task.currentTarget()), TaskState.BREAKING, task.currentTarget(), Check.LOG);
+				case BREAKING -> stepBreaking(npc, world, task, action);
+				case COLLECTING -> stepCollecting(npc, world, task, action);
+				case MOVING_TO_CONTAINER -> stepMoveTo(npc, world, task, BlockPos.fromLong(action.containerPos()), TaskState.DEPOSITING, action.containerPos(), Check.CONTAINER);
+				case DEPOSITING -> stepDepositing(npc, world, record, task, action.containerPos());
+				default -> { }
+			}
+		} else if (task.action() instanceof NpcAction.MoveTo action) {
+			switch (task.state()) {
+				case VALIDATED -> stepValidated(npc, world, record, task, action.targetPos(), TaskState.MOVING_TO_TARGET);
+				case MOVING_TO_TARGET -> {
+					stepMoveTo(npc, world, task, BlockPos.fromLong(action.targetPos()), TaskState.MOVING_TO_TARGET, action.targetPos(), Check.NONE);
+					if (task.isActive() && npc.squaredDistanceTo(Vec3d.ofCenter(BlockPos.fromLong(action.targetPos()))) <= REACH_SQ) {
+						task.complete();
+					}
+				}
+				default -> { }
+			}
+		} else if (task.action() instanceof NpcAction.Deposit action) {
+			switch (task.state()) {
+				case VALIDATED -> stepValidated(npc, world, record, task, action.containerPos(), TaskState.MOVING_TO_CONTAINER);
+				case MOVING_TO_CONTAINER -> stepMoveTo(npc, world, task, BlockPos.fromLong(action.containerPos()), TaskState.DEPOSITING, action.containerPos(), Check.CONTAINER);
+				case DEPOSITING -> stepDepositing(npc, world, record, task, action.containerPos());
+				default -> { }
+			}
+		} else if (task.action() instanceof NpcAction.Withdraw action) {
+			switch (task.state()) {
+				case VALIDATED -> stepValidated(npc, world, record, task, action.containerPos(), TaskState.MOVING_TO_CONTAINER);
+				case MOVING_TO_CONTAINER -> stepMoveTo(npc, world, task, BlockPos.fromLong(action.containerPos()), TaskState.WITHDRAWING, action.containerPos(), Check.CONTAINER);
+				case WITHDRAWING -> stepWithdrawing(npc, world, record, task, action);
+				default -> { }
+			}
+		} else {
 			task.fail(ActionValidator.REASON_UNSUPPORTED);
-			return changed();
-		}
-		switch (task.state()) {
-			case VALIDATED -> stepValidated(npc, world, record, task, action);
-			case MOVING_TO_TARGET -> stepMoveTo(npc, world, task, BlockPos.fromLong(task.currentTarget()), TaskState.BREAKING, task.currentTarget(), true);
-			case BREAKING -> stepBreaking(npc, world, task, action);
-			case COLLECTING -> stepCollecting(npc, world, task, action);
-			case MOVING_TO_CONTAINER -> stepMoveTo(npc, world, task, BlockPos.fromLong(action.containerPos()), TaskState.DEPOSITING, action.containerPos(), false);
-			case DEPOSITING -> stepDepositing(npc, world, record, task, action);
-			default -> { }
 		}
 		return changed();
 	}
+
+	private enum Check { NONE, LOG, CONTAINER }
 
 	private boolean changed() {
 		onChange.run();
@@ -92,31 +121,33 @@ public final class TaskExecutor {
 	// ------------------------------------------------------------------ phases
 
 	/** Fresh or resumed-before-start: re-validate against the current world, then walk. */
-	private void stepValidated(LuminaryNpcEntity npc, ServerWorld world, NpcRoster.NpcRecord record, NpcTask task, NpcAction.GatherWood action) {
+	private void stepValidated(LuminaryNpcEntity npc, ServerWorld world, NpcRoster.NpcRecord record, NpcTask task, long firstTarget, TaskState next) {
 		ActionContext ctx = new WorldActionContext(world, npc, record);
-		var result = ActionValidator.validateAll(validators, action, ctx);
+		var result = ActionValidator.validateAll(validators, task.action(), ctx);
 		if (!result.ok()) {
 			task.fail(result.reasonKey());
 			return;
 		}
-		task.setCurrentTarget(action.targetPos());
-		task.enter(TaskState.MOVING_TO_TARGET);
+		task.setCurrentTarget(firstTarget);
+		task.enter(next);
 	}
 
-	private void stepMoveTo(LuminaryNpcEntity npc, ServerWorld world, NpcTask task, BlockPos goal, TaskState next, long checkPos, boolean mustBeLog) {
+	private void stepMoveTo(LuminaryNpcEntity npc, ServerWorld world, NpcTask task, BlockPos goal, TaskState next, long checkPos, Check check) {
 		// the thing we walk to must still be what we validated
 		ActionContext.BlockKind kind = WorldActionContext.kindAt(world, BlockPos.fromLong(checkPos));
-		if (mustBeLog && kind != ActionContext.BlockKind.LOG) {
+		if (check == Check.LOG && kind != ActionContext.BlockKind.LOG) {
 			task.fail(NpcTask.FAIL_TARGET_CHANGED);
 			return;
 		}
-		if (!mustBeLog && kind != ActionContext.BlockKind.CONTAINER) {
+		if (check == Check.CONTAINER && kind != ActionContext.BlockKind.CONTAINER) {
 			task.fail(NpcTask.FAIL_CONTAINER_INVALID);
 			return;
 		}
 		if (npc.squaredDistanceTo(Vec3d.ofCenter(goal)) <= REACH_SQ) {
 			npc.getNavigation().stop();
-			task.enter(next);
+			if (next != task.state()) {
+				task.enter(next);
+			}
 			return;
 		}
 		if (task.tickPhase() % 20 == 1) {
@@ -216,9 +247,9 @@ public final class TaskExecutor {
 		}
 	}
 
-	private void stepDepositing(LuminaryNpcEntity npc, ServerWorld world, NpcRoster.NpcRecord record, NpcTask task, NpcAction.GatherWood action) {
-		BlockPos pos = BlockPos.fromLong(action.containerPos());
-		if (!record.authorizedContainers().contains(action.containerPos())) {
+	private void stepDepositing(LuminaryNpcEntity npc, ServerWorld world, NpcRoster.NpcRecord record, NpcTask task, long containerPos) {
+		BlockPos pos = BlockPos.fromLong(containerPos);
+		if (!record.authorizedContainers().contains(containerPos)) {
 			task.fail(ActionValidator.REASON_CONTAINER_UNAUTHORIZED);
 			return;
 		}
@@ -248,6 +279,52 @@ public final class TaskExecutor {
 			task.fail(NpcTask.FAIL_CONTAINER_FULL);   // the remainder stays in the NPC inventory (persisted), never dropped
 		} else {
 			task.complete();
+		}
+	}
+
+	/** Takes up to {@code count} of the item out of the container into the NPC inventory; what does not fit stays in the chest. */
+	private void stepWithdrawing(LuminaryNpcEntity npc, ServerWorld world, NpcRoster.NpcRecord record, NpcTask task, NpcAction.Withdraw action) {
+		BlockPos pos = BlockPos.fromLong(action.containerPos());
+		if (!record.authorizedContainers().contains(action.containerPos())) {
+			task.fail(ActionValidator.REASON_CONTAINER_UNAUTHORIZED);
+			return;
+		}
+		BlockEntity be = world.getBlockEntity(pos);
+		if (!(be instanceof Inventory inv)) {
+			task.fail(NpcTask.FAIL_CONTAINER_INVALID);
+			return;
+		}
+		Identifier itemId = Identifier.tryParse(action.itemId());
+		if (itemId == null || !Registries.ITEM.containsId(itemId)) {
+			task.fail(ActionValidator.REASON_UNKNOWN_ITEM);
+			return;
+		}
+		Item item = Registries.ITEM.get(itemId);
+		int wanted = action.count() - task.ledger().withdrawnTotal();
+		SimpleInventory held = npc.heldItems();
+		for (int i = 0; i < inv.size() && wanted > 0; i++) {
+			ItemStack slot = inv.getStack(i);
+			if (slot.isEmpty() || !slot.isOf(item)) {
+				continue;
+			}
+			ItemStack taking = slot.copy();
+			taking.setCount(Math.min(wanted, slot.getCount()));
+			ItemStack remainder = held.addStack(taking);
+			int moved = taking.getCount() - remainder.getCount();
+			if (moved <= 0) {
+				break;   // hands full: stop, keep the chest intact
+			}
+			slot.decrement(moved);
+			inv.setStack(i, slot);
+			task.ledger().withdrawn(action.itemId(), moved);
+			wanted -= moved;
+		}
+		inv.markDirty();
+		held.markDirty();
+		if (task.ledger().withdrawnTotal() == 0) {
+			task.fail(NpcTask.FAIL_CONTAINER_LACKS_ITEM);
+		} else {
+			task.complete();   // fewer than asked is still a completed task; the ledger says how many
 		}
 	}
 

@@ -6,6 +6,10 @@ import dev.luminary.core.story.StoryController;
 import dev.luminary.core.npc.DialogueProvider;
 import dev.luminary.core.npc.DisabledDialogueProvider;
 import dev.luminary.core.npc.NpcDialogueService;
+import dev.luminary.core.npc.intent.IntentPlanner;
+import dev.luminary.core.npc.intent.KeywordIntentPlanner;
+import dev.luminary.core.npc.intent.ModelIntentPlanner;
+import dev.luminary.core.npc.task.TaskRules;
 import dev.luminary.core.npc.memory.NpcMemoryObserver;
 import dev.luminary.core.npc.ScriptedDialogueProvider;
 import dev.luminary.core.npc.ModelDialogueProvider;
@@ -39,6 +43,7 @@ public final class LuminaryRuntime {
 	private DialogueProvider dialogueProvider;
 	private final LlmService llm;
 	private final Duration dialogueTimeout;
+	private final String intentPlannerId;
 	private CatalogService catalog;
 	private ProgressionService progression;
 	private StoryController story;
@@ -50,6 +55,7 @@ public final class LuminaryRuntime {
 		this.npcState = npcState;
 		this.llm = new LlmService(server, config.llm(), config.llmLogContent());
 		this.dialogueTimeout = config.dialogueTimeout();
+		this.intentPlannerId = config.intentPlanner();
 		this.dialogueProvider = providerFor(config.dialogueProvider()).orElseGet(() -> {
 			Luminary.LOGGER.warn("[luminary] unknown dialogueProvider '{}' in config; dialogue disabled", config.dialogueProvider());
 			return new DisabledDialogueProvider();
@@ -75,6 +81,10 @@ public final class LuminaryRuntime {
 				dialogueProvider, Clock.systemUTC(), npcState::markDirty, server);
 		new NpcMemoryObserver(() -> definitions.npcs().npcs(), npcState.roster(), npcState::markDirty).subscribe(bus);
 		this.npc = new NpcService(server, npcState, dialogue, Clock.systemUTC());
+		this.npc.setPlanner(plannerFor(intentPlannerId).orElseGet(() -> {
+			Luminary.LOGGER.warn("[luminary] unknown intentPlanner '{}' in config; planning disabled", intentPlannerId);
+			return IntentPlanner.none();
+		}));
 	}
 
 	/** Known providers by id: scripted, disabled, model (the model provider wraps the configured LLM and falls back to scripted). */
@@ -90,6 +100,26 @@ public final class LuminaryRuntime {
 			default:
 				return Optional.empty();
 		}
+	}
+
+	/** Known intent planners by id: none, keyword, model (the model planner wraps the configured LLM and falls back to keyword). */
+	public Optional<IntentPlanner> plannerFor(String id) {
+		switch (id) {
+			case "none":
+				return Optional.of(IntentPlanner.none());
+			case KeywordIntentPlanner.ID:
+				return Optional.of(new KeywordIntentPlanner(TaskRules.DEFAULTS));
+			case ModelIntentPlanner.ID:
+				return Optional.of(new ModelIntentPlanner(llm.journaled("intent"), new KeywordIntentPlanner(TaskRules.DEFAULTS), TaskRules.DEFAULTS, dialogueTimeout,
+						msg -> Luminary.LOGGER.info("[luminary] {}", msg)));
+			default:
+				return Optional.empty();
+		}
+	}
+
+	/** Swaps the intent planner at runtime (admin command, tests). Lost on /reload (the config value returns) and restart. */
+	public void setIntentPlanner(IntentPlanner planner) {
+		this.npc.setPlanner(planner);
 	}
 
 	/** Swaps the dialogue provider at runtime (admin command, tests). Survives reloads until the server restarts. */

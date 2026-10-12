@@ -94,14 +94,8 @@ public final class NpcStateCodec {
 		o.addProperty("createdAt", t.createdAt().toString());
 		o.addProperty("state", t.state().name());
 		t.failureReason().ifPresent(r -> o.addProperty("failure", r));
-		JsonObject action = new JsonObject();
-		action.addProperty("type", t.action().type());
-		if (t.action() instanceof NpcAction.GatherWood g) {
-			action.addProperty("target", g.targetPos());
-			action.addProperty("container", g.containerPos());
-			action.addProperty("maxLogs", g.maxLogs());
-		}
-		o.add("action", action);
+		t.requestedBy().ifPresent(p -> o.addProperty("requestedBy", p.toString()));
+		o.add("action", actionToJson(t.action()));
 		JsonObject ledger = new JsonObject();
 		ledger.addProperty("blocksBroken", t.ledger().blocksBroken());
 		JsonObject collected = new JsonObject();
@@ -110,6 +104,11 @@ public final class NpcStateCodec {
 		JsonObject deposited = new JsonObject();
 		t.ledger().deposited().forEach(deposited::addProperty);
 		ledger.add("deposited", deposited);
+		if (!t.ledger().withdrawn().isEmpty()) {
+			JsonObject withdrawn = new JsonObject();
+			t.ledger().withdrawn().forEach(withdrawn::addProperty);
+			ledger.add("withdrawn", withdrawn);
+		}
 		o.add("ledger", ledger);
 		o.addProperty("currentTarget", t.currentTarget());
 		o.addProperty("phaseTicks", t.phaseTicks());
@@ -117,23 +116,57 @@ public final class NpcStateCodec {
 		return o;
 	}
 
-	static NpcTask taskFromJson(JsonObject o) {
-		JsonObject a = o.getAsJsonObject("action");
-		String type = a.get("type").getAsString();
-		NpcAction action;
-		if ("gather_wood".equals(type)) {
-			action = new NpcAction.GatherWood(a.get("target").getAsLong(), a.get("container").getAsLong(), a.get("maxLogs").getAsInt());
-		} else {
-			throw new IllegalArgumentException("unknown task action type '" + type + "'");
+	/** Action arguments as JSON; the same shape the planner layer and commands print. */
+	public static JsonObject actionToJson(NpcAction action) {
+		JsonObject a = new JsonObject();
+		a.addProperty("type", action.type());
+		if (action instanceof NpcAction.GatherWood g) {
+			a.addProperty("target", g.targetPos());
+			a.addProperty("container", g.containerPos());
+			a.addProperty("maxLogs", g.maxLogs());
+		} else if (action instanceof NpcAction.MoveTo m) {
+			a.addProperty("target", m.targetPos());
+		} else if (action instanceof NpcAction.Deposit d) {
+			a.addProperty("container", d.containerPos());
+		} else if (action instanceof NpcAction.Withdraw w) {
+			a.addProperty("container", w.containerPos());
+			a.addProperty("item", w.itemId());
+			a.addProperty("count", w.count());
 		}
+		return a;
+	}
+
+	public static NpcAction actionFromJson(JsonObject a) {
+		String type = a.get("type").getAsString();
+		switch (type) {
+			case "gather_wood":
+				return new NpcAction.GatherWood(a.get("target").getAsLong(), a.get("container").getAsLong(), a.get("maxLogs").getAsInt());
+			case "move_to":
+				return new NpcAction.MoveTo(a.get("target").getAsLong());
+			case "deposit":
+				return new NpcAction.Deposit(a.get("container").getAsLong());
+			case "withdraw":
+				return new NpcAction.Withdraw(a.get("container").getAsLong(), a.get("item").getAsString(), a.get("count").getAsInt());
+			default:
+				throw new IllegalArgumentException("unknown task action type '" + type + "'");
+		}
+	}
+
+	static NpcTask taskFromJson(JsonObject o) {
+		NpcAction action = actionFromJson(o.getAsJsonObject("action"));
 		JsonObject l = o.getAsJsonObject("ledger");
 		Map<String, Integer> collected = new TreeMap<>();
 		l.getAsJsonObject("collected").entrySet().forEach(e -> collected.put(e.getKey(), e.getValue().getAsInt()));
 		Map<String, Integer> deposited = new TreeMap<>();
 		l.getAsJsonObject("deposited").entrySet().forEach(e -> deposited.put(e.getKey(), e.getValue().getAsInt()));
-		return new NpcTask(UUID.fromString(o.get("id").getAsString()), action, Instant.parse(o.get("createdAt").getAsString()),
+		Map<String, Integer> withdrawn = new TreeMap<>();
+		if (l.has("withdrawn")) {
+			l.getAsJsonObject("withdrawn").entrySet().forEach(e -> withdrawn.put(e.getKey(), e.getValue().getAsInt()));
+		}
+		UUID requestedBy = o.has("requestedBy") ? UUID.fromString(o.get("requestedBy").getAsString()) : null;
+		return new NpcTask(UUID.fromString(o.get("id").getAsString()), action, Instant.parse(o.get("createdAt").getAsString()), requestedBy,
 				TaskState.valueOf(o.get("state").getAsString()), o.has("failure") ? o.get("failure").getAsString() : null,
-				TaskLedger.restore(l.get("blocksBroken").getAsInt(), collected, deposited),
+				TaskLedger.restore(l.get("blocksBroken").getAsInt(), collected, deposited, withdrawn),
 				o.get("currentTarget").getAsLong(), o.get("phaseTicks").getAsInt(), o.get("idleTicks").getAsInt());
 	}
 

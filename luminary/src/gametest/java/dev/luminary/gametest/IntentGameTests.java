@@ -1,0 +1,216 @@
+package dev.luminary.gametest;
+
+import dev.luminary.core.catalog.Result;
+import dev.luminary.core.ids.LuminaryId;
+import dev.luminary.core.npc.NpcRoster;
+import dev.luminary.core.npc.intent.KeywordIntentPlanner;
+import dev.luminary.core.npc.memory.MemoryEntry;
+import dev.luminary.core.npc.memory.MemoryKind;
+import dev.luminary.core.npc.memory.MemoryStore;
+import dev.luminary.core.npc.task.NpcAction;
+import dev.luminary.core.npc.task.NpcTask;
+import dev.luminary.core.npc.task.TaskRules;
+import dev.luminary.core.npc.task.TaskState;
+import dev.luminary.fabric.LuminaryRuntime;
+import dev.luminary.fabric.npc.LuminaryNpcEntity;
+import dev.luminary.fabric.npc.NpcService;
+import net.fabricmc.fabric.api.gametest.v1.FabricGameTest;
+import net.minecraft.block.Blocks;
+import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.entity.ItemEntity;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.inventory.Inventory;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
+import net.minecraft.registry.tag.ItemTags;
+import net.minecraft.test.GameTest;
+import net.minecraft.test.GameTestException;
+import net.minecraft.test.TestContext;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Box;
+import net.minecraft.util.math.Vec3d;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.function.BooleanSupplier;
+
+/**
+ * Slice 9 on the headless server: the new physical actions (withdraw, deposit, move) through the real inventories,
+ * and the whole chain words → planner → validation → execution → memory with the deterministic keyword planner
+ * (no model configured). Same arena as {@link TaskGameTests}.
+ */
+public final class IntentGameTests implements FabricGameTest {
+	private static final String ARENA = "luminary-gametest:arena";
+	private static final int FLOOR_Y = 1;
+	private static final BlockPos NPC_SPAWN = new BlockPos(2, FLOOR_Y + 1, 2);
+	private static final BlockPos CHEST = new BlockPos(10, FLOOR_Y + 1, 2);
+	private static final BlockPos LOG0 = new BlockPos(6, FLOOR_Y + 1, 6);
+
+	private record Arena(LuminaryId npcId, LuminaryNpcEntity body, BlockPos chest, BlockPos log0, NpcService npc) {}
+
+	private static Arena arena(TestContext ctx, String npcName, int logs) {
+		NpcService npc = LuminaryRuntime.get().orElseThrow().npc();
+		LuminaryId id = LuminaryId.parse("luminary-gametest:npc/" + npcName);
+		ctx.setBlockState(CHEST, Blocks.CHEST.getDefaultState());
+		for (int i = 0; i < logs; i++) {
+			ctx.setBlockState(LOG0.up(i), Blocks.OAK_LOG.getDefaultState());
+		}
+		Vec3d spawn = Vec3d.ofBottomCenter(ctx.getAbsolutePos(NPC_SPAWN));
+		if (!npc.spawn(id, ctx.getWorld(), spawn).ok()) {
+			throw new GameTestException("spawn failed for " + id);
+		}
+		BlockPos chest = ctx.getAbsolutePos(CHEST);
+		npc.authorizeContainer(id, chest.asLong());
+		return new Arena(id, npc.body(id).orElseThrow(), chest, ctx.getAbsolutePos(LOG0), npc);
+	}
+
+	private static Inventory chest(TestContext ctx, BlockPos abs) {
+		BlockEntity be = ctx.getWorld().getBlockEntity(abs);
+		if (!(be instanceof Inventory inv)) {
+			throw new GameTestException("no inventory at " + abs);
+		}
+		return inv;
+	}
+
+	private static int count(Inventory inv, net.minecraft.item.Item item) {
+		int n = 0;
+		for (int i = 0; i < inv.size(); i++) {
+			ItemStack s = inv.getStack(i);
+			if (s.isOf(item)) {
+				n += s.getCount();
+			}
+		}
+		return n;
+	}
+
+	private static int logsIn(TestContext ctx, BlockPos abs) {
+		return count(chest(ctx, abs), Items.OAK_LOG);
+	}
+
+	private static Optional<NpcTask> task(Arena a) {
+		return a.npc().roster().get(a.npcId()).flatMap(NpcRoster.NpcRecord::task);
+	}
+
+	private static void await(TestContext ctx, BooleanSupplier done, int budgetTicks, Runnable then) {
+		if (done.getAsBoolean()) {
+			then.run();
+			return;
+		}
+		if (budgetTicks <= 0) {
+			throw new GameTestException("condition not reached in time");
+		}
+		ctx.waitAndRun(5, () -> await(ctx, done, budgetTicks - 5, then));
+	}
+
+	private static void expect(boolean condition, String message) {
+		if (!condition) {
+			throw new GameTestException(message);
+		}
+	}
+
+	// ------------------------------------------------------------------ tests
+
+	@GameTest(templateName = ARENA, tickLimit = 1200)
+	public void withdrawThenDepositMoveRealItemsBothWays(TestContext ctx) {
+		Arena a = arena(ctx, "act_withdraw", 0);
+		Inventory inv = chest(ctx, a.chest());
+		inv.setStack(0, new ItemStack(Items.OAK_LOG, 12));
+		inv.setStack(1, new ItemStack(Items.COBBLESTONE, 7));
+		inv.markDirty();
+		// refusals first: item the chest lacks, unknown item, nothing to deposit
+		expect(a.npc().assign(a.npcId(), new NpcAction.Withdraw(a.chest().asLong(), "minecraft:diamond", 1)).reasonKey().equals("luminary.task.container_lacks_item"), "lacking item must be refused");
+		expect(a.npc().assign(a.npcId(), new NpcAction.Withdraw(a.chest().asLong(), "minecraft:no_such", 1)).reasonKey().equals("luminary.task.unknown_item"), "unknown item must be refused");
+		expect(a.npc().assign(a.npcId(), new NpcAction.Deposit(a.chest().asLong())).reasonKey().equals("luminary.task.nothing_to_deposit"), "empty-handed deposit must be refused");
+		Result r = a.npc().assign(a.npcId(), new NpcAction.Withdraw(a.chest().asLong(), "minecraft:oak_log", 5));
+		expect(r.ok(), "withdraw refused: " + r.reasonKey());
+		await(ctx, () -> task(a).map(t -> !t.isActive()).orElse(false), 600, () -> {
+			NpcTask t = task(a).orElseThrow();
+			expect(t.state() == TaskState.COMPLETED, "withdraw should complete, got " + t.state() + " " + t.failureReason().orElse(""));
+			expect(t.ledger().withdrawnTotal() == 5, "ledger withdrawn=" + t.ledger().withdrawn());
+			expect(a.body().heldCount() == 5, "NPC must carry 5, carries " + a.body().heldCount());
+			expect(logsIn(ctx, a.chest()) == 7 && count(chest(ctx, a.chest()), Items.COBBLESTONE) == 7, "chest must have 7 logs and untouched cobblestone");
+			Result d = a.npc().assign(a.npcId(), new NpcAction.Deposit(a.chest().asLong()));
+			expect(d.ok(), "deposit refused: " + d.reasonKey());
+			await(ctx, () -> task(a).map(x -> !x.isActive()).orElse(false), 500, () -> {
+				NpcTask t2 = task(a).orElseThrow();
+				expect(t2.state() == TaskState.COMPLETED, "deposit should complete, got " + t2.state() + " " + t2.failureReason().orElse(""));
+				expect(t2.ledger().depositedTotal() == 5 && a.body().heldCount() == 0, "all 5 must be back; held=" + a.body().heldCount());
+				expect(logsIn(ctx, a.chest()) == 12, "chest must hold 12 logs again, holds " + logsIn(ctx, a.chest()));
+				a.npc().despawn(a.npcId());
+				ctx.complete();
+			});
+		});
+	}
+
+	@GameTest(templateName = ARENA, tickLimit = 800)
+	public void moveToWalksWithinReachAndCompletes(TestContext ctx) {
+		Arena a = arena(ctx, "act_move", 0);
+		BlockPos goal = ctx.getAbsolutePos(new BlockPos(10, FLOOR_Y + 1, 10));
+		expect(a.body().squaredDistanceTo(Vec3d.ofCenter(goal)) > 36, "fixture: NPC must start far from the goal");
+		Result r = a.npc().assign(a.npcId(), new NpcAction.MoveTo(goal.asLong()));
+		expect(r.ok(), "move refused: " + r.reasonKey());
+		await(ctx, () -> task(a).map(t -> !t.isActive()).orElse(false), 700, () -> {
+			NpcTask t = task(a).orElseThrow();
+			expect(t.state() == TaskState.COMPLETED, "move should complete, got " + t.state() + " " + t.failureReason().orElse(""));
+			expect(a.body().squaredDistanceTo(Vec3d.ofCenter(goal)) <= 9.0 + 1e-6, "NPC must stand within reach of the goal");
+			a.npc().despawn(a.npcId());
+			ctx.complete();
+		});
+	}
+
+	@GameTest(templateName = ARENA, tickLimit = 1400)
+	public void spokenRequestBecomesAValidatedTaskExecutedAndRemembered(TestContext ctx) {
+		LuminaryRuntime rt = LuminaryRuntime.get().orElseThrow();
+		rt.setIntentPlanner(new KeywordIntentPlanner(TaskRules.DEFAULTS));
+		Arena a = arena(ctx, "intent_gather", 2);
+		PlayerEntity player = ctx.createMockSurvivalPlayer();
+		Vec3d near = Vec3d.ofBottomCenter(ctx.getAbsolutePos(NPC_SPAWN.add(1, 0, 0)));
+		player.refreshPositionAndAngles(near.x, near.y, near.z, 0, 0);
+		NpcService.ChatOutcome out = a.npc().onPlayerChat(player, "Hey, could you chop 2 logs for me?").join();
+		expect(out.intent().isPresent(), "the keyword planner must see work in the request");
+		expect(out.intent().get().action().orElse(null) instanceof NpcAction.GatherWood g && g.maxLogs() == 2 && g.targetPos() == a.log0().asLong() && g.containerPos() == a.chest().asLong(),
+				"the planner must choose the arena log and the authorized chest: " + out.intent().get().action());
+		expect(out.assignment().map(Result::ok).orElse(false), "assignment must succeed: " + out.assignment().map(Result::reasonKey).orElse("none"));
+		expect(out.turn().isEmpty(), "a work request is not a dialogue turn");
+		MemoryStore memory = a.npc().dialogue().memory(a.npcId());
+		expect(memory.forPlayer(player.getUuid()).stream().anyMatch(e -> e.kind() == MemoryKind.PROMISE && e.text().contains("gather 2 logs")), "the promise must be remembered: " + memory.all());
+		expect(task(a).map(t -> t.requestedBy().equals(Optional.of(player.getUuid()))).orElse(false), "the task must record who asked");
+		// a second request while busy is declined politely and assigns nothing
+		NpcService.ChatOutcome busy = a.npc().onPlayerChat(player, "and after that chop some more wood").join();
+		expect(busy.intent().isPresent() && busy.intent().get().action().isEmpty() && busy.assignment().isEmpty(), "busy NPC must decline: " + busy);
+		await(ctx, () -> task(a).map(t -> !t.isActive()).orElse(false), 1300, () -> {
+			NpcTask t = task(a).orElseThrow();
+			expect(t.state() == TaskState.COMPLETED, "expected COMPLETED, got " + t.state() + " " + t.failureReason().orElse(""));
+			expect(t.ledger().blocksBroken() == 2 && logsIn(ctx, a.chest()) == 2, "2 real logs must be in the chest, has " + logsIn(ctx, a.chest()));
+			List<MemoryEntry> live = memory.forPlayer(player.getUuid());
+			expect(live.stream().noneMatch(e -> e.kind() == MemoryKind.PROMISE), "the promise must be superseded once kept: " + live);
+			expect(live.stream().anyMatch(e -> e.kind() == MemoryKind.SIGNIFICANT_EVENT && e.text().startsWith("Completed") && e.text().contains("deposited 2")), "the outcome must be remembered: " + live);
+			a.npc().despawn(a.npcId());
+			ctx.complete();
+		});
+	}
+
+	@GameTest(templateName = EMPTY_STRUCTURE)
+	public void smallTalkStillReachesDialogueAndNonePlannerNeverPlans(TestContext ctx) {
+		LuminaryRuntime rt = LuminaryRuntime.get().orElseThrow();
+		NpcService npc = rt.npc();
+		LuminaryId id = LuminaryId.parse("luminary-gametest:npc/intent_talk");
+		Vec3d pos = ctx.getAbsolute(new Vec3d(0.5, 1, 0.5));
+		expect(npc.spawn(id, ctx.getWorld(), pos).ok(), "spawn failed");
+		PlayerEntity player = ctx.createMockSurvivalPlayer();
+		player.refreshPositionAndAngles(pos.x + 2, pos.y, pos.z, 0, 0);
+		rt.setIntentPlanner(new KeywordIntentPlanner(TaskRules.DEFAULTS));
+		NpcService.ChatOutcome chat = npc.onPlayerChat(player, "Good evening! How are you?").join();
+		expect(chat.intent().isEmpty() && chat.turn().isPresent() && chat.turn().get().fromProvider(), "small talk must become a dialogue turn: " + chat);
+		// a work request with no trees or containers around is declined, still no dialogue turn, nothing assigned
+		NpcService.ChatOutcome work = npc.onPlayerChat(player, "gather some wood").join();
+		expect(work.intent().isPresent() && work.intent().get().action().isEmpty() && work.turn().isEmpty(), "impossible work is declined with a reason: " + work);
+		rt.setIntentPlanner(dev.luminary.core.npc.intent.IntentPlanner.none());
+		NpcService.ChatOutcome none = npc.onPlayerChat(player, "gather some wood").join();
+		expect(none.intent().isEmpty() && none.turn().isPresent(), "with planner none every line is dialogue: " + none);
+		expect(npc.roster().get(id).flatMap(NpcRoster.NpcRecord::task).isEmpty(), "no task may exist");
+		rt.setIntentPlanner(new KeywordIntentPlanner(TaskRules.DEFAULTS));
+		npc.despawn(id);
+		ctx.complete();
+	}
+}

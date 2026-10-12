@@ -28,10 +28,11 @@ import java.util.Set;
  *   "llm": { "provider": "none", "endpoint": "http://127.0.0.1:11434", "model": "qwen2.5:7b",
  *            "requestTimeoutSeconds": 20, "dialogueTimeoutSeconds": 8, "maxConcurrent": 2, "allowedHosts": [], "logContent": false } }
  * dialogueProvider: scripted (default) | disabled | model (needs llm.provider other than none; falls back to scripted)
+ * intentPlanner: keyword (default) | none | model (falls back to keyword)
  * </pre>
  */
-public record LuminaryConfig(String dialogueProvider, LlmConfig llm, boolean llmLogContent, Duration dialogueTimeout) {
-	public static final LuminaryConfig DEFAULTS = new LuminaryConfig("scripted", LlmConfig.DISABLED, false, Duration.ofSeconds(8));
+public record LuminaryConfig(String dialogueProvider, String intentPlanner, LlmConfig llm, boolean llmLogContent, Duration dialogueTimeout) {
+	public static final LuminaryConfig DEFAULTS = new LuminaryConfig("scripted", "keyword", LlmConfig.DISABLED, false, Duration.ofSeconds(8));
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
 	public static LuminaryConfig load(Path file) {
@@ -43,11 +44,12 @@ public record LuminaryConfig(String dialogueProvider, LlmConfig llm, boolean llm
 		Optional<String> key = Optional.ofNullable(apiKeyFromEnv).map(String::trim).filter(s -> !s.isEmpty());
 		if (!Files.exists(file)) {
 			write(file, DEFAULTS);
-			return new LuminaryConfig(DEFAULTS.dialogueProvider(), DEFAULTS.llm().withApiKey(key), false, DEFAULTS.dialogueTimeout());
+			return new LuminaryConfig(DEFAULTS.dialogueProvider(), DEFAULTS.intentPlanner(), DEFAULTS.llm().withApiKey(key), false, DEFAULTS.dialogueTimeout());
 		}
 		try {
 			JsonObject o = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8)).getAsJsonObject();
 			String provider = o.has("dialogueProvider") ? o.get("dialogueProvider").getAsString() : DEFAULTS.dialogueProvider();
+			String planner = o.has("intentPlanner") ? o.get("intentPlanner").getAsString() : DEFAULTS.intentPlanner();
 			LlmConfig llm = LlmConfig.DISABLED;
 			boolean logContent = false;
 			Duration dialogueTimeout = DEFAULTS.dialogueTimeout();
@@ -77,10 +79,10 @@ public record LuminaryConfig(String dialogueProvider, LlmConfig llm, boolean llm
 					dialogueTimeout = Duration.ofSeconds(l.get("dialogueTimeoutSeconds").getAsLong());
 				}
 			}
-			return new LuminaryConfig(provider, llm.withApiKey(key), logContent, dialogueTimeout);
+			return new LuminaryConfig(provider, planner, llm.withApiKey(key), logContent, dialogueTimeout);
 		} catch (IOException | RuntimeException e) {
 			Luminary.LOGGER.error("[luminary] cannot read {}; using defaults ({})", file, e.getMessage());
-			return new LuminaryConfig(DEFAULTS.dialogueProvider(), DEFAULTS.llm().withApiKey(key), false, DEFAULTS.dialogueTimeout());
+			return new LuminaryConfig(DEFAULTS.dialogueProvider(), DEFAULTS.intentPlanner(), DEFAULTS.llm().withApiKey(key), false, DEFAULTS.dialogueTimeout());
 		}
 	}
 
@@ -90,6 +92,7 @@ public record LuminaryConfig(String dialogueProvider, LlmConfig llm, boolean llm
 			Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
 			JsonObject o = new JsonObject();
 			o.addProperty("dialogueProvider", config.dialogueProvider());
+			o.addProperty("intentPlanner", config.intentPlanner());
 			JsonObject llm = new JsonObject();
 			llm.addProperty("provider", config.llm().provider());
 			llm.addProperty("endpoint", config.llm().endpoint().toString());

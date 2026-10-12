@@ -21,6 +21,18 @@ public interface ActionContext {
 	/** Free slots in the container (0 for a full one, -1 when it is not an inventory). */
 	int containerFreeSlots(long pos);
 
+	/** How many of {@code itemId} the container holds (-1 when it is not an inventory). */
+	int containerCount(long pos, String itemId);
+
+	/** Whether {@code itemId} names a registered item. */
+	boolean itemExists(String itemId);
+
+	/** Items the NPC carries right now (all stacks). */
+	int heldItemCount();
+
+	/** Free slots in the NPC's own inventory. */
+	int heldFreeSlots();
+
 	/** The NPC may act in its current world/context (dimension allow-list, future region rules). */
 	boolean permitted(NpcAction action);
 }

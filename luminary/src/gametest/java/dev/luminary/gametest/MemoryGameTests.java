@@ -37,7 +37,7 @@ public final class MemoryGameTests implements FabricGameTest {
 		}
 		PlayerEntity player = ctx.createMockSurvivalPlayer();
 		player.refreshPositionAndAngles(pos.x + 2, pos.y, pos.z, 0, 0);
-		Optional<NpcDialogueService.Turn> heard = npc.onPlayerChat(player, "Where is the ore? " + "x".repeat(400)).join();
+		Optional<NpcDialogueService.Turn> heard = npc.onPlayerChat(player, "Where is the ore? " + "x".repeat(400)).join().turn();
 		if (heard.isEmpty() || !heard.get().fromProvider()) {
 			throw new GameTestException("a player 2 blocks away must be heard and answered");
 		}
@@ -50,7 +50,7 @@ public final class MemoryGameTests implements FabricGameTest {
 			throw new GameTestException("a first meeting must be remembered as a relationship fact");
 		}
 		player.refreshPositionAndAngles(pos.x + 30, pos.y, pos.z, 0, 0);
-		if (npc.onPlayerChat(player, "can you hear me now?").join().isPresent()) {
+		if (npc.onPlayerChat(player, "can you hear me now?").join().heard()) {
 			throw new GameTestException("a player 30 blocks away must not be heard");
 		}
 		if (memory.forPlayer(player.getUuid()).stream().anyMatch(e -> e.text().contains("hear me now"))) {

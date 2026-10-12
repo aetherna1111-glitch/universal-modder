@@ -18,10 +18,13 @@ public final class NpcTask {
 	public static final String FAIL_CONTAINER_FULL = "container_full";
 	public static final String FAIL_NOTHING_COLLECTED = "nothing_collected";
 	public static final String FAIL_BODY_LOST = "body_lost";
+	public static final String FAIL_CONTAINER_LACKS_ITEM = "container_lacks_item";
 
 	private final UUID id;
 	private final NpcAction action;
 	private final Instant createdAt;
+	/** The player whose request created the task, when it came from a conversation; null for commands/data. */
+	private final UUID requestedBy;
 	private TaskState state;
 	private String failureReason;
 	private final TaskLedger ledger;
@@ -31,14 +34,24 @@ public final class NpcTask {
 	private int idleTicks;
 
 	public NpcTask(UUID id, NpcAction action, Instant createdAt) {
-		this(id, action, createdAt, TaskState.VALIDATED, null, new TaskLedger(), 0L, 0, 0);
+		this(id, action, createdAt, null);
+	}
+
+	public NpcTask(UUID id, NpcAction action, Instant createdAt, UUID requestedBy) {
+		this(id, action, createdAt, requestedBy, TaskState.VALIDATED, null, new TaskLedger(), 0L, 0, 0);
 	}
 
 	public NpcTask(UUID id, NpcAction action, Instant createdAt, TaskState state, String failureReason, TaskLedger ledger,
 				   long currentTarget, int phaseTicks, int idleTicks) {
+		this(id, action, createdAt, null, state, failureReason, ledger, currentTarget, phaseTicks, idleTicks);
+	}
+
+	public NpcTask(UUID id, NpcAction action, Instant createdAt, UUID requestedBy, TaskState state, String failureReason, TaskLedger ledger,
+				   long currentTarget, int phaseTicks, int idleTicks) {
 		this.id = Objects.requireNonNull(id);
 		this.action = Objects.requireNonNull(action);
 		this.createdAt = Objects.requireNonNull(createdAt);
+		this.requestedBy = requestedBy;
 		this.state = Objects.requireNonNull(state);
 		this.failureReason = failureReason;
 		this.ledger = Objects.requireNonNull(ledger);
@@ -57,6 +70,10 @@ public final class NpcTask {
 
 	public Instant createdAt() {
 		return createdAt;
+	}
+
+	public Optional<UUID> requestedBy() {
+		return Optional.ofNullable(requestedBy);
 	}
 
 	public TaskState state() {

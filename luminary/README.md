@@ -13,26 +13,27 @@ slice**; design and research live in `../docs/research/luminary-2026-10-11/` (st
 | Pure-Java core: Progression — eras, technologies, prerequisites (era / verified discovery / unlocked technology / signal), automatic cascading unlocks, era advancement, admin override, capabilities | **implemented, unit-tested** |
 | Pure-Java core: Story — ordered phases (admin-controlled; opt-in auto-advance on explicit conditions), strategic branches, authored clues with reveal conditions and no override, full phase history; schema v3 | **implemented, unit-tested** |
 | Pure-Java core: NPC — definitions, data-driven dialogue scripts with story conditions and clue lines, `DialogueProvider` abstraction with `scripted` (default) and `disabled` providers, roster (one body per NPC, per-player memory), own persisted state `luminary_npc.dat` | **implemented, unit-tested** |
-| Pure-Java core: NPC tasks — typed `NpcAction` (`GatherWood`), validator chain, explicit task states, item ledger, authorized containers, persisted in-flight task | **implemented, unit-tested** |
+| Pure-Java core: NPC tasks — typed `NpcAction` (`GatherWood`, `MoveTo`, `Deposit`, `Withdraw`), validator chain, explicit task states, item ledger (broken / collected / deposited / withdrawn), authorized containers, persisted in-flight task with its requester | **implemented, unit-tested** |
 | Pure-Java core: language-model layer — `LlmProvider` with `none` (default), `ollama` and `openai` (any OpenAI-compatible endpoint) backends; async off the game thread, connect/request timeouts, 64 KiB response cap, concurrency limit, exponential cooldown, loopback-only endpoints unless allow-listed, API key from the environment only, JSONL journal | **implemented, unit-tested against a mock HTTP server** |
 | Pure-Java core: NPC memory — typed entries (stable facts, interactions, events, promises, relationships, observations, clues, assumptions) with provenance and trust, topic supersession, per-player and global caps that never evict promises, budgeted relevance retrieval, deterministic summarization; every Catalog/Progression/Story event becomes an observed memory of every NPC | **implemented, unit-tested** |
-| Pure-Java core: model-backed dialogue — `model` provider on top of the LLM layer: persona + retrieved memories + public context + only the clues the story allows right now go into one structured request; the reply `{line, clue?, note?}` is validated (bounded line, clue outside the allowed set dropped, note stored as `MODEL_INFERRED`); any failure or timeout falls back to the `scripted` provider; the dialogue service is asynchronous and finishes every turn on the server thread | **implemented, unit-tested** (79 tests in total, incl. end-to-end through the HTTP client against a loopback Ollama look-alike) |
+| Pure-Java core: model-backed dialogue — `model` provider on top of the LLM layer: persona + retrieved memories + public context + only the clues the story allows right now go into one structured request; the reply `{line, clue?, note?}` is validated (bounded line, clue outside the allowed set dropped, note stored as `MODEL_INFERRED`); any failure or timeout falls back to the `scripted` provider; the dialogue service is asynchronous and finishes every turn on the server thread | **implemented, unit-tested** (incl. end-to-end through the HTTP client against a loopback Ollama look-alike) |
+| Pure-Java core: intent planning — `IntentPlanner` turns a player's words into at most one typed action chosen among the candidates the server saw (trunk bases, authorized containers with contents, the player's position): `keyword` (deterministic rules, English and Russian, default), `model` (structured request, indices and item ids only, grounded or dropped, falls back to keyword), `none`. The action still goes through `NpcService.assign` and every validator; a request becomes a `PROMISE` memory, its outcome a `SIGNIFICANT_EVENT` that supersedes the promise | **implemented, unit-tested** (92 tests in total) |
 | Fabric layer: mod init, `PersistentState` (`<world>/data/luminary.dat`), data-pack loader (discoveries, eras, technologies, story phases/clues/branches, npcs, dialogues), `/luminary catalog`, `/luminary progression`, `/luminary story`, `/luminary npc` commands, en/ru lang | **implemented**; covered by 9 GameTests |
 | Fabric layer: NPC entity (`luminary:npc`, persistent, never despawns, right-click to talk), roster reconciliation on entity load/unload (duplicates discarded, missing bodies forgotten), follow goal, `config/luminary.json` (`dialogueProvider`), placeholder client renderer (default player model) | **implemented**; entity + dialogue covered by GameTests; **client rendering not verified** (no client in CI) |
 | Fabric layer: task executor — real block breaking (`ServerWorld.breakBlock`, loot tables), item-entity collection into the NPC's own inventory, insertion into the authorized container's `Inventory`, per-step re-validation, resume after reload; `/luminary npc task` and `/luminary npc container` commands | **implemented**; covered by 8 GameTests incl. item accounting |
-| Fabric layer: chat intake — the nearest NPC within 8 blocks hears a player's chat message, remembers it and answers that player; `/luminary npc memory` commands | **implemented**; covered by 2 GameTests |
-| Gameplay enforcement of capabilities (recipe/item gates), City (facilities), further NPC tasks (furnaces, milking, withdraw), model-driven intent planning (model proposes a typed action, the validators decide), autonomy loop, GeckoLib model, mod integrations | **designed, not implemented** — see the research set |
+| Fabric layer: chat intake — the nearest NPC within 8 blocks hears a player's chat message; the planner looks for work first (candidates scanned around the body), an action is assigned like a command and the result spoken back, otherwise the line is a dialogue turn; the requester is told when the task ends; `/luminary npc intent`, `/luminary npc planner`, `/luminary npc task move|deposit|withdraw`; `/luminary npc memory` commands | **implemented**; covered by 6 GameTests (chat → task → chest → memory with no model) |
+| Gameplay enforcement of capabilities (recipe/item gates), City (facilities), further NPC tasks (furnaces, milking, crafting), autonomy loop with budgets and reflexes, GeckoLib model, mod integrations | **designed, not implemented** — see the research set |
 | Thaumcraft 4 port bridge (`dev.luminary.api` plugin entrypoint) | **proposed**, needs the port maintainers |
 
 Nothing here grants items, unlocks recipes or changes gameplay yet. The slice proves the architecture: a Minecraft-free
 core, server-side rules, persistence with migrations, admin commands, and an in-world test harness.
 
-## Last recorded verification (2026-10-12, slice 8, JDK 21 runtime, `release 17`)
+## Last recorded verification (2026-10-12, slice 9, JDK 21 runtime, `release 17`)
 
 | Check | Result |
 |---|---|
-| `./gradlew build` (compile main/test/gametest, 79 unit tests, jar) | passed |
-| `./gradlew runGametest` (headless 1.20.1 server, Fabric API 0.92.12, Loader 0.19.5) | "All 21 required tests passed" |
+| `./gradlew build` (compile main/test/gametest, 92 unit tests, jar) | passed |
+| `./gradlew runGametest` (headless 1.20.1 server, Fabric API 0.92.12, Loader 0.19.5) | "All 25 required tests passed" (4 consecutive runs) |
 | `um publish check luminary` | 0 failures (1 warning in the ignored `.gradle/` cache) |
 | Not verified | a real dedicated server with players; the integrated client and the NPC renderer; any other mod loaded alongside; a real Ollama or hosted model endpoint (only the mock server was exercised) |
 
@@ -77,9 +78,14 @@ cd luminary
 /luminary npc follow <npc> <player> | stop      [3]  follow order (walks to within ~2.5 blocks, repaths once per second)
 /luminary npc talk <npc>                        [2]  talk without clicking (player executor, body must be present)
 /luminary npc provider <scripted|disabled|model> [4]  swap the dialogue provider until restart
+/luminary npc planner <none|keyword|model>       [4]  swap the intent planner until /reload or restart
+/luminary npc intent <npc> <text>               [2]  say something to an NPC from anywhere (same path as nearby chat)
 /luminary npc container allow|deny <npc> <pos>  [3]  authorize (persisted) a container the NPC may deposit into
 /luminary npc task gather <npc> <log pos> <container pos> [maxLogs]   [3]  validated gather-wood task
-/luminary npc task status <npc>                 [2]  state, failure reason, ledger (broken / collected / deposited)
+/luminary npc task move <npc> <pos>             [3]  walk to within reach of a position
+/luminary npc task deposit <npc> <container pos> [3]  put everything carried into an authorized container
+/luminary npc task withdraw <npc> <container pos> <item id> [count]  [3]  take items out of an authorized container
+/luminary npc task status <npc>                 [2]  state, failure reason, ledger (broken / collected / deposited / withdrawn), requester
 /luminary npc task cancel <npc>                 [3]  marks the task FAILED(cancelled); carried items stay with the NPC
 /luminary npc memory <npc> [player]             [2]  what the NPC remembers (newest 30), optionally about one player
 /luminary npc memory note <npc> <text>          [3]  add an authored stable fact (the NPC's teaching knowledge)
@@ -186,11 +192,21 @@ over, a body whose definition was removed from the data packs stays but only say
 
 ## NPC physical tasks (slice 5)
 
-An NPC task is a typed `NpcAction` with plain-data arguments (`GatherWood(targetPos, containerPos, maxLogs)`),
-validated **before** it is recorded and re-checked by the executor on every step. Validators (in order): supported
-action, arguments (1 ≤ maxLogs ≤ 16, target ≠ container), permission (the body's own world), both positions in loaded
-chunks, both within 32 blocks, target is a block in `#minecraft:logs`, container explicitly authorized for this NPC,
-container is an `Inventory` with at least one free slot. Any failure returns a stable reason key and records nothing.
+An NPC task is a typed `NpcAction` with plain-data arguments, validated **before** it is recorded and re-checked by
+the executor on every step. Actions (slice 5 + slice 9):
+
+| Action | Arguments | Lifecycle |
+|---|---|---|
+| `GatherWood` | target log, container, 1 ≤ maxLogs ≤ 16 | `VALIDATED → MOVING_TO_TARGET → BREAKING → (…)* → COLLECTING → MOVING_TO_CONTAINER → DEPOSITING → COMPLETED` |
+| `MoveTo` | position | `VALIDATED → MOVING_TO_TARGET → COMPLETED` (within 3 blocks) |
+| `Deposit` | container | `VALIDATED → MOVING_TO_CONTAINER → DEPOSITING → COMPLETED` |
+| `Withdraw` | container, item id, 1 ≤ count ≤ 64 | `VALIDATED → MOVING_TO_CONTAINER → WITHDRAWING → COMPLETED` (fewer than asked is still completed; the ledger says how many) |
+
+Validators (in order): supported action, arguments (counts in range, target ≠ container, item id registered),
+permission (the body's own world), every position in a loaded chunk and within 32 blocks, the gather target is a block
+in `#minecraft:logs`, any container explicitly authorized for this NPC and an `Inventory`, and the inventories make
+sense (gather/deposit need a free slot in the container, deposit needs something carried, withdraw needs the item in
+the container and a free slot in the NPC's hands). Any failure returns a stable reason key and records nothing.
 
 Lifecycle (one state per server tick, persisted in `luminary_npc.dat`):
 
@@ -206,18 +222,24 @@ VALIDATED → MOVING_TO_TARGET → BREAKING → (next log up: MOVING_TO_TARGET �
 - **Depositing** inserts the carried stacks into the authorized container's `Inventory` (merge, then empty valid
   slots). A full container fails the task with `container_full` and the items **stay with the NPC**; the next task
   that reaches a deposit empties them too.
-- The **ledger** counts blocks broken, items collected and items deposited, each incremented only by the world
+- **Withdrawing** moves stacks of the requested item from the container into the NPC inventory, as many as fit and
+  were asked for; the chest keeps the rest.
+- The **ledger** counts blocks broken, items collected, deposited and withdrawn, each incremented only by the world
   mutation that just happened, so `deposited ≤ collected ≤ broken` holds and tests assert
   `chest + carried + on-ground == broken`.
 - Terminal states are final; a new task gets a new id; an NPC never runs two tasks at once. Extra ticks on a terminal
   task are no-ops. On reload the same task resumes from its persisted state and re-validates the world first.
 
 Failure reasons: validator keys (above) plus `target_changed`, `unreachable` (600 ticks), `container_invalid`,
-`container_full`, `nothing_collected`, `cancelled`.
+`container_full`, `container_lacks_item`, `nothing_collected`, `cancelled`.
 
-Known limitations: one action type; the NPC does not open doors or climb; drops that roll out of the 6-block radius are
-left on the ground (visible as `collected < broken` in `/luminary npc task status`); the follow order is ignored while a
-task runs.
+A task remembers who asked for it (`requestedBy`, persisted). When it ends, the NPC writes a `SIGNIFICANT_EVENT`
+memory with the outcome and the ledger (superseding the `PROMISE` it made) and tells the requester in chat if they
+are online.
+
+Known limitations: the NPC does not open doors or climb; drops that roll out of the 6-block radius are left on the
+ground (visible as `collected < broken` in `/luminary npc task status`); the follow order is ignored while a task runs;
+no furnace, crafting or farming actions yet.
 
 ## Language-model layer (slice 6)
 
@@ -296,6 +318,34 @@ Progression, Story, the world or memory above trust 1 (ADR-0009).
 Model lines are sent as literal text (`npc.luminary.model_line` carries the `%s`); scripted lines stay translation
 keys. The journal (`logs/luminary/llm.jsonl`) records each dialogue request under purpose `dialogue`; prompt and
 reply text only with `llm.logContent = true`.
+
+## From words to work: intent planning (slice 9)
+
+`"intentPlanner": "keyword"` (default) | `"none"` | `"model"` in `config/luminary.json`, or `/luminary npc planner`.
+
+When a player's chat line reaches an NPC (within 8 blocks, or via `/luminary npc intent`), the planner runs **before**
+dialogue:
+
+1. **Scan** (`CandidateScanner`, server thread, loaded chunks only): trunk bases (a log with no log below) within a
+   33×13×33 box and 32 blocks, the NPC's authorized containers that are loaded inventories with a bounded summary of
+   their contents, the player's position, what the NPC carries. Nothing outside this list can be chosen.
+2. **Plan**: the `keyword` planner matches word stems (English and Russian) and picks the nearest candidates:
+   "chop 3 logs" / "наруби 2 бревна" → `GatherWood`, "put it away" / "сложи в сундук" → `Deposit`, "bring me 10
+   cobblestone" → `Withdraw` of an item some container actually holds, "come here" / "подойди" → `MoveTo` the player.
+   A busy NPC declines; missing trees/containers/items produce a specific refusal line; small talk produces nothing
+   and falls through to dialogue. The `model` planner sends one structured request (intent name from a fixed list,
+   candidate **indices**, item id, count, reply) and grounds the answer: an index out of range falls back to the
+   nearest candidate, an item the container lacks or an unknown intent drops the action but keeps the reply; any
+   failure, timeout or non-JSON reply hands the request to the keyword rules.
+3. **Assign**: the action goes through `NpcService.assign` and the full validator chain exactly like a command. The
+   NPC answers with its line or with `npc.luminary.intent.cannot` + the validator's reason; the words are remembered
+   (`PLAYER_SAID`) and the accepted task as a `PROMISE` to that player.
+4. **Execute** (the task executor) and **report**: at the end the requester gets "Done: …" or "I could not finish
+   (…)", and the memory keeps the outcome.
+
+GameTest `spokenRequestBecomesAValidatedTaskExecutedAndRemembered` runs the whole chain with no model: a mock player
+says "could you chop 2 logs for me?", two real oak logs end up in the authorized chest, the promise is superseded by
+the completed event.
 
 ## Layout
 
