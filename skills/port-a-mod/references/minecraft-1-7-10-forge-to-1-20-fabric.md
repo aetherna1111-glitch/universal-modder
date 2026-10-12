@@ -143,4 +143,4 @@ Look names up on the mapped jar in the Loom cache (`javap -cp <minecraft-merged 
 - Jar-in-jar libraries of test-only mods are not loaded in dev runs: add them to the classpath yourself.
 - Stub what a sandbox cannot download in a test-only source set (never shipped).
 - Run the release jar on a real server and a production-style client, not just the dev runtime.
-- Never trust "passes" without the JUnit file: `techniques/fabric-1-20-1-gametests-as-the-oracle-of-a-large-mod-port.md`.
+- Never trust "passes" without the JUnit file: `knowledge/techniques/fabric-1-20-1-gametests-as-the-oracle-of-a-large-mod-port.md`.

@@ -21,9 +21,9 @@
 - `minecraft-modding-mcp` gives an agent mappings, decompiled source and version diffs.
 
 ## Porting an old Forge mod (1.7.10 / 1.12) to modern Fabric
-- Use the **port-a-mod** skill. It covers the method: one pinned source version, a private remapped decompile,
-  an adaptation matrix, data extracted by scripts, unit-by-unit GameTests, audits by layer, and resumable
-  status docs.
+- Use the **port-a-mod** skill. It covers the original's license (which decides whether the port can be
+  published) and the method: one pinned source version, a private remapped decompile, an adaptation matrix,
+  data extracted by scripts, unit-by-unit GameTests, audits by layer, and resumable status docs.
 - Its `references/minecraft-1-7-10-forge-to-1-20-fabric.md` maps Forge 1.7.10 concepts to Fabric 1.20.1. For
   example:
   - `onItemUseFirst` → `UseBlockCallback`;
@@ -35,11 +35,14 @@
 - **Decompile and remap:** 1.7.10 jars use SRG names. Use Vineflower, CFR for the classes it fails on, and the
   MCP `stable_12` CSVs. Read the target's mapped jar with `javap` from the Loom cache.
 - **Oracles:**
-  - GameTests on the real test server: `techniques/fabric-1-20-1-gametests-as-the-oracle-of-a-large-mod-port.md`;
-  - a scripted real client: `techniques/a-scenario-harness-in-a-minecraft-fabric-dev-client-real-cli.md`;
+  - GameTests on the real test server:
+    `knowledge/techniques/fabric-1-20-1-gametests-as-the-oracle-of-a-large-mod-port.md`;
+  - a scripted real client:
+    `knowledge/techniques/a-scenario-harness-in-a-minecraft-fabric-dev-client-real-cli.md`;
   - the release jar on a real server.
 - **Rendering:** 1.7.10 GL11 states (alpha test, `GL_ADD`, brightness, `IItemRenderer` frames, `ModelBox`
-  mirroring) are mapped in `techniques/porting-1-7-10-gl11-render-states-and-iitemrenderer-frames-t.md`.
+  mirroring) are mapped in
+  `knowledge/techniques/porting-1-7-10-gl11-render-states-and-iitemrenderer-frames-t.md`.
 - **Worked example:** Thaumcraft 4.2.3.5 → 1.20.1 Fabric (323 GameTests). See
   `knowledge/games/minecraft/porting-thaumcraft-4-1-7-10-forge-to-minecraft-1-20-1-fabric.md`.
 - **Cloud and sandboxed builds:** Loom needs `maven.fabricmc.net` and Mojang's `piston-meta`, `piston-data`,
