@@ -13,24 +13,25 @@ slice**; design and research live in `../docs/research/luminary-2026-10-11/` (st
 | Pure-Java core: Progression — eras, technologies, prerequisites (era / verified discovery / unlocked technology / signal), automatic cascading unlocks, era advancement, admin override, capabilities | **implemented, unit-tested** |
 | Pure-Java core: Story — ordered phases (admin-controlled; opt-in auto-advance on explicit conditions), strategic branches, authored clues with reveal conditions and no override, full phase history; schema v3 | **implemented, unit-tested** |
 | Pure-Java core: NPC — definitions, data-driven dialogue scripts with story conditions and clue lines, `DialogueProvider` abstraction with `scripted` (default) and `disabled` providers, roster (one body per NPC, per-player memory), own persisted state `luminary_npc.dat` | **implemented, unit-tested** |
-| Pure-Java core: NPC tasks — typed `NpcAction` (`GatherWood`), validator chain, explicit task states, item ledger, authorized containers, persisted in-flight task | **implemented, unit-tested** (51 tests in total) |
+| Pure-Java core: NPC tasks — typed `NpcAction` (`GatherWood`), validator chain, explicit task states, item ledger, authorized containers, persisted in-flight task | **implemented, unit-tested** |
+| Pure-Java core: language-model layer — `LlmProvider` with `none` (default), `ollama` and `openai` (any OpenAI-compatible endpoint) backends; async off the game thread, connect/request timeouts, 64 KiB response cap, concurrency limit, exponential cooldown, loopback-only endpoints unless allow-listed, API key from the environment only, JSONL journal | **implemented, unit-tested against a mock HTTP server** (65 tests in total); **not yet used by dialogue** |
 | Fabric layer: mod init, `PersistentState` (`<world>/data/luminary.dat`), data-pack loader (discoveries, eras, technologies, story phases/clues/branches, npcs, dialogues), `/luminary catalog`, `/luminary progression`, `/luminary story`, `/luminary npc` commands, en/ru lang | **implemented**; covered by 9 GameTests |
 | Fabric layer: NPC entity (`luminary:npc`, persistent, never despawns, right-click to talk), roster reconciliation on entity load/unload (duplicates discarded, missing bodies forgotten), follow goal, `config/luminary.json` (`dialogueProvider`), placeholder client renderer (default player model) | **implemented**; entity + dialogue covered by GameTests; **client rendering not verified** (no client in CI) |
 | Fabric layer: task executor — real block breaking (`ServerWorld.breakBlock`, loot tables), item-entity collection into the NPC's own inventory, insertion into the authorized container's `Inventory`, per-step re-validation, resume after reload; `/luminary npc task` and `/luminary npc container` commands | **implemented**; covered by 8 GameTests incl. item accounting |
-| Gameplay enforcement of capabilities (recipe/item gates), City (facilities), further NPC tasks (furnaces, milking, withdraw), model-backed dialogue/planning provider, GeckoLib model, mod integrations | **designed, not implemented** — see the research set |
+| Gameplay enforcement of capabilities (recipe/item gates), City (facilities), further NPC tasks (furnaces, milking, withdraw), model-backed dialogue and intent planning on top of the LLM layer, structured NPC memory, GeckoLib model, mod integrations | **designed, not implemented** — see the research set |
 | Thaumcraft 4 port bridge (`dev.luminary.api` plugin entrypoint) | **proposed**, needs the port maintainers |
 
 Nothing here grants items, unlocks recipes or changes gameplay yet. The slice proves the architecture: a Minecraft-free
 core, server-side rules, persistence with migrations, admin commands, and an in-world test harness.
 
-## Last recorded verification (2026-10-12, slice 5, JDK 21 runtime, `release 17`)
+## Last recorded verification (2026-10-12, slice 6, JDK 21 runtime, `release 17`)
 
 | Check | Result |
 |---|---|
-| `./gradlew build` (compile main/test/gametest, 51 unit tests, jar) | passed; `build/libs/luminary-0.1.0.jar` (226 KB) |
-| `./gradlew runGametest` (headless 1.20.1 server, Fabric API 0.92.12, Loader 0.19.5) | "All 17 required tests passed" (see the slice 5 section for the stability runs) |
+| `./gradlew build` (compile main/test/gametest, 65 unit tests, jar) | passed; `build/libs/luminary-0.1.0.jar` (266 KB) |
+| `./gradlew runGametest` (headless 1.20.1 server, Fabric API 0.92.12, Loader 0.19.5) | "All 18 required tests passed" |
 | `um publish check luminary` | 0 failures (1 warning in the ignored `.gradle/` cache) |
-| Not verified | a real dedicated server with players; the integrated client and the NPC renderer; any other mod loaded alongside |
+| Not verified | a real dedicated server with players; the integrated client and the NPC renderer; any other mod loaded alongside; a real Ollama or hosted model endpoint (only the mock server was exercised) |
 
 ## Requirements
 
@@ -77,6 +78,8 @@ cd luminary
 /luminary npc task gather <npc> <log pos> <container pos> [maxLogs]   [3]  validated gather-wood task
 /luminary npc task status <npc>                 [2]  state, failure reason, ledger (broken / collected / deposited)
 /luminary npc task cancel <npc>                 [3]  marks the task FAILED(cancelled); carried items stay with the NPC
+/luminary llm status                            [2]  provider, model, endpoint, health, request counters
+/luminary llm ping                              [4]  one tiny request to the configured model; the reply or failure arrives asynchronously
 ```
 Players talk by right-clicking the NPC. Lines arrive in chat as `<NPC name> line`.
 Ids are Minecraft identifiers: always write the namespace (`luminary:material/first_trace_ore`).
@@ -205,11 +208,36 @@ Known limitations: one action type; the NPC does not open doors or climb; drops 
 left on the ground (visible as `collected < broken` in `/luminary npc task status`); the follow order is ignored while a
 task runs.
 
+## Language-model layer (slice 6)
+
+`config/luminary.json`:
+
+```json
+{ "dialogueProvider": "scripted",
+  "llm": { "provider": "none", "endpoint": "http://127.0.0.1:11434", "model": "qwen2.5:7b",
+           "requestTimeoutSeconds": 20, "maxConcurrent": 2, "allowedHosts": [], "logContent": false } }
+```
+- `provider`: `none` (default, every request fails fast with `UNAVAILABLE`), `ollama` (`POST {endpoint}/api/chat`,
+  `stream:false`, JSON schema as `format`, `keep_alive`), `openai` (`POST {endpoint}/chat/completions`, the endpoint
+  includes its version prefix such as `https://host/v1`; `response_format: json_object` for structured requests).
+- The API key is read **only** from the environment variable `LUMINARY_LLM_API_KEY`; an `apiKey` in the file is ignored
+  with a warning. The journal never contains the key, and prompt/reply text only when `logContent` is true.
+- Endpoints must be `http(s)` and loopback unless the host is listed in `allowedHosts`.
+- Every request runs on provider threads; results are delivered to the server thread via `LlmService.ask`. Limits:
+  connect 2 s, request 20 s (configurable), 64 KiB response, `maxConcurrent` in flight (extra requests fail with
+  `BUSY`), exponential cooldown 5 s → 5 min after transport/HTTP failures (requests fail at once with `UNAVAILABLE`
+  while cooling down; a malformed reply does not count as an outage).
+- Journal: `logs/luminary/llm.jsonl`, one line per request (provider, model, purpose, sizes, latency, outcome),
+  4 MiB rotation with 3 archives.
+
+Nothing in gameplay calls the model yet: dialogue still uses the `scripted` provider. The next slices add structured
+memory and then a model-backed dialogue provider on top of this layer (ADR-0007).
+
 ## Layout
 
 ```
 src/main/java/dev/luminary/core/        pure Java (no net.minecraft / net.fabricmc imports; enforced by a test)
-  ids/ events/ catalog/ progression/ story/ npc/ npc/task/ persistence/
+  ids/ events/ catalog/ progression/ story/ npc/ npc/task/ npc/llm/ persistence/
 src/main/java/dev/luminary/fabric/      Minecraft-facing: Luminary (init), LuminaryRuntime, state/, command/, definitions/, npc/, npc/task/, config/, client/
 src/test/java/                          JUnit 5
 src/gametest/java/                      Fabric GameTests (second Loom mod "luminary-gametest", never shipped)

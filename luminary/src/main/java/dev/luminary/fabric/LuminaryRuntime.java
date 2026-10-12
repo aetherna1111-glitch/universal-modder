@@ -34,6 +34,7 @@ public final class LuminaryRuntime {
 	private final NpcWorldState npcState;
 	private final EventBus events;
 	private DialogueProvider dialogueProvider;
+	private final LlmService llm;
 	private CatalogService catalog;
 	private ProgressionService progression;
 	private StoryController story;
@@ -43,6 +44,7 @@ public final class LuminaryRuntime {
 		this.server = server;
 		this.worldState = worldState;
 		this.npcState = npcState;
+		this.llm = new LlmService(server, config.llm(), config.llmLogContent());
 		this.dialogueProvider = providerFor(config.dialogueProvider()).orElseGet(() -> {
 			Luminary.LOGGER.warn("[luminary] unknown dialogueProvider '{}' in config; dialogue disabled", config.dialogueProvider());
 			return new DisabledDialogueProvider();
@@ -108,6 +110,7 @@ public final class LuminaryRuntime {
 		if (current != null && current.server == server) {
 			current.worldState.markDirty();   // vanilla saves persistent states during shutdown
 			current.npcState.markDirty();
+			current.llm.close();
 			current = null;
 		}
 	}
@@ -130,6 +133,10 @@ public final class LuminaryRuntime {
 
 	public NpcService npc() {
 		return npc;
+	}
+
+	public LlmService llm() {
+		return llm;
 	}
 
 	public CivilizationState state() {

@@ -92,5 +92,9 @@
   "luminary.task.container_full": "The container has no free slot",
   "luminary.task.not_permitted": "The NPC may not act in this context",
   "luminary.task.already_active": "The NPC already has an active task",
-  "luminary.task.none_active": "The NPC has no active task"
+  "luminary.task.none_active": "The NPC has no active task",
+  "luminary.command.llm_status": "Language model: provider %s, model %s, endpoint %s, %s. %s",
+  "luminary.command.llm_ping_sent": "Ping sent to provider %s; the answer arrives when the model replies",
+  "luminary.command.llm_ping_ok": "Model answered in %s ms: %s",
+  "luminary.command.llm_ping_failed": "Model request failed (%s): %s"
 }

@@ -92,5 +92,9 @@
   "luminary.task.container_full": "В контейнере нет свободного слота",
   "luminary.task.not_permitted": "NPC не может действовать в этом контексте",
   "luminary.task.already_active": "У NPC уже есть активная задача",
-  "luminary.task.none_active": "У NPC нет активной задачи"
+  "luminary.task.none_active": "У NPC нет активной задачи",
+  "luminary.command.llm_status": "Языковая модель: провайдер %s, модель %s, адрес %s, %s. %s",
+  "luminary.command.llm_ping_sent": "Запрос отправлен провайдеру %s; ответ придёт, когда модель ответит",
+  "luminary.command.llm_ping_ok": "Модель ответила за %s мс: %s",
+  "luminary.command.llm_ping_failed": "Запрос к модели не удался (%s): %s"
 }

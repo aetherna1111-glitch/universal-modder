@@ -23,6 +23,8 @@ import dev.luminary.core.npc.NpcDialogueService;
 import dev.luminary.core.npc.NpcRoster;
 import dev.luminary.fabric.npc.LuminaryNpcEntity;
 import dev.luminary.fabric.npc.NpcService;
+import dev.luminary.core.npc.llm.LlmMessage;
+import dev.luminary.core.npc.llm.LlmRequest;
 import dev.luminary.core.npc.task.NpcAction;
 import dev.luminary.core.npc.task.NpcTask;
 import net.minecraft.command.argument.BlockPosArgumentType;
@@ -70,6 +72,8 @@ import java.util.UUID;
  * /luminary npc container allow|deny &lt;npc&gt; &lt;pos&gt;       (op 3)  authorize a deposit container (persisted)
  * /luminary npc task gather &lt;npc&gt; &lt;log pos&gt; &lt;container pos&gt; [maxLogs]   (op 3)  validated gather-wood task
  * /luminary npc task status &lt;npc&gt; | cancel &lt;npc&gt;        (op 2 / op 3)
+ * /luminary llm status                                 (op 2)  provider, model, health, counters
+ * /luminary llm ping                                   (op 4)  one tiny request to the configured model; answer arrives asynchronously
  * </pre>
  */
 public final class LuminaryCommands {
@@ -176,7 +180,39 @@ public final class LuminaryCommands {
 														.then(CommandManager.argument("container", BlockPosArgumentType.blockPos())
 																.executes(ctx -> taskGather(ctx, 4))
 																.then(CommandManager.argument("maxLogs", IntegerArgumentType.integer(1))
-																		.executes(ctx -> taskGather(ctx, IntegerArgumentType.getInteger(ctx, "maxLogs")))))))))));
+																		.executes(ctx -> taskGather(ctx, IntegerArgumentType.getInteger(ctx, "maxLogs"))))))))))
+				.then(CommandManager.literal("llm")
+						.then(CommandManager.literal("status").executes(LuminaryCommands::llmStatus))
+						.then(CommandManager.literal("ping")
+								.requires(src -> src.hasPermissionLevel(4))
+								.executes(LuminaryCommands::llmPing))));
+	}
+
+	private static int llmStatus(CommandContext<ServerCommandSource> ctx) {
+		return runtime(ctx.getSource()).map(rt -> {
+			var p = rt.llm().provider();
+			ctx.getSource().sendFeedback(() -> Text.translatable("luminary.command.llm_status", p.id(), p.model(),
+					rt.llm().config().endpoint().toString(), p.healthy() ? "healthy" : "unavailable", p.stats().toString()), false);
+			return 1;
+		}).orElse(0);
+	}
+
+	private static int llmPing(CommandContext<ServerCommandSource> ctx) {
+		return runtime(ctx.getSource()).map(rt -> {
+			ServerCommandSource src = ctx.getSource();
+			LlmRequest request = LlmRequest.text(java.util.List.of(
+					LlmMessage.system("You are a connectivity check. Reply with the single word: pong"),
+					LlmMessage.user("ping")), 8, 0.0);
+			src.sendFeedback(() -> Text.translatable("luminary.command.llm_ping_sent", rt.llm().provider().id()), false);
+			rt.llm().ask(request, "ping", (response, error) -> {
+				if (response != null) {
+					src.sendFeedback(() -> Text.translatable("luminary.command.llm_ping_ok", response.latencyMillis(), response.text().strip()), false);
+				} else {
+					src.sendError(Text.translatable("luminary.command.llm_ping_failed", error.kind().name(), String.valueOf(error.getMessage())));
+				}
+			});
+			return 1;
+		}).orElse(0);
 	}
 
 	private static int container(CommandContext<ServerCommandSource> ctx, boolean allow) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
