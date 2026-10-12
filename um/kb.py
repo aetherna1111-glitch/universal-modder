@@ -164,10 +164,10 @@ def search(root: Path, terms: list[str], game=None, engine=None, route=None, lim
             score += min(5, len(t.findall(low)))
         if terms and score == 0:
             continue
-        # the lines matching the most distinct terms first (a stable sort keeps note order among equals)
+        # the lines matching the most distinct terms first; sorted() is stable, so ties keep note order
         lines = [ln.strip() for ln in body.splitlines() if ln.strip()]
-        counted = [(sum(1 for t in terms if t.search(ln.lower())), i, ln) for i, ln in enumerate(lines)]
-        hits = [ln for n, _, ln in sorted((c for c in counted if c[0]), key=lambda c: (-c[0], c[1]))][:3]
+        counted = [(sum(1 for t in terms if t.search(ln.lower())), ln) for ln in lines]
+        hits = [ln for n, ln in sorted((c for c in counted if c[0]), key=lambda c: -c[0])][:3]
         res.append(dict(score=score, path=p.relative_to(root).as_posix(), title=meta.get("title"), game=meta.get("game"),
                         engine=meta.get("engine"), route=meta.get("route"), status=meta.get("status"), hits=hits))
     res.sort(key=lambda r: -r["score"])
