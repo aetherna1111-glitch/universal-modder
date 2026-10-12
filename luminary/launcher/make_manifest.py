@@ -55,12 +55,22 @@ def build_manifest(mc_dir: Path, sync_folders, version: str | None = None):
             skipped.append(f"{folder}/ (папки нет)")
             continue
         for dirpath, dirnames, names in os.walk(root):
-            dirnames.sort()
+            # servarium does not serve hidden files or links: listing one would make every update fail
+            for d in sorted(dirnames):
+                rel = (Path(dirpath) / d).relative_to(mc_dir).as_posix()
+                if d.startswith("."):
+                    skipped.append(f"{rel}/ (скрытая папка: servarium такие не раздаёт)")
+                elif (Path(dirpath) / d).is_symlink():
+                    problems.append(f"{rel}: ссылка на папку (положи саму папку)")
+            dirnames[:] = sorted(d for d in dirnames if not d.startswith(".") and not (Path(dirpath) / d).is_symlink())
             for name in sorted(names):
                 full = Path(dirpath) / name
                 rel = full.relative_to(mc_dir).as_posix()
                 if name.lower() in SKIP_NAMES or name.lower().endswith(SKIP_SUFFIXES):
                     skipped.append(rel)
+                    continue
+                if name.startswith("."):
+                    skipped.append(f"{rel} (скрытый файл: servarium такие не раздаёт)")
                     continue
                 if full.is_symlink():
                     problems.append(f"{rel}: символическая ссылка (положи сам файл)")

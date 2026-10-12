@@ -217,6 +217,13 @@ own list, so publish the 2.1.2 launcher update before the first manifest.
    files in `mirror` folders that players would have moved to `.backup`.
 4. Upload the files to the servarium folder at the same relative paths, and upload `manifest.json` last.
    Players who start a launch mid-upload then get either the old pack or the complete new one.
+   Servarium serves files the moment they appear and recommends a `.part` or `.tmp` suffix during upload.
+   That matters for a file that replaces one with the same name (a changed config, `manifest.json`):
+   upload it as `<name>.tmp`, then rename it. New files (a mod with a new version in its name) can be
+   uploaded directly, because no published manifest lists them yet. A player who still catches a
+   half-uploaded file gets a checksum error, and the pack is left untouched.
+   Servarium does not serve hidden files (names starting with `.`) or links, so `make_manifest.py` leaves
+   them out and lists them as skipped.
 5. Run `python\python.exe make_manifest.py --check-remote`. It downloads the published manifest and every
    file and verifies the size and SHA-256 of each.
 6. Only then set `"block_launch_on_error": true` if you want launches to stop when the pack server is

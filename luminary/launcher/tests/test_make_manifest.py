@@ -155,3 +155,13 @@ def test_manifest_carries_folder_rules_and_check_only_flags_mirror_folders(mc):
     (mc / "mods" / "stray.jar").write_bytes(b"x")                 # mirror folder: players would lose it
     assert mm.check_local(manifest, mc, FOLDERS) == [
         "не в манифесте (у игроков будет убран в .backup): mods/stray.jar"]
+
+
+def test_hidden_files_are_left_out_because_servarium_does_not_serve_them(mc):
+    (mc / "config" / ".hidden.json").write_text("{}")
+    (mc / "config" / ".cache").mkdir()
+    (mc / "config" / ".cache" / "x.bin").write_bytes(b"x")
+    manifest, problems, skipped = mm.build_manifest(mc, FOLDERS, "v1")
+    assert problems == []
+    assert not any("/." in f["path"] for f in manifest["files"])
+    assert any(".hidden.json" in s for s in skipped) and any("config/.cache/" in s for s in skipped)
