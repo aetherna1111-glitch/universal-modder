@@ -17,3 +17,4 @@ def test_kb_search_quoted_query_also_matches_its_words(tmp_path):
     assert [r["title"] for r in kb.search(kroot, ["alpha test shader"])] == ["Render states"]   # words apart still match
     found = [r["title"] for r in kb.search(kroot, ["grand theft auto"])]
     assert found[0] == "Grand Theft Auto mods" and "Theft" in found                          # the exact phrase ranks first
+    assert len(kb.search(kroot, ["shader", "grand"])) == 3                                    # unquoted words: any of them

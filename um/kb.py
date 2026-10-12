@@ -146,7 +146,7 @@ def _groups(args: list[str]) -> list[list[re.Pattern]]:
     """One group per command-line argument: [term] for a word, [phrase, *words] for a quoted multi-word argument
     ("grand theft auto", "alpha test shader"). A note matches a group with the phrase or with all of its words, so a
     quoted topic query finds notes that use the words apart (a phrase alone returned nothing) without listing every
-    note that has one of them; the exact phrase still scores, and ranks, higher."""
+    note that has one of them. The phrase is scored as a term too, so notes with the exact phrase rank higher."""
     out = []
     for a in args:
         a = " ".join(a.lower().split())
@@ -173,7 +173,8 @@ def search(root: Path, terms: list[str], game=None, engine=None, route=None, lim
         }
         low = body.lower()
         text = low + "\n" + "\n".join(f.lower() for f in fields.values())
-        # each argument must match: a word anywhere, a quoted phrase as a phrase or with all of its words
+        # at least one argument must match (unquoted words stay OR-ed): a word anywhere, a quoted phrase as the
+        # phrase or with all of its words
         if groups and not any(g[0].search(text) or (len(g) > 1 and all(t.search(text) for t in g[1:])) for g in groups):
             continue
         score = 0
