@@ -36,7 +36,9 @@ technology can require them: `{ "type": "signal", "signal": "luminary:signal/tha
 after the fact and cannot influence the outcome.
 
 Status (2026-10-13): **applied and verified in the port** on branch `claude/dreamy-knuth-rizfww` of
-`aetherna1111-glitch/thaumcraft-fabric` (commit `798c2ff`), together with the compile repair that commit needed; the
-port's GameTests pass 20/20 including `ObserverGameTests` (one event per first completion, none on repeat, event
-shape). The patch file stays here as the reference diff. The Luminary side is covered by unit tests
+`aetherna1111-glitch/thaumcraft-fabric`, which is the port's working branch `feature/createtaumechanics-and-sborka`
+(the full TC4 port, the Create: Taumechanics addon and the modpack) plus one commit with the observer API. The port's
+GameTests pass 330/330 there, including `ObserverGameTests`. A dedicated server with Fabric Loader 0.19.5, Fabric API
+0.92.12, Create Fabric 6.0.8.1, the port, the addon rebuilt against it and Luminary starts to "Done" with 85 mods.
+The patch file stays here as the reference diff. The Luminary side is covered by unit tests
 (`ThaumcraftBridgeTest`) and a GameTest (`IntegrationGameTests`) that drives the entrypoint directly.
