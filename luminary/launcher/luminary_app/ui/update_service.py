@@ -36,7 +36,7 @@ class UpdateService(QObject):
         self.last_status = text
         self.status.emit(text)
 
-    def start(self, first_delay_ms: int = 15_000) -> None:
+    def start(self, first_delay_ms: int = 3_000) -> None:
         if not self.enabled:
             self._set("Автообновление не настроено")
             return

@@ -65,9 +65,15 @@ class UpdateDialog(_Base):
             it.setForeground(Qt.GlobalColor.red)
             lst.addItem(it)
         self.lay.addWidget(lst, 1)
-        self.lay.addWidget(label("Без обновления можно не попасть на сервер, если он требует новую сборку.",
-                                 "caption", wrap=True))
-        skip = button("Играть без обновления", "ghost")
+        blocking = bool(getattr(plan, "blocking", False))
+        if blocking:  # mods differ from the server's: it would refuse the join, so there is nothing to skip to
+            self.lay.addWidget(label("Моды отличаются от серверных: без этого обновления сервер не пустит в игру.",
+                                     "caption", wrap=True))
+            skip = button("Отмена", "ghost")
+        else:
+            self.lay.addWidget(label("Меняются только настройки и ресурсы: можно сыграть и без обновления.",
+                                     "caption", wrap=True))
+            skip = button("Играть без обновления", "ghost")
         skip.clicked.connect(self.reject)
         ok = button("Обновить и играть", "primary", "upload")
         ok.clicked.connect(self.accept)

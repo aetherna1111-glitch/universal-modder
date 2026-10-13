@@ -59,6 +59,8 @@ class LaunchController(QObject):
         self._prepared: Prepared | None = None
         self.game: launch.GameProcess | None = None
         self.busy = False
+        # set by the main window: return False to stop a launch (e.g. a launcher update must install first)
+        self.before_start = None
 
     # ------------------------------------------------------------------ helpers
     def java_path(self) -> Path:
@@ -86,6 +88,8 @@ class LaunchController(QObject):
     # ------------------------------------------------------------------ phase 1
     def start(self, nickname: str | None) -> None:
         if self.busy or (self.game is not None and self.game.running()):
+            return
+        if self.before_start is not None and not self.before_start():
             return
         st = self.state
         java = self.java_path()
@@ -146,8 +150,12 @@ class LaunchController(QObject):
                                              lambda i, n, msg: ctx.progress((msg, i / n if n else None)), ctx.cancel)
                     cache.save()
                 except modpack.PackError as exc:
-                    if pack_cfg.block_launch_on_error:
-                        raise LaunchError(f"Не удалось проверить сборку: {exc}") from None
+                    synced = modpack.local_version(paths.mc_dir) is not None
+                    if pack_cfg.block_launch_on_error or not synced:
+                        # never synced: the game would start without the pack and the server would refuse it
+                        raise LaunchError(f"Не удалось проверить сборку: {exc}." + (
+                            "" if synced else " Сборка на этом компьютере ещё не установлена, а без неё сервер "
+                            "не пустит в игру. Проверь интернет и попробуй ещё раз.")) from None
                     warning = f"Сборка не проверена: {exc}. Игра запустится с текущими файлами."
                     log.warning(warning)
             return Prepared(req, pack_cfg, plan, cache, warning)

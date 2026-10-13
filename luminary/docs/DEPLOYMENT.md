@@ -202,7 +202,18 @@ optional `folder_modes` object overrides the default mode (`mods` is `mirror`, e
 Launchers refuse a manifest that claims game or player data (`saves`, `versions`, `libraries`, `assets`,
 `logs`, `screenshots`, `crash-reports`, hidden folders, …). Loose files in the root of `.minecraft`
 (`options.txt`, `servers.dat`) are never synced. Launchers older than 2.1.2 ignore `"folders"` and use their
-own list, so publish the 2.1.2 launcher update before the first manifest.
+own list, and reject the whole manifest when it lists a folder outside it. Their list is `mods`, `config`,
+`defaultconfigs`, `patchouli_books` and `fancymenu_data`. Put any other folder in `extra_folders` in
+`config_updater.json`: `make_manifest.py` then writes those folders to `manifest-extra.json` and names it
+in `manifest.json` (`"extra_manifests"`). Launchers 2.1.3+ merge both files into one pack; older ones read
+`manifest.json` alone and still install the mods. Upload `manifest-extra.json` before `manifest.json`.
+
+Launcher 2.1.3+ also refuses to start a game it knows the server would refuse:
+- if the update changes `mirror` folders (mods), the update window offers no "play without updating";
+- if the pack was never installed on that PC and the pack server cannot be reached, it stops with a message
+  instead of starting the game without mods;
+- a downloaded launcher update is installed (with a restart) before Play, and the first update check runs
+  3 s after start.
 
 1. Put the exact client files in `.minecraft\<folder>` for each synced folder, next to `make_manifest.py`.
    Set `sync_folders` (and `folder_modes` if needed) in `config_updater.json`.

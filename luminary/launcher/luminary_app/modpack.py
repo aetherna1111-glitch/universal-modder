@@ -15,6 +15,10 @@ the fallback for manifests without it):
 - update: the owner's files are installed and updated, but a file is only overwritten when the server's
   copy changed since the last sync, and files the player added are left alone (config, resourcepacks...).
   A player-modified file that does get overwritten is backed up first.
+
+Since 2.1.3 the manifest may also name extra manifests in the same folder ("extra_manifests"), merged into
+one pack. Folders that launchers before 2.1.2 do not know (they reject the whole manifest over one unknown
+folder) go there, so the main manifest stays installable by every launcher version.
 """
 from __future__ import annotations
 
@@ -48,6 +52,9 @@ MAX_FOLDERS = 64
 PROTECTED_FOLDERS = {"saves", "versions", "libraries", "assets", "logs", "crash-reports", "screenshots",
                      "natives", "bin", "backups", "runtime", "jre", STAGING.lower()}
 _FOLDER_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_\-]*$")
+EXTRA_KEY = "extra_manifests"
+MAX_EXTRAS = 8
+_EXTRA_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.\-]*\.json$")
 
 
 class PackError(Exception):
@@ -135,6 +142,13 @@ class Plan:
     @property
     def empty(self) -> bool:
         return not self.to_download and not self.to_delete
+
+    @property
+    def blocking(self) -> bool:
+        """The plan changes files the server checks on join (mirror folders: mods), so skipping it means
+        the server will refuse the player."""
+        mirror = {f for f, mode in self.manifest.folders.items() if mode == MIRROR}
+        return any(p.split("/")[0] in mirror for p in [*(f.path for f in self.to_download), *self.to_delete])
 
 
 def load_config(path: Path) -> PackConfig | None:
@@ -229,21 +243,70 @@ def _open(url: str, timeout: float, headers: dict | None = None):
     return urllib.request.urlopen(req, timeout=timeout)
 
 
-def fetch_manifest(cfg: PackConfig) -> Manifest:
+def _fetch_json(url: str, timeout: float, name: str) -> dict:
     try:
-        with _open(cfg.manifest_url, cfg.timeout) as r:
+        with _open(url, timeout) as r:
             data = r.read(50 * 1024 * 1024)
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
-            raise PackError("На сервере сборки ещё нет manifest.json") from None
-        raise PackError(f"Сервер сборки ответил ошибкой {exc.code}") from None
+            raise PackError(f"На сервере сборки ещё нет {name}") from None
+        raise PackError(f"Сервер сборки ответил ошибкой {exc.code} ({name})") from None
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
         raise PackError(f"Не удалось связаться с сервером сборки: {getattr(exc, 'reason', exc)}") from None
     try:
         raw = json.loads(data.decode("utf-8"))
     except ValueError:
-        raise PackError("manifest.json повреждён (не JSON)") from None
-    return parse_manifest(raw, cfg.folders)
+        raise PackError(f"{name} повреждён (не JSON)") from None
+    if not isinstance(raw, dict):
+        raise PackError(f"{name} повреждён")
+    return raw
+
+
+def extra_names(raw: dict, manifest_name: str = "manifest.json") -> list[str]:
+    names = raw.get(EXTRA_KEY) or []
+    if not isinstance(names, list) or len(names) > MAX_EXTRAS:
+        raise PackError(f"manifest.json: неверный список {EXTRA_KEY}")
+    seen = set()
+    for n in names:
+        if not isinstance(n, str) or not _EXTRA_NAME_RE.fullmatch(n) or n.lower() in seen \
+                or n.lower() == manifest_name.lower():
+            raise PackError(f"manifest.json: недопустимое имя дополнительного манифеста {n!r}")
+        seen.add(n.lower())
+    return names
+
+
+def combine(base: Manifest, extras: list[tuple[str, Manifest]]) -> Manifest:
+    """Merge the main manifest with its extra manifests into one pack (folders and files must not clash)."""
+    if not extras:
+        return base
+    folders = dict(base.folders)
+    files = list(base.files)
+    seen = {f.path.lower(): "manifest.json" for f in base.files}
+    for name, extra in extras:
+        for folder, mode in extra.folders.items():
+            if folders.get(folder, mode) != mode:
+                raise PackError(f"{name}: у папки {folder} другой режим, чем в manifest.json")
+            folders[folder] = mode
+        for f in extra.files:
+            if f.path.lower() in seen:
+                raise PackError(f"{name}: файл {f.path} уже указан в {seen[f.path.lower()]}")
+            seen[f.path.lower()] = name
+            files.append(f)
+    raw = {"version": base.version, "updated": base.raw.get("updated"), "folders": folders,
+           "files": [{"path": f.path, "sha256": f.sha256, "size": f.size} for f in files],
+           "sources": ["manifest.json", *(name for name, _ in extras)]}
+    return Manifest(base.version, files, raw, folders)
+
+
+def fetch_manifest(cfg: PackConfig) -> Manifest:
+    base_url = cfg.server_url.rstrip("/") + "/"
+    raw = _fetch_json(cfg.manifest_url, cfg.timeout, cfg.manifest_name)
+    base = parse_manifest(raw, cfg.folders)
+    extras = []
+    for name in extra_names(raw, cfg.manifest_name):
+        extra_raw = _fetch_json(base_url + urllib.parse.quote(name), cfg.timeout, name)
+        extras.append((name, parse_manifest(extra_raw, cfg.folders)))
+    return combine(base, extras)
 
 
 def sha256_file(path: Path, cancel: threading.Event | None = None, chunk: int = 1 << 20) -> str:

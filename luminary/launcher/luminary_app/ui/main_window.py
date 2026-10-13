@@ -85,6 +85,7 @@ class MainWindow(QWidget):
         self.service = ServerService(state)
         self.updates = UpdateService(state)
         self.updates.staged.connect(self.on_update_staged)
+        self.controller.before_start = self._update_before_play
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -320,6 +321,9 @@ class MainWindow(QWidget):
         if self.isMinimized():
             self.showNormal()
         accepted = UpdateDialog(self, plan).exec()
+        if not accepted and plan.blocking:
+            self.controller.cancel()  # the server would refuse a game without these mods
+            return
         self.controller.continue_with(bool(accepted))
 
     def on_game_started(self) -> None:
@@ -361,6 +365,25 @@ class MainWindow(QWidget):
         if box.clickedButton() is restart and self.updates.restart_now():
             self._restarting = True
             self.close()
+
+    def _update_before_play(self) -> bool:
+        """A downloaded launcher update installs before Play: a new launcher may read the pack differently."""
+        staged = self.updates.ready
+        if staged is None:
+            return True
+        box = QMessageBox(self)
+        box.setWindowTitle("Обновление лаунчера")
+        box.setText(f"Сначала установим новую версию лаунчера ({staged.version}).")
+        box.setInformativeText("Лаунчер перезапустится за несколько секунд. Затем снова нажми «Играть».")
+        restart = box.addButton("Перезапустить", QMessageBox.AcceptRole)
+        box.addButton("Играть без обновления", QMessageBox.RejectRole)
+        box.setDefaultButton(restart)
+        box.exec()
+        if box.clickedButton() is restart and self.updates.restart_now():
+            self._restarting = True
+            self.close()
+            return False
+        return True
 
     # ------------------------------------------------------------------ lifecycle
     def showEvent(self, e) -> None:

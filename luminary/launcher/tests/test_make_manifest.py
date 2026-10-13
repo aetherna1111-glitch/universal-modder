@@ -165,3 +165,24 @@ def test_hidden_files_are_left_out_because_servarium_does_not_serve_them(mc):
     assert problems == []
     assert not any("/." in f["path"] for f in manifest["files"])
     assert any(".hidden.json" in s for s in skipped) and any("config/.cache/" in s for s in skipped)
+
+
+def test_extra_folders_go_to_a_second_manifest_old_launchers_never_read(mc, tmp_path):
+    (mc / "resourcepacks").mkdir()
+    (mc / "resourcepacks" / "pack.zip").write_bytes(b"RP")
+    cfg = tmp_path / "config_updater.json"
+    cfg.write_text(json.dumps({"server_url": "https://example.org/pack/",
+                               "sync_folders": ["mods", "config", "resourcepacks"],
+                               "extra_folders": ["resourcepacks"]}))
+    out = tmp_path / "out" / "manifest.json"
+    out.parent.mkdir()
+    assert mm.main(["--config", str(cfg), "--mc-dir", str(mc), "--out", str(out), "--version", "v9"]) == 0
+    main, extra = json.loads(out.read_text()), json.loads((out.parent / "manifest-extra.json").read_text())
+    assert main["extra_manifests"] == ["manifest-extra.json"]
+    assert main["folders"] == {"mods": "mirror", "config": "update"}
+    assert not any(f["path"].startswith("resourcepacks/") for f in main["files"])
+    assert extra["folders"] == {"resourcepacks": "update"} and [f["path"] for f in extra["files"]] == [
+        "resourcepacks/pack.zip"]
+    # a 2.1.1 launcher (classic folder list, no extras) accepts manifest.json as it is
+    modpack.parse_manifest(main, ("mods", "config", "defaultconfigs", "patchouli_books", "fancymenu_data"))
+    assert mm.main(["--config", str(cfg), "--mc-dir", str(mc), "--out", str(out), "--check"]) == 0

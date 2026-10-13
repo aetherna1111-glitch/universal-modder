@@ -280,3 +280,73 @@ def test_zero_byte_files_sync(server, tmp_path):
     publish(root, {"config/empty.cfg": b"", "mods/a.jar": b"A"})
     sync(PackConfig(url, sync_folders=FOLDERS), mc)
     assert (mc / "config" / "empty.cfg").is_file() and (mc / "config" / "empty.cfg").stat().st_size == 0
+
+
+def _entries(files):
+    return [{"path": r, "sha256": hashlib.sha256(d).hexdigest(), "size": len(d)} for r, d in files.items()]
+
+
+def test_extra_manifests_merge_into_one_pack(server, tmp_path):
+    """manifest.json keeps only folders every launcher knows; 2.1.3+ also read manifest-extra.json."""
+    root, url = server
+    publish(root, {"mods/a.jar": b"A", "config/c.toml": b"c", "resourcepacks/rp.zip": b"RP"}, version="v1",
+            folders={"mods": "mirror", "config": "update"})
+    pack = root / "pack"
+    base = json.loads((pack / "manifest.json").read_text())
+    base["files"] = [e for e in base["files"] if not e["path"].startswith("resourcepacks/")]
+    base["extra_manifests"] = ["manifest-extra.json"]
+    (pack / "manifest.json").write_text(json.dumps(base))
+    (pack / "manifest-extra.json").write_text(json.dumps({"version": "v1", "folders": {"resourcepacks": "update"},
+                                                          "files": _entries({"resourcepacks/rp.zip": b"RP"})}))
+    mc = tmp_path / "mc"
+    cfg = PackConfig(url, sync_folders=("mods", "config", "defaultconfigs", "patchouli_books", "fancymenu_data"))
+    m = modpack.fetch_manifest(cfg)
+    assert m.folders == {"mods": "mirror", "config": "update", "resourcepacks": "update"}
+    assert sorted(f.path for f in m.files) == ["config/c.toml", "mods/a.jar", "resourcepacks/rp.zip"]
+    plan, (down, _) = sync(cfg, mc)
+    assert down == 3 and (mc / "resourcepacks" / "rp.zip").read_bytes() == b"RP"
+    # the saved local manifest is the merged pack, so the next sync knows what it installed
+    assert modpack.local_manifest(mc, cfg.folders).folders == m.folders
+    assert sync(cfg, mc)[0].empty
+    # a launcher that predates extra manifests reads manifest.json alone and accepts it (only classic folders)
+    assert modpack.parse_manifest(base, cfg.sync_folders).files
+
+
+@pytest.mark.parametrize("extras", [["../x.json"], ["a/b.json"], ["x.txt"], ["manifest.json"],
+                                    ["a.json", "A.json"], "extra.json", [f"e{i}.json" for i in range(9)]])
+def test_bad_extra_manifest_names_are_rejected(extras):
+    with pytest.raises(PackError):
+        modpack.extra_names({"extra_manifests": extras})
+
+
+def test_extra_manifest_clashes_and_missing_files_fail(server, tmp_path):
+    root, url = server
+    publish(root, {"mods/a.jar": b"A"}, folders={"mods": "mirror"})
+    pack = root / "pack"
+    base = json.loads((pack / "manifest.json").read_text())
+    base["extra_manifests"] = ["manifest-extra.json"]
+    (pack / "manifest.json").write_text(json.dumps(base))
+    cfg = PackConfig(url, sync_folders=FOLDERS)
+    with pytest.raises(PackError, match="manifest-extra.json"):   # listed but not uploaded
+        modpack.fetch_manifest(cfg)
+    (pack / "manifest-extra.json").write_text(json.dumps({"folders": {"mods": "mirror"},
+                                                          "files": _entries({"mods/a.jar": b"A"})}))
+    with pytest.raises(PackError, match="уже указан"):           # same file in both
+        modpack.fetch_manifest(cfg)
+    (pack / "manifest-extra.json").write_text(json.dumps({"folders": {"mods": "update"}, "files": []}))
+    with pytest.raises(PackError, match="другой режим"):         # same folder, different mode
+        modpack.fetch_manifest(cfg)
+
+
+def test_plan_is_blocking_only_when_mods_change(tmp_path):
+    folders = {"mods": "mirror", "config": "update"}
+    m = modpack.parse_manifest({"folders": folders, "files": _entries({"mods/a.jar": b"A", "config/c": b"c"})},
+                               FOLDERS)
+    cache = modpack.HashCache(tmp_path / "cache.json")
+    mc = tmp_path / "mc"
+    assert modpack.make_plan(m, mc, folders, cache, previous=None).blocking      # nothing installed yet
+    (mc / "mods").mkdir(parents=True)
+    (mc / "mods" / "a.jar").write_bytes(b"A")
+    assert not modpack.make_plan(m, mc, folders, cache, previous=None).blocking  # only config differs
+    (mc / "mods" / "extra.jar").write_bytes(b"X")
+    assert modpack.make_plan(m, mc, folders, cache, previous=None).blocking      # a mod would be removed

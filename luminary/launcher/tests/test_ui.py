@@ -17,10 +17,10 @@ import pytest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 pytest.importorskip("PySide6.QtWidgets")
 from PySide6.QtCore import QCoreApplication, QEventLoop, QTimer  # noqa: E402
-from PySide6.QtWidgets import QApplication  # noqa: E402
+from PySide6.QtWidgets import QApplication, QPushButton  # noqa: E402
 
 from conftest import FIXTURES, ROOT  # noqa: E402
-from luminary_app import launch, profiles, settings as settings_mod  # noqa: E402
+from luminary_app import launch, modpack, profiles, settings as settings_mod  # noqa: E402
 from luminary_app.paths import Paths  # noqa: E402
 
 
@@ -300,5 +300,85 @@ def test_account_register_skin_and_authenticated_launch(app, install, backend, t
 
     state.logout()
     assert not state.signed_in and not paths.session_file.exists()
+    win.close()
+    state.runner.shutdown()
+
+
+def _point_pack_at_dead_server(paths):
+    cfg = json.loads((paths.base / "config_updater.json").read_text())
+    cfg["server_url"], cfg["timeout"] = "http://127.0.0.1:9/pack/", 2  # nothing listens on port 9
+    (paths.base / "config_updater.json").write_text(json.dumps(cfg))
+
+
+def test_never_synced_pack_and_unreachable_server_stops_the_launch(app, install):
+    """Without the pack the server refuses the join, so the launcher must not start a bare game."""
+    paths, java, tmp = install
+    _point_pack_at_dead_server(paths)
+    win, state = make_window(paths, java)
+    failures, started = [], []
+    win.controller.failed.connect(lambda msg, _log: failures.append(msg))
+    win.controller.game_started.connect(lambda: started.append(1))
+    win.home.player.nick.setText("Steve")
+    win.home.on_play()
+    assert wait_until(lambda: failures, 30)
+    assert "ещё не установлена" in failures[0] and not started
+    assert not (tmp / "java_args.txt").exists()
+    win.close()
+    state.runner.shutdown()
+
+
+def test_synced_pack_still_plays_when_the_pack_server_is_down(app, install):
+    paths, java, _ = install
+    _point_pack_at_dead_server(paths)
+    paths.mc_dir.mkdir(parents=True, exist_ok=True)
+    (paths.mc_dir / modpack.LOCAL_MANIFEST).write_text(json.dumps({"version": "v1", "files": []}))
+    win, state = make_window(paths, java)
+    notices, finished = [], []
+    win.controller.notice.connect(notices.append)
+    win.controller.game_finished.connect(finished.append)
+    win.home.player.nick.setText("Steve")
+    win.home.on_play()
+    assert wait_until(lambda: finished, 30), win._errors
+    assert notices and "Сборка не проверена" in notices[0]
+    win.close()
+    state.runner.shutdown()
+
+
+def test_blocking_pack_update_has_no_skip_and_cancels(app, install):
+    paths, java, _ = install
+    from luminary_app.ui import dialogs
+    win, state = make_window(paths, java)
+    folders = {"mods": "mirror", "config": "update"}
+    m = modpack.Manifest("v1", [modpack.FileEntry("mods/a.jar", "0" * 64, 1)], {}, folders)
+    plan = modpack.Plan(m, to_download=list(m.files))
+    texts = [b.text() for b in dialogs.UpdateDialog(win, plan).findChildren(QPushButton)]
+    assert "Играть без обновления" not in texts and "Отмена" in texts
+    cfg_only = modpack.Plan(modpack.Manifest("v1", [modpack.FileEntry("config/c", "0" * 64, 1)], {}, folders))
+    cfg_only.to_download = list(cfg_only.manifest.files)
+    texts = [b.text() for b in dialogs.UpdateDialog(win, cfg_only).findChildren(QPushButton)]
+    assert "Играть без обновления" in texts
+    # declining a blocking update cancels the launch instead of starting a game the server would refuse
+    cancelled = []
+    win.controller.cancel = lambda: cancelled.append(1)
+    win.controller.continue_with = lambda update: pytest.fail("must not start the game")
+    orig = dialogs.UpdateDialog.exec
+    dialogs.UpdateDialog.exec = lambda self: 0
+    try:
+        win.on_ask_update(plan)
+    finally:
+        dialogs.UpdateDialog.exec = orig
+    assert cancelled
+    win.close()
+    state.runner.shutdown()
+
+
+def test_staged_launcher_update_is_offered_before_play(app, install):
+    paths, java, _ = install
+    win, state = make_window(paths, java)
+    asked = []
+    win.controller.before_start = lambda: asked.append(1) or False  # the window would restart here
+    win.home.player.nick.setText("Steve")
+    win.home.on_play()
+    assert asked and not win.controller.busy
     win.close()
     state.runner.shutdown()

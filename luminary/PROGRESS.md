@@ -132,6 +132,29 @@ Single source of truth for resuming this work. Keep it short; update at mileston
   0 errors (126 empty files are created by launchers). Launcher 2.1.2's own config reads the live manifest
   (7 folders); a new player downloads 2,796 files, 1.77 GB. The modpack is published.
 
+## Eighth pass (2026-10-13): launcher 2.1.3, no more games without the pack
+- First real join failed with "owo > handshake failure, incompatible client". The server log said the
+  client never answered owo's channel query; the client log showed 74 mods loaded instead of the pack's
+  452, on a second Windows account where the pack had never been installed.
+- Cause, reproduced against the live manifest: launchers 2.1.0/2.1.1 reject a manifest that lists a folder
+  outside their own list (`resourcepacks`, `shaderpacks`) and, by design, started the game with whatever
+  was in `.minecraft`. A player who pressed Play before the staged 2.1.2 update installed hit exactly this.
+- Fixes:
+  - `manifest.json` may name extra manifests (`"extra_manifests"`); 2.1.3 merges them. The live pack is now
+    split: `manifest.json` (mods, config, defaultconfigs, fancymenu_data, patchouli_books: 1,972 files),
+    which 2.1.0, 2.1.1 and 2.1.2 all accept, and `manifest-extra.json` (resourcepacks, shaderpacks: 824
+    files). Same 2,796 files as before; nothing to re-upload except the two JSON files.
+  - The update window has no "play without updating" when mods change (`Plan.blocking`); declining
+    cancels the launch.
+  - Never-synced pack + unreachable pack server stops the launch with a message instead of starting a
+    bare game; a previously synced pack still plays with a warning.
+  - A staged launcher update is installed (restart) before Play; the first update check runs after 3 s.
+  - `make_manifest.py`: `extra_folders` in config_updater.json writes `manifest-extra.json`.
+- Rehearsed against a local copy laid out like servarium: fresh installs by 2.1.1, 2.1.2 and 2.1.3 all get
+  the 452 mod files including owo-lib (2.1.3 also the 204 resource packs and shaders); a player synced with
+  the old full manifest has nothing to download on 2.1.3; the committed 2.1.2 code updated itself to 2.1.3
+  (8 files). Launcher tests: 186 passed.
+
 ## Owner actions (blocking production use)
 1. Rent a VPS + domain for the accounts service; deploy per docs/DEPLOYMENT.md §1.
 2. Reserve existing player names from usercache.json (§2).

@@ -7,7 +7,10 @@
 # Format: {"version", "updated", "folders": {"<folder>": "mirror"|"update"}, "files": [{"path", "sha256", "size"}]}.
 # "folders" (since launcher 2.1.2) comes from config_updater.json sync_folders + folder_modes, so the published
 # manifest, not the launcher build, decides which .minecraft folders players get (see luminary_app/modpack.py).
-# Older launchers ignore "folders". The file list is unchanged, and
+# Older launchers ignore "folders". Launchers before 2.1.2 reject a manifest with a folder they do not know, so
+# folders listed in config_updater.json "extra_folders" go to a second file (manifest-extra.json, read by
+# 2.1.3+ through "extra_manifests") and manifest.json stays installable by every launcher. The file list is
+# unchanged, and
 # every entry is validated with the launcher's own rules (luminary_app.modpack.safe_relpath /
 # parse_manifest) before anything is written: one bad name (trailing space, CON.jar, "..", a case-only
 # duplicate) would otherwise make every launcher reject the whole manifest.
@@ -152,6 +155,19 @@ def check_remote(cfg: modpack.PackConfig, timeout: float = 60) -> tuple[list[str
     return errors, len(manifest.files)
 
 
+EXTRA_NAME = "manifest-extra.json"
+
+
+def split_rules(cfg: modpack.PackConfig, extra_folders) -> tuple[dict, dict]:
+    """(main manifest rules, extra manifest rules): extra_folders move to the extra manifest."""
+    extra = [f for f in (extra_folders or []) if f in cfg.folders]
+    unknown = [f for f in (extra_folders or []) if f not in cfg.folders]
+    if unknown:
+        sys.exit(f"!!! extra_folders не входят в sync_folders: {', '.join(unknown)}")
+    main_rules = {f: m for f, m in cfg.folders.items() if f not in extra}
+    return main_rules, {f: cfg.folders[f] for f in extra}
+
+
 def _load_cfg(path: Path) -> modpack.PackConfig:
     cfg = modpack.load_config(path)
     if cfg is None:
@@ -172,6 +188,9 @@ def main(argv: list[str] | None = None) -> int:
     mode.add_argument("--check-remote", action="store_true", help="скачать опубликованную сборку и проверить")
     args = ap.parse_args(argv)
     cfg = _load_cfg(args.config)
+    extra_folders = json.loads(args.config.read_text(encoding="utf-8")).get("extra_folders") or []
+    main_rules, extra_rules = split_rules(cfg, extra_folders)
+    extra_path = args.out.with_name(EXTRA_NAME)
 
     if args.check_remote:
         print(f"Проверка опубликованной сборки: {cfg.manifest_url}")
@@ -189,6 +208,9 @@ def main(argv: list[str] | None = None) -> int:
         manifest = json.loads(args.out.read_text(encoding="utf-8"))
         try:
             errors = check_local(manifest, args.mc_dir, cfg.folders)
+            for name in modpack.extra_names(manifest):
+                errors += check_local(json.loads(args.out.with_name(name).read_text(encoding="utf-8")),
+                                      args.mc_dir, cfg.folders)
         except modpack.PackError as exc:
             print(f"!!! Манифест некорректен: {exc}")
             return 1
@@ -198,8 +220,15 @@ def main(argv: list[str] | None = None) -> int:
         return 1 if errors else 0
 
     print(f"Папка .minecraft: {args.mc_dir}")
-    print("Синхронизируются: " + ", ".join(f"{f} ({m})" for f, m in cfg.folders.items()))
-    manifest, problems, skipped = build_manifest(args.mc_dir, cfg.folders, args.version)
+    print("Синхронизируются: " + ", ".join(f"{f} ({m})" for f, m in main_rules.items()))
+    manifest, problems, skipped = build_manifest(args.mc_dir, main_rules, args.version)
+    extra = None
+    if extra_rules:
+        print(f"В {EXTRA_NAME} (лаунчеры 2.1.3+): " + ", ".join(f"{f} ({m})" for f, m in extra_rules.items()))
+        extra, extra_problems, extra_skipped = build_manifest(args.mc_dir, extra_rules, manifest["version"])
+        problems += extra_problems
+        skipped += extra_skipped
+        manifest["extra_manifests"] = [EXTRA_NAME]
     for s in skipped:
         print("  [пропуск]", s)
     if problems:
@@ -207,13 +236,16 @@ def main(argv: list[str] | None = None) -> int:
             print("  [ОШИБКА]", p)
         print(f"!!! manifest.json НЕ записан: исправь {len(problems)} файл(ов) и запусти снова.")
         return 1
-    tmp = args.out.with_suffix(".tmp")
-    tmp.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
-    os.replace(tmp, args.out)
-    total = sum(f["size"] for f in manifest["files"])
-    print(f"Готово: версия {manifest['version']}, файлов {len(manifest['files'])}, "
-          f"{total / 1024 / 1024:.2f} МБ -> {args.out}")
-    print("Дальше: загрузи файлы из .minecraft/<папки> и manifest.json (последним) на сервер, затем\n"
+    for data, path in ((extra, extra_path), (manifest, args.out)):
+        if data is None:
+            continue
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+        os.replace(tmp, path)
+        total = sum(f["size"] for f in data["files"])
+        print(f"Готово: версия {data['version']}, файлов {len(data['files'])}, {total / 1024 / 1024:.2f} МБ -> {path}")
+    print("Дальше: загрузи файлы из .minecraft/<папки>, затем " + (f"{EXTRA_NAME} и " if extra else "") +
+          "manifest.json (последним) на сервер, затем\n"
           "        python\\python.exe make_manifest.py --check-remote")
     return 0
 
