@@ -68,4 +68,4 @@ Autonomy (off by default twice):
 ## 5. Thaumcraft port
 
 With the port installed (branch with the observer API), research completions, scans and aspect discoveries reach
-Luminary automatically; see `docs/integration/README.md`. Check with `/luminary progression signals` after a scan.
+Luminary automatically; see `docs/integration/README.md`. Check with `/luminary progression status` (signals are listed there) after a scan.
