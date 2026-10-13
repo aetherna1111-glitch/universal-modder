@@ -58,7 +58,7 @@
   "story.clue.luminary.record_author": "Whoever wrote the record counted the same pauses. Then they stopped counting.",
   "entity.luminary.npc": "Luminary NPC",
   "npc.luminary.fallback": "...",
-  "npc.luminary.ascending_intelligence": "The Ascending Intelligence",
+  "npc.luminary.lumin": "Lumin",
   "luminary.command.npc_provider_is": "Dialogue provider: %s",
   "luminary.command.npc_spawned": "NPC %s spawned",
   "luminary.command.npc_despawned": "NPC %s despawned (memory kept)",

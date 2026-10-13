@@ -35,10 +35,8 @@ technology can require them: `{ "type": "signal", "signal": "luminary:signal/tha
 `ScanManager.checkAndSyncAspectKnowledge` (first discovery). Nothing in TC4 behaviour changes: observers are notified
 after the fact and cannot influence the outcome.
 
-Status (2026-10-13): the patch applies cleanly to commit `e197531` of the port but **could not be compiled or
-tested there**, because that commit itself does not compile (its `Thaumcraft.java` references a `ScanningManager`
-class that does not exist, and `PlayerKnowledge`/`ThaumcraftCommand` are mid-migration against `AspectList` and
-`ResearchManager`). The patch should be applied once the port's research step (Step C) compiles again, then verified
-with the port's own GameTests plus one that registers a `ThaumcraftObservers.EVENT` listener and calls
-`ResearchManager.completeResearch` for a mock player. The Luminary side is covered by unit tests
+Status (2026-10-13): **applied and verified in the port** on branch `claude/dreamy-knuth-rizfww` of
+`aetherna1111-glitch/thaumcraft-fabric` (commit `798c2ff`), together with the compile repair that commit needed; the
+port's GameTests pass 20/20 including `ObserverGameTests` (one event per first completion, none on repeat, event
+shape). The patch file stays here as the reference diff. The Luminary side is covered by unit tests
 (`ThaumcraftBridgeTest`) and a GameTest (`IntegrationGameTests`) that drives the entrypoint directly.

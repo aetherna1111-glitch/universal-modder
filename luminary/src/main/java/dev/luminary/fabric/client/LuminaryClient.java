@@ -10,12 +10,12 @@ import net.minecraft.client.render.entity.BipedEntityRenderer;
 import net.minecraft.client.render.entity.EntityRendererFactory;
 import net.minecraft.client.render.entity.model.BipedEntityModel;
 import net.minecraft.client.render.entity.model.EntityModelLayers;
-import net.minecraft.client.util.DefaultSkinHelper;
 import net.minecraft.util.Identifier;
 
 /**
- * Client entry point: gives the NPC a renderer so a client with the mod can see it. Placeholder look (default
- * player model and skin); a GeckoLib model is a later slice. The server never loads this class.
+ * Client entry point: gives the NPC a renderer so a client with the mod can see it. Player model with Lumin's own
+ * skin ({@code textures/entity/lumin.png}, drawn in code, see docs); a GeckoLib model is a later slice. The server
+ * never loads this class.
  */
 @Environment(EnvType.CLIENT)
 public final class LuminaryClient implements ClientModInitializer {
@@ -30,9 +30,11 @@ public final class LuminaryClient implements ClientModInitializer {
 			super(ctx, new BipedEntityModel<>(ctx.getPart(EntityModelLayers.PLAYER)), 0.5f);
 		}
 
+		private static final Identifier LUMIN = new Identifier("luminary", "textures/entity/lumin.png");
+
 		@Override
 		public Identifier getTexture(LuminaryNpcEntity entity) {
-			return DefaultSkinHelper.getTexture();
+			return LUMIN;
 		}
 	}
 }

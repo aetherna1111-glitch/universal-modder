@@ -58,7 +58,7 @@
   "story.clue.luminary.record_author": "Тот, кто вёл запись, считал те же паузы. Потом он перестал считать.",
   "entity.luminary.npc": "NPC Luminary",
   "npc.luminary.fallback": "…",
-  "npc.luminary.ascending_intelligence": "Восходящий Разум",
+  "npc.luminary.lumin": "Люмин",
   "luminary.command.npc_provider_is": "Провайдер диалогов: %s",
   "luminary.command.npc_spawned": "NPC %s создан",
   "luminary.command.npc_despawned": "NPC %s убран (память сохранена)",

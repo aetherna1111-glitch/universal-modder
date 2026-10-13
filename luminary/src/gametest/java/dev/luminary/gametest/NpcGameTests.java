@@ -25,7 +25,7 @@ import java.util.UUID;
 /**
  * NPC slice on a headless server. Uses the test-only NPC {@code luminary-gametest:npc/test} (own data pack in this
  * source set) whose clue is gated by a test-only signal, so these tests never interfere with the others sharing the
- * server. Tests that need the real NPC definition use {@code luminary:npc/ascending_intelligence} read-only.
+ * server. Tests that need the real NPC definition use {@code luminary:npc/lumin} read-only.
  */
 public final class NpcGameTests implements FabricGameTest {
 	private static final LuminaryId TEST_NPC = LuminaryId.parse("luminary-gametest:npc/test");
@@ -41,7 +41,7 @@ public final class NpcGameTests implements FabricGameTest {
 		if (npc.spawn(ghost, ctx.getWorld(), ctx.getAbsolute(new Vec3d(0.5, 1, 0.5))).ok()) {
 			throw new GameTestException("spawning an undefined NPC must be refused");
 		}
-		LuminaryId unique = LuminaryId.parse("luminary:npc/ascending_intelligence");
+		LuminaryId unique = LuminaryId.parse("luminary:npc/lumin");
 		Vec3d pos = ctx.getAbsolute(new Vec3d(0.5, 1, 0.5));
 		if (!npc.spawn(unique, ctx.getWorld(), pos).ok()) {
 			throw new GameTestException("first spawn must succeed");

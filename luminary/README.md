@@ -25,7 +25,7 @@ slice**; design and research live in `../docs/research/luminary-2026-10-11/` (st
 | Fabric layer: chat intake — the nearest NPC within 8 blocks hears a player's chat message; the planner looks for work first (candidates scanned around the body), an action is assigned like a command and the result spoken back, otherwise the line is a dialogue turn; the requester is told when the task ends; `/luminary npc intent`, `/luminary npc planner`, `/luminary npc task move|deposit|withdraw|smelt`; `/luminary npc memory` commands | **implemented**; covered by 8 GameTests (chat → task → chest → memory with no model; a standing order stocking a chest with no command; a real furnace run with full item accounting) |
 | Fabric layer: integrations — `thaumcraft-observer` entrypoint applying `ThaumcraftBridge` translations on the server thread | **implemented**; 1 GameTest drives the entrypoint directly |
 | Gameplay enforcement of capabilities (recipe/item gates), City (facilities), further NPC tasks (milking, crafting, planting) and standing orders, model-proposed orders, GeckoLib model, mod integrations | **designed, not implemented** — see the research set |
-| Thaumcraft 4 port bridge — Luminary declares the Fabric entrypoint `thaumcraft-observer` (`Consumer<Map<String,Object>>`, no shared classes); research completions, scans and aspect discoveries become progression signals (`signal/thaumcraft/...`) and NPC observations; the port-side patch is in `docs/integration/` | **Luminary side implemented, unit- and GameTested**; **port side written but unverified**: the port's current commit does not compile on its own (see `docs/integration/README.md`) |
+| Thaumcraft 4 port bridge — Luminary declares the Fabric entrypoint `thaumcraft-observer` (`Consumer<Map<String,Object>>`, no shared classes); research completions, scans and aspect discoveries become progression signals (`signal/thaumcraft/...`) and NPC observations; the port-side patch is in `docs/integration/` | **both sides implemented and tested** (port branch `claude/dreamy-knuth-rizfww`, 20/20 GameTests there) |
 
 Nothing here grants items, unlocks recipes or changes gameplay yet. The slice proves the architecture: a Minecraft-free
 core, server-side rules, persistence with migrations, admin commands, and an in-world test harness.
@@ -38,6 +38,11 @@ core, server-side rules, persistence with migrations, admin commands, and an in-
 | `./gradlew runGametest` (headless 1.20.1 server, Fabric API 0.92.12, Loader 0.19.5) | "All 28 required tests passed" |
 | `um publish check luminary` | 0 failures (1 warning in the ignored `.gradle/` cache) |
 | Not verified | a real dedicated server with players; the integrated client and the NPC renderer; any other mod loaded alongside; a real Ollama or hosted model endpoint (only the mock server was exercised) |
+
+## Setup
+
+`docs/SETUP.md`: installing the jar, running a local model with Ollama or a hosted API, the first conversation and
+task, autonomy, the Thaumcraft port.
 
 ## Requirements
 
@@ -166,11 +171,11 @@ The bundled phases are the seven working titles from the vision (0 Zero Meridian
 `data/<ns>/luminary/npcs/*.json` and `data/<ns>/luminary/dialogues/*.json`
 
 ```json
-{ "id": "luminary:npc/ascending_intelligence", "name": "npc.luminary.ascending_intelligence",
-  "dialogue": "luminary:dialogue/ascending_intelligence",
+{ "id": "luminary:npc/lumin", "name": "npc.luminary.lumin",
+  "dialogue": "luminary:dialogue/lumin",
   "persona": [ "An old intelligence that remembers the first fire.", "Speaks briefly, asks before telling." ] }
 
-{ "id": "luminary:dialogue/ascending_intelligence", "lines": [
+{ "id": "luminary:dialogue/lumin", "lines": [
   { "text": "dialogue.luminary.ai.greeting_1", "priority": 0 },
   { "text": "dialogue.luminary.ai.ore_verified", "priority": 1,
     "conditions": [ { "type": "discovery_verified", "discovery": "luminary:material/first_trace_ore" } ] },
@@ -368,7 +373,7 @@ See `docs/integration/README.md`: the port publishes plain-map events to the Fab
 `ThaumcraftBridge` (core, pure) turns `research_completed`, `scan_completed` and `aspect_discovered` into progression
 signals under `signal/thaumcraft/...` and one `OBSERVATION` memory for every NPC, so technologies can require TC4
 research and the NPC can talk about what a player learned. Neither mod compiles against the other. The port-side
-patch (`docs/integration/thaumcraft-observer-api.patch`) is written but waits for the port to compile again.
+patch (`docs/integration/thaumcraft-observer-api.patch`) is applied on the port's branch and covered by its GameTests.
 
 ## Acting alone: autonomy (slice 10)
 
