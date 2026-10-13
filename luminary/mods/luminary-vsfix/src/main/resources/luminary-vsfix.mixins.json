@@ -1,0 +1,11 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "luminary.vsfix.mixin",
+  "plugin": "luminary.vsfix.mixin.VsFixMixinPlugin",
+  "compatibilityLevel": "JAVA_17",
+  "mixins": ["VSFabricNetworkingMixin"],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

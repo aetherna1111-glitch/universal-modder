@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "luminary-vsfix",
+  "version": "1.0.0",
+  "name": "Luminary VS Network Fix",
+  "description": "Handles Valkyrien Skies 2.4.11 network packets on the game thread instead of the network thread, fixing disconnects with 'LongAVLTreeSet$Entry.decBalance() because \"p\" is null'. Needed on the server and on clients.",
+  "authors": ["Luminary"],
+  "license": "MIT",
+  "environment": "*",
+  "mixins": ["luminary-vsfix.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.15.0",
+    "minecraft": "1.20.1",
+    "fabric-networking-api-v1": "*"
+  },
+  "suggests": {
+    "valkyrienskies": "2.4.11"
+  }
+}
