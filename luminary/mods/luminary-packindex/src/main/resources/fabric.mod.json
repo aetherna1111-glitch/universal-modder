@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "luminary-packindex",
+  "version": "1.0.0",
+  "name": "Luminary Pack Index",
+  "description": "Server-only. On every start, rebuilds the client-pack manifest.json (and manifest-extra.json) from the files in the client-pack folder, so updating the pack is just uploading or deleting files and restarting the server.",
+  "authors": ["Luminary"],
+  "license": "MIT",
+  "environment": "server",
+  "entrypoints": {
+    "server": ["luminary.packindex.LuminaryPackIndex"]
+  },
+  "depends": {
+    "fabricloader": ">=0.15.0",
+    "minecraft": "1.20.1"
+  }
+}
