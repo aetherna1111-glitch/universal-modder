@@ -28,7 +28,10 @@ public final class KeywordIntentPlanner implements IntentPlanner {
 			"сложи", "положи", "разгруз", "убери", "выгруз", "в сундук");
 	private static final List<String> WITHDRAW = List.of("bring me", "fetch", "get me", "take out", "withdraw", "grab", "hand me", "give me",
 			"принеси", "достань", "возьми", "дай", "вытащи");
+	private static final List<String> SMELT = List.of("smelt", "cook", "melt", "furnace", "roast", "bake",
+			"переплав", "расплав", "выплав", "обожг", "обжар", "печ", "сплав");
 	private static final Pattern NUMBER = Pattern.compile("\\b(\\d{1,3})\\b");
+	public static final int DEFAULT_SMELT = 8;
 
 	private final TaskRules rules;
 
@@ -55,6 +58,14 @@ public final class KeywordIntentPlanner implements IntentPlanner {
 					.orElseGet(() -> Intent.decline(Intent.REPLY_WHERE, ID)));
 		}
 		boolean wood = any(text, WOOD);
+		if (any(text, SMELT)) {
+			Optional<Withdrawal> w = matchItem(text, c);
+			if (request.busy()) return Optional.of(Intent.decline(Intent.REPLY_BUSY, ID));
+			if (c.nearestFurnace().isEmpty()) return Optional.of(Intent.decline(Intent.REPLY_NO_FURNACE, ID));
+			if (w.isEmpty()) return Optional.of(Intent.decline(Intent.REPLY_NO_SUCH_ITEM, ID));
+			int count = number(text).map(n -> Math.max(1, Math.min(n, rules.maxWithdrawCount()))).orElse(DEFAULT_SMELT);
+			return Optional.of(Intent.act(new NpcAction.Smelt(c.nearestFurnace().get().pos(), w.get().container().spot().pos(), w.get().itemId(), count), Intent.REPLY_WILL_DO, ID));
+		}
 		if (any(text, WITHDRAW) && !wood) {
 			Optional<Withdrawal> w = matchItem(text, c);
 			if (w.isPresent()) {

@@ -80,6 +80,7 @@ public final class ModelIntentPlanner implements IntentPlanner {
 		s.append("- gather_wood: cut logs at one of the LOGS below and put them into one of the CONTAINERS (count = logs, 1-").append(rules.maxLogsPerTask()).append(")\n");
 		s.append("- deposit: put everything the character carries into one of the CONTAINERS\n");
 		s.append("- withdraw: take an item that a CONTAINER actually holds (item id from its list, count 1-").append(rules.maxWithdrawCount()).append(")\n");
+		s.append("- smelt: take an item a CONTAINER holds plus fuel from it, smelt it in one of the FURNACES, return the result (item id, count 1-").append(rules.maxWithdrawCount()).append(")\n");
 		s.append("- move_to: walk to the player\n");
 		s.append("- none: not a request for work, or impossible with what is listed (explain briefly in character)\n");
 		s.append("Rules: refer to places only by the indices below; never invent positions, items or abilities. ");
@@ -102,6 +103,11 @@ public final class ModelIntentPlanner implements IntentPlanner {
 			s.append("- ").append(i).append(": ").append(info.spot().coords()).append(", ")
 					.append(info.contents().isEmpty() ? "empty" : info.contents().toString()).append('\n');
 		}
+		s.append("\nFURNACES (index: x y z):\n");
+		if (c.furnaces().isEmpty()) s.append("- none\n");
+		for (int i = 0; i < c.furnaces().size(); i++) {
+			s.append("- ").append(i).append(": ").append(c.furnaces().get(i).coords()).append('\n');
+		}
 		s.append("\nPLAYER POSITION: ").append(c.playerPos().map(IntentCandidates.Spot::coords).orElse("unknown")).append('\n');
 		if (!request.memories().isEmpty()) {
 			s.append("\nWHAT YOU REMEMBER:\n");
@@ -109,8 +115,8 @@ public final class ModelIntentPlanner implements IntentPlanner {
 				s.append("- [").append(m.kind()).append('/').append(m.provenance()).append("] ").append(m.text()).append('\n');
 			}
 		}
-		s.append("\nRespond with one JSON object: {\"intent\": one of gather_wood|deposit|withdraw|move_to|none, ")
-				.append("\"log\": index or null, \"container\": index or null, \"item\": item id or null, \"count\": integer or null, \"reply\": string}.");
+		s.append("\nRespond with one JSON object: {\"intent\": one of gather_wood|deposit|withdraw|smelt|move_to|none, ")
+				.append("\"log\": index or null, \"container\": index or null, \"furnace\": index or null, \"item\": item id or null, \"count\": integer or null, \"reply\": string}.");
 		List<LlmMessage> messages = new ArrayList<>();
 		messages.add(LlmMessage.system(s.toString()));
 		messages.add(LlmMessage.user(request.playerName() + ": " + request.utterance()));
@@ -124,13 +130,13 @@ public final class ModelIntentPlanner implements IntentPlanner {
 		JsonObject intent = new JsonObject();
 		intent.addProperty("type", "string");
 		JsonArray values = new JsonArray();
-		for (String v : List.of("gather_wood", "deposit", "withdraw", "move_to", "none")) values.add(v);
+		for (String v : List.of("gather_wood", "deposit", "withdraw", "smelt", "move_to", "none")) values.add(v);
 		intent.add("enum", values);
 		props.add("intent", intent);
 		JsonArray intOrNull = new JsonArray();
 		intOrNull.add("integer");
 		intOrNull.add("null");
-		for (String k : List.of("log", "container", "count")) {
+		for (String k : List.of("log", "container", "furnace", "count")) {
 			JsonObject p = new JsonObject();
 			p.add("type", intOrNull.deepCopy());
 			props.add(k, p);
@@ -185,17 +191,22 @@ public final class ModelIntentPlanner implements IntentPlanner {
 					action = Optional.of(new NpcAction.GatherWood(c.logs().get(log.get()).pos(), c.containers().get(container.get()).spot().pos(), count));
 				}
 			}
-			case "withdraw" -> {
+			case "withdraw", "smelt" -> {
 				Optional<Integer> container = index(o, "container", c.containers().size());
+				Optional<Integer> furnace = index(o, "furnace", c.furnaces().size());
+				if (furnace.isEmpty() && !c.furnaces().isEmpty()) furnace = Optional.of(0);
 				String item = o.has("item") && !o.get("item").isJsonNull() ? o.get("item").getAsString().strip() : "";
 				if (container.isPresent() && !item.isEmpty()) {
 					Map<String, Integer> contents = c.containers().get(container.get()).contents();
 					String resolved = contents.containsKey(item) ? item : contents.containsKey("minecraft:" + item) ? "minecraft:" + item : null;
-					if (resolved != null) {
+					if (resolved == null) {
+						diagnostics.accept("intent: model named an item the container does not hold (" + item + "); dropped");
+					} else if (intent.equals("withdraw")) {
 						int count = count(o).map(n -> Math.max(1, Math.min(n, rules.maxWithdrawCount()))).orElse(1);
 						action = Optional.of(new NpcAction.Withdraw(c.containers().get(container.get()).spot().pos(), resolved, count));
-					} else {
-						diagnostics.accept("intent: model named an item the container does not hold (" + item + "); dropped");
+					} else if (furnace.isPresent()) {
+						int count = count(o).map(n -> Math.max(1, Math.min(n, rules.maxWithdrawCount()))).orElse(KeywordIntentPlanner.DEFAULT_SMELT);
+						action = Optional.of(new NpcAction.Smelt(c.furnaces().get(furnace.get()).pos(), c.containers().get(container.get()).spot().pos(), resolved, count));
 					}
 				}
 			}

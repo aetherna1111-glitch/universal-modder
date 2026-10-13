@@ -18,6 +18,10 @@ public interface ActionValidator {
 	String REASON_UNKNOWN_ITEM = "luminary.task.unknown_item";
 	String REASON_NOTHING_TO_DEPOSIT = "luminary.task.nothing_to_deposit";
 	String REASON_HANDS_FULL = "luminary.task.hands_full";
+	String REASON_TARGET_NOT_FURNACE = "luminary.task.target_not_furnace";
+	String REASON_NOT_SMELTABLE = "luminary.task.not_smeltable";
+	String REASON_NO_FUEL = "luminary.task.no_fuel";
+	String REASON_FURNACE_BUSY = "luminary.task.furnace_busy";
 	String REASON_NOT_PERMITTED = "luminary.task.not_permitted";
 	String REASON_TASK_ACTIVE = "luminary.task.already_active";
 	String REASON_NO_BODY = "luminary.npc.not_present";

@@ -5,7 +5,13 @@ import dev.luminary.core.npc.task.ActionContext;
 import dev.luminary.core.npc.task.NpcAction;
 import dev.luminary.fabric.npc.LuminaryNpcEntity;
 import net.minecraft.block.BlockState;
+import net.minecraft.block.entity.AbstractFurnaceBlockEntity;
 import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.inventory.SimpleInventory;
+import net.minecraft.recipe.RecipeType;
+import net.minecraft.recipe.SmeltingRecipe;
+import java.util.Map;
+import java.util.Optional;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -47,7 +53,11 @@ public final class WorldActionContext implements ActionContext {
 		if (state.isIn(BlockTags.LOGS)) {
 			return BlockKind.LOG;
 		}
-		if (world.getBlockEntity(pos) instanceof Inventory) {
+		BlockEntity be = world.getBlockEntity(pos);
+		if (be instanceof AbstractFurnaceBlockEntity) {
+			return BlockKind.FURNACE;
+		}
+		if (be instanceof Inventory) {
 			return BlockKind.CONTAINER;
 		}
 		return BlockKind.OTHER;
@@ -103,6 +113,52 @@ public final class WorldActionContext implements ActionContext {
 	public boolean itemExists(String itemId) {
 		Identifier id = Identifier.tryParse(itemId);
 		return id != null && Registries.ITEM.containsId(id);
+	}
+
+	@Override
+	public boolean smeltable(String itemId) {
+		Identifier id = Identifier.tryParse(itemId);
+		if (id == null || !Registries.ITEM.containsId(id)) {
+			return false;
+		}
+		return smeltingRecipe(world, new ItemStack(Registries.ITEM.get(id))).isPresent();
+	}
+
+	public static Optional<SmeltingRecipe> smeltingRecipe(ServerWorld world, ItemStack input) {
+		return world.getRecipeManager().getFirstMatch(RecipeType.SMELTING, new SimpleInventory(input), world);
+	}
+
+	@Override
+	public int fuelTicksIn(long containerPos) {
+		BlockEntity be = world.getBlockEntity(BlockPos.fromLong(containerPos));
+		if (!(be instanceof Inventory inv)) {
+			return -1;
+		}
+		return fuelTicks(inv);
+	}
+
+	/** Burn ticks all fuel items in an inventory would give. */
+	public static int fuelTicks(Inventory inv) {
+		Map<Item, Integer> fuel = AbstractFurnaceBlockEntity.createFuelTimeMap();
+		long total = 0;
+		for (int i = 0; i < inv.size(); i++) {
+			ItemStack s = inv.getStack(i);
+			if (!s.isEmpty() && fuel.containsKey(s.getItem())) {
+				total += (long) fuel.get(s.getItem()) * s.getCount();
+			}
+		}
+		return (int) Math.min(Integer.MAX_VALUE, total);
+	}
+
+	@Override
+	public boolean furnaceAcceptsInput(long furnacePos, String itemId) {
+		BlockEntity be = world.getBlockEntity(BlockPos.fromLong(furnacePos));
+		Identifier id = Identifier.tryParse(itemId);
+		if (!(be instanceof AbstractFurnaceBlockEntity furnace) || id == null || !Registries.ITEM.containsId(id)) {
+			return false;
+		}
+		ItemStack input = furnace.getStack(0);
+		return input.isEmpty() || (input.isOf(Registries.ITEM.get(id)) && input.getCount() < input.getMaxCount());
 	}
 
 	@Override

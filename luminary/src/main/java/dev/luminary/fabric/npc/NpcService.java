@@ -142,6 +142,7 @@ public final class NpcService {
 		if (action instanceof NpcAction.Deposit d) return List.of(d.containerPos());
 		if (action instanceof NpcAction.Withdraw w) return List.of(w.containerPos());
 		if (action instanceof NpcAction.MoveTo m) return List.of(m.targetPos());
+		if (action instanceof NpcAction.Smelt s) return List.of(s.furnacePos(), s.containerPos());
 		return List.of();
 	}
 
@@ -215,6 +216,10 @@ public final class NpcService {
 		if (action instanceof NpcAction.Withdraw w) {
 			return "take " + w.count() + " " + w.itemId() + " from the container at " + BlockPos.fromLong(w.containerPos()).toShortString();
 		}
+		if (action instanceof NpcAction.Smelt s) {
+			return "smelt " + s.count() + " " + s.inputItemId() + " in the furnace at " + BlockPos.fromLong(s.furnacePos()).toShortString()
+					+ " using the container at " + BlockPos.fromLong(s.containerPos()).toShortString();
+		}
 		return action.type();
 	}
 
@@ -230,9 +235,9 @@ public final class NpcService {
 	private void onTaskFinished(LuminaryId npc, NpcTask task) {
 		Instant now = clock.instant();
 		String outcome = task.state() == dev.luminary.core.npc.task.TaskState.COMPLETED ? "Completed" : "Failed (" + task.failureReason().orElse("?") + ")";
-		String ledger = task.ledger().blocksBroken() > 0 || task.ledger().collectedTotal() > 0 || task.ledger().depositedTotal() > 0 || task.ledger().withdrawnTotal() > 0
+		String ledger = task.ledger().blocksBroken() > 0 || task.ledger().collectedTotal() > 0 || task.ledger().depositedTotal() > 0 || task.ledger().withdrawnTotal() > 0 || task.ledger().smeltedTotal() > 0
 				? " [broken " + task.ledger().blocksBroken() + ", collected " + task.ledger().collectedTotal() + ", deposited " + task.ledger().depositedTotal()
-				+ ", withdrawn " + task.ledger().withdrawnTotal() + "]" : "";
+				+ ", withdrawn " + task.ledger().withdrawnTotal() + ", smelted " + task.ledger().smeltedTotal() + "]" : "";
 		UUID requester = task.requestedBy().orElse(null);
 		String who = requester != null ? " for " + nameOf(npc, requester) : "";
 		dialogue.memory(npc).add(MemoryEntry.of(MemoryKind.SIGNIFICANT_EVENT, requester, "task/" + task.id(),

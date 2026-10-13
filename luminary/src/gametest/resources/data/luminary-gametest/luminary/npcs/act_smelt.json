@@ -1,0 +1,5 @@
+{
+  "id": "luminary-gametest:npc/act_smelt",
+  "name": "gametest.npc.test",
+  "dialogue": "luminary-gametest:dialogue/test"
+}

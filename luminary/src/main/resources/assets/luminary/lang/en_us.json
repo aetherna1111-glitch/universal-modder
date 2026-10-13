@@ -131,5 +131,12 @@
   "luminary.command.autonomy_off": "%s no longer acts on its own",
   "luminary.command.autonomy_status": "%s: server switch %s, NPC switch %s, decisions this hour %s/%s, orders %s, avoided targets %s",
   "luminary.command.order_added": "Standing order added to %s",
-  "luminary.command.order_cleared": "Standing orders of %s cleared"
+  "luminary.command.order_cleared": "Standing orders of %s cleared",
+  "luminary.task.target_not_furnace": "The target block is not a furnace",
+  "luminary.task.not_smeltable": "No furnace recipe accepts that item",
+  "luminary.task.no_fuel": "The container holds no fuel",
+  "luminary.task.furnace_busy": "The furnace input slot is holding something else",
+  "luminary.task.fail.furnace_invalid": "the furnace is gone",
+  "luminary.task.fail.smelt_stalled": "the furnace stopped making progress",
+  "npc.luminary.intent.no_furnace": "There is no furnace near me."
 }

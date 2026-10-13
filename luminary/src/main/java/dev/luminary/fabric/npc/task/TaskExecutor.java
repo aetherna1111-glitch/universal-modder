@@ -10,7 +10,10 @@ import dev.luminary.core.npc.task.TaskRules;
 import dev.luminary.core.npc.task.TaskState;
 import dev.luminary.fabric.Luminary;
 import dev.luminary.fabric.npc.LuminaryNpcEntity;
+import net.minecraft.block.entity.AbstractFurnaceBlockEntity;
 import net.minecraft.block.entity.BlockEntity;
+import java.util.ArrayList;
+import java.util.Map;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.inventory.SimpleInventory;
@@ -105,13 +108,26 @@ public final class TaskExecutor {
 				case WITHDRAWING -> stepWithdrawing(npc, world, record, task, action);
 				default -> { }
 			}
+		} else if (task.action() instanceof NpcAction.Smelt action) {
+			switch (task.state()) {
+				case VALIDATED -> stepValidated(npc, world, record, task, action.containerPos(), TaskState.MOVING_TO_CONTAINER);
+				// first trip: to the container for input and fuel; second trip (after smelting): back with the output
+				case MOVING_TO_CONTAINER -> stepMoveTo(npc, world, task, BlockPos.fromLong(action.containerPos()),
+						task.ledger().smeltedTotal() > 0 || task.currentTarget() == action.furnacePos() ? TaskState.DEPOSITING : TaskState.WITHDRAWING, action.containerPos(), Check.CONTAINER);
+				case WITHDRAWING -> stepTakeInputAndFuel(npc, world, record, task, action);
+				case MOVING_TO_TARGET -> stepMoveTo(npc, world, task, BlockPos.fromLong(action.furnacePos()), TaskState.LOADING, action.furnacePos(), Check.FURNACE);
+				case LOADING -> stepLoading(npc, world, task, action);
+				case SMELTING -> stepSmelting(npc, world, task, action);
+				case DEPOSITING -> stepDepositing(npc, world, record, task, action.containerPos());
+				default -> { }
+			}
 		} else {
 			task.fail(ActionValidator.REASON_UNSUPPORTED);
 		}
 		return changed();
 	}
 
-	private enum Check { NONE, LOG, CONTAINER }
+	private enum Check { NONE, LOG, CONTAINER, FURNACE }
 
 	private boolean changed() {
 		onChange.run();
@@ -141,6 +157,10 @@ public final class TaskExecutor {
 		}
 		if (check == Check.CONTAINER && kind != ActionContext.BlockKind.CONTAINER) {
 			task.fail(NpcTask.FAIL_CONTAINER_INVALID);
+			return;
+		}
+		if (check == Check.FURNACE && kind != ActionContext.BlockKind.FURNACE) {
+			task.fail(NpcTask.FAIL_FURNACE_INVALID);
 			return;
 		}
 		if (npc.squaredDistanceTo(Vec3d.ofCenter(goal)) <= REACH_SQ) {
@@ -325,6 +345,185 @@ public final class TaskExecutor {
 			task.fail(NpcTask.FAIL_CONTAINER_LACKS_ITEM);
 		} else {
 			task.complete();   // fewer than asked is still a completed task; the ledger says how many
+		}
+	}
+
+	// ------------------------------------------------------------------ smelting
+
+	/** Takes up to {@code count} input items and just enough fuel (best fuel first) out of the container into the NPC's hands. */
+	private void stepTakeInputAndFuel(LuminaryNpcEntity npc, ServerWorld world, NpcRoster.NpcRecord record, NpcTask task, NpcAction.Smelt action) {
+		BlockPos pos = BlockPos.fromLong(action.containerPos());
+		if (!record.authorizedContainers().contains(action.containerPos())) {
+			task.fail(ActionValidator.REASON_CONTAINER_UNAUTHORIZED);
+			return;
+		}
+		if (!(world.getBlockEntity(pos) instanceof Inventory inv)) {
+			task.fail(NpcTask.FAIL_CONTAINER_INVALID);
+			return;
+		}
+		Identifier inputId = Identifier.tryParse(action.inputItemId());
+		if (inputId == null || !Registries.ITEM.containsId(inputId)) {
+			task.fail(ActionValidator.REASON_UNKNOWN_ITEM);
+			return;
+		}
+		Item input = Registries.ITEM.get(inputId);
+		SimpleInventory held = npc.heldItems();
+		int taken = takeFrom(inv, held, s -> s.isOf(input), action.count(), task, action.inputItemId());
+		if (taken == 0) {
+			task.fail(NpcTask.FAIL_CONTAINER_LACKS_ITEM);
+			return;
+		}
+		int cookTime = WorldActionContext.smeltingRecipe(world, new ItemStack(input)).map(r -> r.getCookTime()).orElse(200);
+		int neededTicks = taken * cookTime;
+		Map<Item, Integer> fuelTimes = AbstractFurnaceBlockEntity.createFuelTimeMap();
+		// best fuel first: fewest items for the ticks we need
+		List<Item> fuels = new ArrayList<>();
+		for (int i = 0; i < inv.size(); i++) {
+			ItemStack s = inv.getStack(i);
+			if (!s.isEmpty() && fuelTimes.containsKey(s.getItem()) && !fuels.contains(s.getItem())) {
+				fuels.add(s.getItem());
+			}
+		}
+		fuels.sort(Comparator.comparingInt((Item f) -> fuelTimes.get(f)).reversed());
+		int ticks = 0;
+		for (Item fuel : fuels) {
+			if (ticks >= neededTicks) {
+				break;
+			}
+			int perItem = fuelTimes.get(fuel);
+			int items = (int) Math.ceil((neededTicks - ticks) / (double) perItem);
+			int got = takeFrom(inv, held, s -> s.isOf(fuel), items, task, Registries.ITEM.getId(fuel).toString());
+			ticks += got * perItem;
+		}
+		inv.markDirty();
+		held.markDirty();
+		if (ticks <= 0) {
+			// no fuel after all (someone emptied the chest): put the input back and stop
+			returnHeld(held, inv);
+			task.fail(ActionValidator.REASON_NO_FUEL);
+			return;
+		}
+		task.setCurrentTarget(action.furnacePos());
+		task.enter(TaskState.MOVING_TO_TARGET);
+	}
+
+	/** Moves up to {@code max} matching items from {@code from} into {@code to}; returns how many moved and records them as withdrawn. */
+	private static int takeFrom(Inventory from, SimpleInventory to, java.util.function.Predicate<ItemStack> matches, int max, NpcTask task, String ledgerId) {
+		int moved = 0;
+		for (int i = 0; i < from.size() && moved < max; i++) {
+			ItemStack slot = from.getStack(i);
+			if (slot.isEmpty() || !matches.test(slot)) {
+				continue;
+			}
+			ItemStack taking = slot.copy();
+			taking.setCount(Math.min(max - moved, slot.getCount()));
+			ItemStack remainder = to.addStack(taking);
+			int n = taking.getCount() - remainder.getCount();
+			if (n <= 0) {
+				break;
+			}
+			slot.decrement(n);
+			from.setStack(i, slot);
+			moved += n;
+		}
+		task.ledger().withdrawn(ledgerId, moved);
+		return moved;
+	}
+
+	private static void returnHeld(SimpleInventory held, Inventory inv) {
+		for (int i = 0; i < held.size(); i++) {
+			ItemStack s = held.getStack(i);
+			if (!s.isEmpty()) {
+				insert(inv, s);
+			}
+		}
+		inv.markDirty();
+		held.markDirty();
+	}
+
+	/** Puts the carried input into slot 0 and fuel into slot 1 of the furnace, as much as fits. */
+	private void stepLoading(LuminaryNpcEntity npc, ServerWorld world, NpcTask task, NpcAction.Smelt action) {
+		if (!(world.getBlockEntity(BlockPos.fromLong(action.furnacePos())) instanceof AbstractFurnaceBlockEntity furnace)) {
+			task.fail(NpcTask.FAIL_FURNACE_INVALID);
+			return;
+		}
+		Item input = Registries.ITEM.get(Identifier.tryParse(action.inputItemId()));
+		SimpleInventory held = npc.heldItems();
+		boolean loadedInput = false;
+		for (int i = 0; i < held.size(); i++) {
+			ItemStack s = held.getStack(i);
+			if (s.isEmpty()) {
+				continue;
+			}
+			int slot = s.isOf(input) ? 0 : AbstractFurnaceBlockEntity.canUseAsFuel(s) ? 1 : -1;
+			if (slot < 0) {
+				continue;
+			}
+			ItemStack inSlot = furnace.getStack(slot);
+			if (inSlot.isEmpty()) {
+				int n = Math.min(s.getCount(), s.getMaxCount());
+				ItemStack placed = s.copy();
+				placed.setCount(n);
+				furnace.setStack(slot, placed);
+				s.decrement(n);
+				loadedInput |= slot == 0;
+			} else if (ItemStack.canCombine(inSlot, s)) {
+				int n = Math.min(s.getCount(), inSlot.getMaxCount() - inSlot.getCount());
+				inSlot.increment(n);
+				s.decrement(n);
+				loadedInput |= slot == 0 && n > 0;
+			}
+		}
+		furnace.markDirty();
+		held.markDirty();
+		if (!loadedInput) {
+			task.fail(ActionValidator.REASON_FURNACE_BUSY);
+			return;
+		}
+		task.enter(TaskState.SMELTING);
+	}
+
+	/** Waits by the furnace, pulling finished output into the hands; ends when the input is gone or the furnace stalls. */
+	private void stepSmelting(LuminaryNpcEntity npc, ServerWorld world, NpcTask task, NpcAction.Smelt action) {
+		if (!(world.getBlockEntity(BlockPos.fromLong(action.furnacePos())) instanceof AbstractFurnaceBlockEntity furnace)) {
+			task.fail(NpcTask.FAIL_FURNACE_INVALID);
+			return;
+		}
+		npc.getLookControl().lookAt(Vec3d.ofCenter(BlockPos.fromLong(action.furnacePos())));
+		task.tickPhase();
+		ItemStack output = furnace.getStack(2);
+		if (!output.isEmpty()) {
+			int before = output.getCount();
+			ItemStack remainder = npc.heldItems().addStack(output.copy());
+			int moved = before - remainder.getCount();
+			if (moved > 0) {
+				task.ledger().smelted(Registries.ITEM.getId(output.getItem()).toString(), moved);
+				furnace.setStack(2, remainder);
+				furnace.markDirty();
+				npc.heldItems().markDirty();
+				task.resetIdle();
+			}
+		} else {
+			task.tickIdle();
+		}
+		Item input = Registries.ITEM.get(Identifier.tryParse(action.inputItemId()));
+		boolean inputLeft = furnace.getStack(0).isOf(input) && !furnace.getStack(0).isEmpty();
+		if (!inputLeft && furnace.getStack(2).isEmpty()) {
+			if (task.ledger().smeltedTotal() == 0) {
+				task.fail(NpcTask.FAIL_SMELT_STALLED);
+			} else {
+				task.enter(TaskState.MOVING_TO_CONTAINER);
+			}
+			return;
+		}
+		int cookTime = WorldActionContext.smeltingRecipe(world, new ItemStack(input)).map(r -> r.getCookTime()).orElse(200);
+		if (task.idleTicks() > cookTime + rules.smeltTimeoutTicks()) {
+			// the furnace stopped making progress (out of fuel, broken recipe): take what we have, leave the rest in the furnace
+			if (task.ledger().smeltedTotal() == 0) {
+				task.fail(NpcTask.FAIL_SMELT_STALLED);
+			} else {
+				task.enter(TaskState.MOVING_TO_CONTAINER);
+			}
 		}
 	}
 

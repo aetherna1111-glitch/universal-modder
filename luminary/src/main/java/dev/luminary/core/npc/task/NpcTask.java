@@ -19,6 +19,8 @@ public final class NpcTask {
 	public static final String FAIL_NOTHING_COLLECTED = "nothing_collected";
 	public static final String FAIL_BODY_LOST = "body_lost";
 	public static final String FAIL_CONTAINER_LACKS_ITEM = "container_lacks_item";
+	public static final String FAIL_FURNACE_INVALID = "furnace_invalid";
+	public static final String FAIL_SMELT_STALLED = "smelt_stalled";
 
 	private final UUID id;
 	private final NpcAction action;

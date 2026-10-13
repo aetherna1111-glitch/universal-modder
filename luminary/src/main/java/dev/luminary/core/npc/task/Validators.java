@@ -14,13 +14,15 @@ final class Validators {
 		if (a instanceof NpcAction.GatherWood g) return OptionalLong.of(g.containerPos());
 		if (a instanceof NpcAction.Deposit d) return OptionalLong.of(d.containerPos());
 		if (a instanceof NpcAction.Withdraw w) return OptionalLong.of(w.containerPos());
+		if (a instanceof NpcAction.Smelt s) return OptionalLong.of(s.containerPos());
 		return OptionalLong.empty();
 	}
 
-	/** The position the NPC walks to first, if it is not the container. */
+	/** The non-container position an action works at, if any. */
 	static OptionalLong target(NpcAction a) {
 		if (a instanceof NpcAction.GatherWood g) return OptionalLong.of(g.targetPos());
 		if (a instanceof NpcAction.MoveTo m) return OptionalLong.of(m.targetPos());
+		if (a instanceof NpcAction.Smelt s) return OptionalLong.of(s.furnacePos());
 		return OptionalLong.empty();
 	}
 
@@ -28,7 +30,7 @@ final class Validators {
 		@Override
 		public Result validate(NpcAction action, ActionContext ctx) {
 			return action instanceof NpcAction.GatherWood || action instanceof NpcAction.MoveTo
-					|| action instanceof NpcAction.Deposit || action instanceof NpcAction.Withdraw
+					|| action instanceof NpcAction.Deposit || action instanceof NpcAction.Withdraw || action instanceof NpcAction.Smelt
 					? Result.OK : Result.fail(REASON_UNSUPPORTED);
 		}
 	}
@@ -52,6 +54,16 @@ final class Validators {
 				}
 				if (!ctx.itemExists(w.itemId())) {
 					return Result.fail(REASON_UNKNOWN_ITEM);
+				}
+			} else if (action instanceof NpcAction.Smelt s) {
+				if (s.count() < 1 || s.count() > rules.maxWithdrawCount() || s.inputItemId() == null || s.inputItemId().isBlank() || s.furnacePos() == s.containerPos()) {
+					return Result.fail(REASON_BAD_ARGUMENTS);
+				}
+				if (!ctx.itemExists(s.inputItemId())) {
+					return Result.fail(REASON_UNKNOWN_ITEM);
+				}
+				if (!ctx.smeltable(s.inputItemId())) {
+					return Result.fail(REASON_NOT_SMELTABLE);
 				}
 			}
 			return Result.OK;
@@ -99,6 +111,9 @@ final class Validators {
 			if (action instanceof NpcAction.GatherWood g && ctx.kindAt(g.targetPos()) != ActionContext.BlockKind.LOG) {
 				return Result.fail(REASON_TARGET_NOT_LOG);
 			}
+			if (action instanceof NpcAction.Smelt s && ctx.kindAt(s.furnacePos()) != ActionContext.BlockKind.FURNACE) {
+				return Result.fail(REASON_TARGET_NOT_FURNACE);
+			}
 			return Result.OK;
 		}
 	}
@@ -135,6 +150,13 @@ final class Validators {
 			if (action instanceof NpcAction.Withdraw w) {
 				if (ctx.containerCount(w.containerPos(), w.itemId()) <= 0) return Result.fail(REASON_CONTAINER_LACKS_ITEM);
 				return ctx.heldFreeSlots() > 0 ? Result.OK : Result.fail(REASON_HANDS_FULL);
+			}
+			if (action instanceof NpcAction.Smelt s) {
+				if (ctx.containerCount(s.containerPos(), s.inputItemId()) <= 0) return Result.fail(REASON_CONTAINER_LACKS_ITEM);
+				if (ctx.fuelTicksIn(s.containerPos()) <= 0) return Result.fail(REASON_NO_FUEL);
+				if (!ctx.furnaceAcceptsInput(s.furnacePos(), s.inputItemId())) return Result.fail(REASON_FURNACE_BUSY);
+				if (ctx.heldFreeSlots() < 2) return Result.fail(REASON_HANDS_FULL);
+				return ctx.containerFreeSlots(s.containerPos()) > 0 ? Result.OK : Result.fail(REASON_CONTAINER_FULL);
 			}
 			return Result.OK;
 		}

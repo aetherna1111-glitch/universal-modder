@@ -232,6 +232,15 @@ public final class LuminaryCommands {
 																.executes(ctx -> taskWithdraw(ctx, 1))
 																.then(CommandManager.argument("count", IntegerArgumentType.integer(1))
 																		.executes(ctx -> taskWithdraw(ctx, IntegerArgumentType.getInteger(ctx, "count"))))))))
+								.then(CommandManager.literal("smelt")
+										.requires(src -> src.hasPermissionLevel(3))
+										.then(CommandManager.argument("id", IdentifierArgumentType.identifier())
+												.then(CommandManager.argument("furnace", BlockPosArgumentType.blockPos())
+														.then(CommandManager.argument("container", BlockPosArgumentType.blockPos())
+																.then(CommandManager.argument("item", IdentifierArgumentType.identifier())
+																		.executes(ctx -> taskSmelt(ctx, 8))
+																		.then(CommandManager.argument("count", IntegerArgumentType.integer(1))
+																				.executes(ctx -> taskSmelt(ctx, IntegerArgumentType.getInteger(ctx, "count")))))))))
 								.then(CommandManager.literal("gather")
 										.requires(src -> src.hasPermissionLevel(3))
 										.then(CommandManager.argument("id", IdentifierArgumentType.identifier())
@@ -390,6 +399,14 @@ public final class LuminaryCommands {
 		}).orElse(0);
 	}
 
+	private static int taskSmelt(CommandContext<ServerCommandSource> ctx, int count) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+		LuminaryId id = parseId(ctx);
+		BlockPos furnace = BlockPosArgumentType.getLoadedBlockPos(ctx, "furnace");
+		BlockPos container = BlockPosArgumentType.getLoadedBlockPos(ctx, "container");
+		String item = IdentifierArgumentType.getIdentifier(ctx, "item").toString();
+		return runtime(ctx.getSource()).map(rt -> report(ctx.getSource(), rt.npc().assign(id, new NpcAction.Smelt(furnace.asLong(), container.asLong(), item, count)), "luminary.command.task_assigned", id)).orElse(0);
+	}
+
 	private static int npcPlanner(CommandContext<ServerCommandSource> ctx) {
 		return runtime(ctx.getSource()).map(rt -> {
 			String id = com.mojang.brigadier.arguments.StringArgumentType.getString(ctx, "planner");
@@ -462,7 +479,7 @@ public final class LuminaryCommands {
 			NpcTask t = task.get();
 			ctx.getSource().sendFeedback(() -> Text.literal(t.action().type() + " " + t.state() + t.failureReason().map(f -> " (" + f + ")").orElse("")
 					+ "  broken=" + t.ledger().blocksBroken() + " collected=" + t.ledger().collected() + " deposited=" + t.ledger().deposited()
-					+ (t.ledger().withdrawn().isEmpty() ? "" : " withdrawn=" + t.ledger().withdrawn()) + t.requestedBy().map(u -> " requestedBy=" + u).orElse("")
+					+ (t.ledger().withdrawn().isEmpty() ? "" : " withdrawn=" + t.ledger().withdrawn()) + (t.ledger().smelted().isEmpty() ? "" : " smelted=" + t.ledger().smelted()) + t.requestedBy().map(u -> " requestedBy=" + u).orElse("")
 					+ "  containers=" + rt.npc().roster().get(id).map(r -> r.authorizedContainers().size()).orElse(0)), false);
 			return 1;
 		}).orElse(0);

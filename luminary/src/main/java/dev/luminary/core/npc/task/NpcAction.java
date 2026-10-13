@@ -21,6 +21,12 @@ public sealed interface NpcAction {
 	/** Take up to {@code count} of {@code itemId} out of the authorized container at {@code containerPos} into the NPC's own inventory. */
 	record Withdraw(long containerPos, String itemId, int count) implements NpcAction {}
 
+	/**
+	 * Take up to {@code count} of {@code inputItemId} and enough fuel from the authorized container, load the furnace at
+	 * {@code furnacePos}, wait for the real smelting, collect the output and put it (and leftover fuel) back into the container.
+	 */
+	record Smelt(long furnacePos, long containerPos, String inputItemId, int count) implements NpcAction {}
+
 	/** Stable id used in persisted task records, planner output and command output. */
 	default String type() {
 		if (this instanceof GatherWood) {
@@ -34,6 +40,9 @@ public sealed interface NpcAction {
 		}
 		if (this instanceof Withdraw) {
 			return "withdraw";
+		}
+		if (this instanceof Smelt) {
+			return "smelt";
 		}
 		throw new IllegalStateException("unnamed action " + getClass());
 	}

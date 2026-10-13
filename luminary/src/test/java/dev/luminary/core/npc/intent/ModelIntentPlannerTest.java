@@ -32,7 +32,7 @@ class ModelIntentPlannerTest {
 	static final IntentCandidates CANDIDATES = new IntentCandidates(
 			List.of(new IntentCandidates.Spot(10L, 1, 2, 3, 9.0), new IntentCandidates.Spot(11L, 7, 2, 3, 49.0)),
 			List.of(new IntentCandidates.ContainerInfo(new IntentCandidates.Spot(20L, 4, 2, 4, 16.0), Map.of("minecraft:oak_log", 12))),
-			Optional.of(new IntentCandidates.Spot(30L, 0, 2, 0, 4.0)), Map.of());
+			Optional.of(new IntentCandidates.Spot(30L, 0, 2, 0, 4.0)), Map.of(), List.of(new IntentCandidates.Spot(40L, 3, 2, 1, 5.0)));
 
 	final List<String> diagnostics = new ArrayList<>();
 
@@ -78,6 +78,7 @@ class ModelIntentPlannerTest {
 		assertTrue(system.contains("- 0: 1 2 3") && system.contains("- 1: 7 2 3"), "logs listed by index");
 		assertTrue(system.contains("- 0: 4 2 4, {minecraft:oak_log=12}"), "container with contents");
 		assertTrue(system.contains("PLAYER POSITION: 0 2 0"));
+		assertTrue(system.contains("FURNACES") && system.contains("- 0: 3 2 1"), "furnaces listed by index");
 		assertTrue(llm.last.get().jsonSchema().isPresent());
 	}
 
@@ -92,6 +93,8 @@ class ModelIntentPlannerTest {
 		assertEquals(new NpcAction.MoveTo(30L), move.action().orElseThrow());
 		Intent deposit = await(planner(new FakeLlm("{\"intent\":\"deposit\",\"container\":0,\"reply\":\"Unloading.\"}")).plan(req("unload", false))).orElseThrow();
 		assertEquals(new NpcAction.Deposit(20L), deposit.action().orElseThrow());
+		Intent smelt = await(planner(new FakeLlm("{\"intent\":\"smelt\",\"container\":0,\"furnace\":0,\"item\":\"minecraft:oak_log\",\"count\":3,\"reply\":\"Charcoal it is.\"}")).plan(req("make charcoal", false))).orElseThrow();
+		assertEquals(new NpcAction.Smelt(40L, 20L, "minecraft:oak_log", 3), smelt.action().orElseThrow());
 	}
 
 	@Test

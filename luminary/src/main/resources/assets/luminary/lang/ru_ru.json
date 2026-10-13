@@ -131,5 +131,12 @@
   "luminary.command.autonomy_off": "%s больше не действует самостоятельно",
   "luminary.command.autonomy_status": "%s: сервер %s, NPC %s, решений за час %s/%s, поручений %s, избегаемых целей %s",
   "luminary.command.order_added": "Постоянное поручение добавлено %s",
-  "luminary.command.order_cleared": "Постоянные поручения %s сняты"
+  "luminary.command.order_cleared": "Постоянные поручения %s сняты",
+  "luminary.task.target_not_furnace": "Целевой блок — не печь",
+  "luminary.task.not_smeltable": "Ни один рецепт печи не принимает этот предмет",
+  "luminary.task.no_fuel": "В контейнере нет топлива",
+  "luminary.task.furnace_busy": "В печи лежит что-то другое",
+  "luminary.task.fail.furnace_invalid": "печи больше нет",
+  "luminary.task.fail.smelt_stalled": "печь перестала работать",
+  "npc.luminary.intent.no_furnace": "Рядом со мной нет печи."
 }

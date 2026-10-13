@@ -21,7 +21,7 @@ class ValidatorsTest {
 		final Map<Long, Integer> freeSlots = new HashMap<>();
 		final Set<Long> unloaded = new HashSet<>();
 		final Map<Long, Map<String, Integer>> contents = new HashMap<>();
-		final Set<String> items = new HashSet<>(Set.of("minecraft:oak_log", "minecraft:stick"));
+		final Set<String> items = new HashSet<>(Set.of("minecraft:oak_log", "minecraft:stick", "minecraft:cobblestone", "minecraft:coal"));
 		int held = 0;
 		int heldFree = 9;
 		boolean permitted = true;
@@ -33,12 +33,18 @@ class ValidatorsTest {
 		@Override public int containerFreeSlots(long pos) { return freeSlots.getOrDefault(pos, -1); }
 		@Override public int containerCount(long pos, String itemId) { return freeSlots.containsKey(pos) ? contents.getOrDefault(pos, Map.of()).getOrDefault(itemId, 0) : -1; }
 		@Override public boolean itemExists(String itemId) { return items.contains(itemId); }
+		final Set<String> smeltables = new HashSet<>(Set.of("minecraft:cobblestone"));
+		final Map<Long, Integer> fuel = new HashMap<>();
+		final Set<Long> busyFurnaces = new HashSet<>();
+		@Override public boolean smeltable(String itemId) { return smeltables.contains(itemId); }
+		@Override public int fuelTicksIn(long pos) { return freeSlots.containsKey(pos) ? fuel.getOrDefault(pos, 0) : -1; }
+		@Override public boolean furnaceAcceptsInput(long pos, String itemId) { return kinds.get(pos) == BlockKind.FURNACE && !busyFurnaces.contains(pos); }
 		@Override public int heldItemCount() { return held; }
 		@Override public int heldFreeSlots() { return heldFree; }
 		@Override public boolean permitted(NpcAction action) { return permitted; }
 	}
 
-	static final long LOG = 1L, CHEST = 2L, STONE = 3L, FAR = 4L;
+	static final long LOG = 1L, CHEST = 2L, STONE = 3L, FAR = 4L, FURNACE = 5L;
 	final List<ActionValidator> chain = ActionValidator.standard(TaskRules.DEFAULTS);
 
 	FakeContext goodWorld() {
@@ -48,6 +54,7 @@ class ValidatorsTest {
 		c.kinds.put(STONE, ActionContext.BlockKind.OTHER);
 		c.authorized.add(CHEST);
 		c.freeSlots.put(CHEST, 27);
+		c.kinds.put(FURNACE, ActionContext.BlockKind.FURNACE);
 		c.distances.put(FAR, 40.0 * 40.0);
 		c.kinds.put(FAR, ActionContext.BlockKind.LOG);
 		return c;
@@ -136,5 +143,29 @@ class ValidatorsTest {
 		c.contents.put(CHEST, Map.of("minecraft:oak_log", 12));
 		c.authorized.clear();
 		assertEquals(ActionValidator.REASON_CONTAINER_UNAUTHORIZED, run(new NpcAction.Withdraw(CHEST, "minecraft:oak_log", 1), c).reasonKey());
+	}
+
+	@Test
+	void smeltNeedsAFurnaceASmeltableInputFuelAndRoom() {
+		FakeContext c = goodWorld();
+		c.contents.put(CHEST, Map.of("minecraft:cobblestone", 10, "minecraft:coal", 2));
+		c.fuel.put(CHEST, 3200);
+		assertTrue(run(new NpcAction.Smelt(FURNACE, CHEST, "minecraft:cobblestone", 8), c).ok());
+		assertEquals(ActionValidator.REASON_BAD_ARGUMENTS, run(new NpcAction.Smelt(FURNACE, CHEST, "minecraft:cobblestone", 0), c).reasonKey());
+		assertEquals(ActionValidator.REASON_BAD_ARGUMENTS, run(new NpcAction.Smelt(CHEST, CHEST, "minecraft:cobblestone", 1), c).reasonKey());
+		assertEquals(ActionValidator.REASON_UNKNOWN_ITEM, run(new NpcAction.Smelt(FURNACE, CHEST, "minecraft:nope", 1), c).reasonKey());
+		assertEquals(ActionValidator.REASON_NOT_SMELTABLE, run(new NpcAction.Smelt(FURNACE, CHEST, "minecraft:stick", 1), c).reasonKey());
+		assertEquals(ActionValidator.REASON_TARGET_NOT_FURNACE, run(new NpcAction.Smelt(STONE, CHEST, "minecraft:cobblestone", 1), c).reasonKey());
+		c.contents.put(CHEST, Map.of("minecraft:coal", 2));
+		assertEquals(ActionValidator.REASON_CONTAINER_LACKS_ITEM, run(new NpcAction.Smelt(FURNACE, CHEST, "minecraft:cobblestone", 1), c).reasonKey());
+		c.contents.put(CHEST, Map.of("minecraft:cobblestone", 10));
+		c.fuel.put(CHEST, 0);
+		assertEquals(ActionValidator.REASON_NO_FUEL, run(new NpcAction.Smelt(FURNACE, CHEST, "minecraft:cobblestone", 1), c).reasonKey());
+		c.fuel.put(CHEST, 1600);
+		c.busyFurnaces.add(FURNACE);
+		assertEquals(ActionValidator.REASON_FURNACE_BUSY, run(new NpcAction.Smelt(FURNACE, CHEST, "minecraft:cobblestone", 1), c).reasonKey());
+		c.busyFurnaces.clear();
+		c.heldFree = 1;
+		assertEquals(ActionValidator.REASON_HANDS_FULL, run(new NpcAction.Smelt(FURNACE, CHEST, "minecraft:cobblestone", 1), c).reasonKey());
 	}
 }

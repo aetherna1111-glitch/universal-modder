@@ -15,6 +15,7 @@ public record Intent(Optional<NpcAction> action, Optional<String> replyKey, Opti
 	public static final String REPLY_NO_SUCH_ITEM = "npc.luminary.intent.no_such_item";
 	public static final String REPLY_BUSY = "npc.luminary.intent.busy";
 	public static final String REPLY_WHERE = "npc.luminary.intent.where";
+	public static final String REPLY_NO_FURNACE = "npc.luminary.intent.no_furnace";
 
 	public static Intent act(NpcAction action, String replyKey, String plannerId) {
 		return new Intent(Optional.of(action), Optional.of(replyKey), Optional.empty(), plannerId);

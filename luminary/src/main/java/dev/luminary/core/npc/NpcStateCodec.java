@@ -134,6 +134,11 @@ public final class NpcStateCodec {
 			t.ledger().withdrawn().forEach(withdrawn::addProperty);
 			ledger.add("withdrawn", withdrawn);
 		}
+		if (!t.ledger().smelted().isEmpty()) {
+			JsonObject smelted = new JsonObject();
+			t.ledger().smelted().forEach(smelted::addProperty);
+			ledger.add("smelted", smelted);
+		}
 		o.add("ledger", ledger);
 		o.addProperty("currentTarget", t.currentTarget());
 		o.addProperty("phaseTicks", t.phaseTicks());
@@ -157,6 +162,11 @@ public final class NpcStateCodec {
 			a.addProperty("container", w.containerPos());
 			a.addProperty("item", w.itemId());
 			a.addProperty("count", w.count());
+		} else if (action instanceof NpcAction.Smelt s) {
+			a.addProperty("furnace", s.furnacePos());
+			a.addProperty("container", s.containerPos());
+			a.addProperty("item", s.inputItemId());
+			a.addProperty("count", s.count());
 		}
 		return a;
 	}
@@ -172,6 +182,8 @@ public final class NpcStateCodec {
 				return new NpcAction.Deposit(a.get("container").getAsLong());
 			case "withdraw":
 				return new NpcAction.Withdraw(a.get("container").getAsLong(), a.get("item").getAsString(), a.get("count").getAsInt());
+			case "smelt":
+				return new NpcAction.Smelt(a.get("furnace").getAsLong(), a.get("container").getAsLong(), a.get("item").getAsString(), a.get("count").getAsInt());
 			default:
 				throw new IllegalArgumentException("unknown task action type '" + type + "'");
 		}
@@ -188,10 +200,14 @@ public final class NpcStateCodec {
 		if (l.has("withdrawn")) {
 			l.getAsJsonObject("withdrawn").entrySet().forEach(e -> withdrawn.put(e.getKey(), e.getValue().getAsInt()));
 		}
+		Map<String, Integer> smelted = new TreeMap<>();
+		if (l.has("smelted")) {
+			l.getAsJsonObject("smelted").entrySet().forEach(e -> smelted.put(e.getKey(), e.getValue().getAsInt()));
+		}
 		UUID requestedBy = o.has("requestedBy") ? UUID.fromString(o.get("requestedBy").getAsString()) : null;
 		return new NpcTask(UUID.fromString(o.get("id").getAsString()), action, Instant.parse(o.get("createdAt").getAsString()), requestedBy,
 				TaskState.valueOf(o.get("state").getAsString()), o.has("failure") ? o.get("failure").getAsString() : null,
-				TaskLedger.restore(l.get("blocksBroken").getAsInt(), collected, deposited, withdrawn),
+				TaskLedger.restore(l.get("blocksBroken").getAsInt(), collected, deposited, withdrawn, smelted),
 				o.get("currentTarget").getAsLong(), o.get("phaseTicks").getAsInt(), o.get("idleTicks").getAsInt());
 	}
 

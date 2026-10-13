@@ -249,4 +249,39 @@ public final class IntentGameTests implements FabricGameTest {
 			});
 		});
 	}
+
+	/** Slice 11: a real furnace. Cobblestone and coal leave the chest, stone comes back, every count reconciles. */
+	@GameTest(templateName = ARENA, tickLimit = 2400)
+	public void smeltTakesInputAndFuelRunsTheFurnaceAndReturnsTheOutput(TestContext ctx) {
+		Arena a = arena(ctx, "act_smelt", 0);
+		BlockPos furnaceRel = new BlockPos(6, FLOOR_Y + 1, 9);
+		ctx.setBlockState(furnaceRel, Blocks.FURNACE.getDefaultState());
+		BlockPos furnace = ctx.getAbsolutePos(furnaceRel);
+		Inventory inv = chest(ctx, a.chest());
+		inv.setStack(0, new ItemStack(Items.COBBLESTONE, 3));
+		inv.setStack(1, new ItemStack(Items.COAL, 2));
+		inv.markDirty();
+		// refusals: not smeltable, no fuel (after we look), wrong block
+		expect(a.npc().assign(a.npcId(), new NpcAction.Smelt(furnace.asLong(), a.chest().asLong(), "minecraft:stick", 1)).reasonKey().equals("luminary.task.not_smeltable"), "sticks do not smelt");
+		expect(a.npc().assign(a.npcId(), new NpcAction.Smelt(a.chest().asLong(), a.chest().asLong(), "minecraft:cobblestone", 1)).reasonKey().equals("luminary.task.bad_arguments"), "furnace must differ from container");
+		expect(a.npc().assign(a.npcId(), new NpcAction.Smelt(a.log0().asLong(), a.chest().asLong(), "minecraft:cobblestone", 1)).reasonKey().equals("luminary.task.target_not_furnace"), "air is not a furnace");
+		Result r = a.npc().assign(a.npcId(), new NpcAction.Smelt(furnace.asLong(), a.chest().asLong(), "minecraft:cobblestone", 3));
+		expect(r.ok(), "smelt refused: " + r.reasonKey());
+		await(ctx, () -> task(a).map(t -> !t.isActive()).orElse(false), 2300, () -> {
+			NpcTask t = task(a).orElseThrow();
+			expect(t.state() == TaskState.COMPLETED, "smelt should complete, got " + t.state() + " " + t.failureReason().orElse("") + " ledger=" + t.ledger().smelted());
+			expect(t.ledger().smeltedTotal() == 3 && t.ledger().smelted().getOrDefault("minecraft:stone", 0) == 3, "3 stone must be smelted: " + t.ledger().smelted());
+			expect(t.ledger().withdrawn().getOrDefault("minecraft:cobblestone", 0) == 3 && t.ledger().withdrawn().getOrDefault("minecraft:coal", 0) == 1,
+					"3 cobblestone and exactly 1 coal (1600 ticks covers 3 x 200) must have been taken: " + t.ledger().withdrawn());
+			Inventory chest = chest(ctx, a.chest());
+			expect(count(chest, Items.STONE) == 3, "chest must hold 3 stone, holds " + count(chest, Items.STONE));
+			expect(count(chest, Items.COBBLESTONE) == 0, "no cobblestone may remain in the chest");
+			expect(count(chest, Items.COAL) == 1, "one coal must remain in the chest, remains " + count(chest, Items.COAL));
+			expect(a.body().heldCount() == 0, "the NPC must carry nothing afterwards, carries " + a.body().heldCount());
+			BlockEntity be = ctx.getWorld().getBlockEntity(furnace);
+			expect(be instanceof Inventory f && f.getStack(0).isEmpty() && f.getStack(2).isEmpty(), "furnace input and output must be empty");
+			a.npc().despawn(a.npcId());
+			ctx.complete();
+		});
+	}
 }

@@ -14,6 +14,7 @@ public final class TaskLedger {
 	private final Map<String, Integer> collected = new TreeMap<>();
 	private final Map<String, Integer> deposited = new TreeMap<>();
 	private final Map<String, Integer> withdrawn = new TreeMap<>();
+	private final Map<String, Integer> smelted = new TreeMap<>();
 
 	public int blocksBroken() {
 		return blocksBroken;
@@ -29,6 +30,20 @@ public final class TaskLedger {
 
 	public Map<String, Integer> withdrawn() {
 		return Collections.unmodifiableMap(withdrawn);
+	}
+
+	public Map<String, Integer> smelted() {
+		return Collections.unmodifiableMap(smelted);
+	}
+
+	public int smeltedTotal() {
+		return smelted.values().stream().mapToInt(Integer::intValue).sum();
+	}
+
+	public void smelted(String itemId, int count) {
+		if (count > 0) {
+			smelted.merge(itemId, count, Integer::sum);
+		}
 	}
 
 	public int withdrawnTotal() {
@@ -72,11 +87,18 @@ public final class TaskLedger {
 
 	/** Codec only. */
 	public static TaskLedger restore(int blocksBroken, Map<String, Integer> collected, Map<String, Integer> deposited, Map<String, Integer> withdrawn) {
+		return restore(blocksBroken, collected, deposited, withdrawn, Map.of());
+	}
+
+	/** Codec only. */
+	public static TaskLedger restore(int blocksBroken, Map<String, Integer> collected, Map<String, Integer> deposited, Map<String, Integer> withdrawn,
+									 Map<String, Integer> smelted) {
 		TaskLedger l = new TaskLedger();
 		l.blocksBroken = blocksBroken;
 		l.collected.putAll(collected);
 		l.deposited.putAll(deposited);
 		l.withdrawn.putAll(withdrawn);
+		l.smelted.putAll(smelted);
 		return l;
 	}
 }

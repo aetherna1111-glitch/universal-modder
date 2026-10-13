@@ -4,6 +4,8 @@ import dev.luminary.core.npc.NpcRoster;
 import dev.luminary.core.npc.intent.IntentCandidates;
 import dev.luminary.core.npc.task.TaskRules;
 import dev.luminary.fabric.npc.LuminaryNpcEntity;
+import net.minecraft.block.BlockState;
+import net.minecraft.block.entity.AbstractFurnaceBlockEntity;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.inventory.Inventory;
@@ -42,6 +44,7 @@ public final class CandidateScanner {
 		BlockPos origin = npc.getBlockPos();
 		double maxSq = rules.maxRangeBlocks() * rules.maxRangeBlocks();
 		List<IntentCandidates.Spot> logs = new ArrayList<>();
+		List<IntentCandidates.Spot> furnaces = new ArrayList<>();
 		BlockPos.Mutable cursor = new BlockPos.Mutable();
 		for (int dx = -SCAN_XZ; dx <= SCAN_XZ; dx++) {
 			for (int dz = -SCAN_XZ; dz <= SCAN_XZ; dz++) {
@@ -51,7 +54,15 @@ public final class CandidateScanner {
 				}
 				for (int dy = -SCAN_Y; dy <= SCAN_Y; dy++) {
 					cursor.set(origin.getX() + dx, origin.getY() + dy, origin.getZ() + dz);
-					if (!world.getBlockState(cursor).isIn(BlockTags.LOGS) || world.getBlockState(cursor.down()).isIn(BlockTags.LOGS)) {
+					BlockState state = world.getBlockState(cursor);
+					if (state.hasBlockEntity() && world.getBlockEntity(cursor) instanceof AbstractFurnaceBlockEntity) {
+						double d = npc.squaredDistanceTo(Vec3d.ofCenter(cursor));
+						if (d <= maxSq) {
+							furnaces.add(new IntentCandidates.Spot(cursor.asLong(), cursor.getX(), cursor.getY(), cursor.getZ(), d));
+						}
+						continue;
+					}
+					if (!state.isIn(BlockTags.LOGS) || world.getBlockState(cursor.down()).isIn(BlockTags.LOGS)) {
 						continue;
 					}
 					double d = npc.squaredDistanceTo(Vec3d.ofCenter(cursor));
@@ -85,7 +96,7 @@ public final class CandidateScanner {
 			BlockPos p = player.getBlockPos();
 			playerPos = Optional.of(new IntentCandidates.Spot(p.asLong(), p.getX(), p.getY(), p.getZ(), npc.squaredDistanceTo(player)));
 		}
-		return new IntentCandidates(logs, containers, playerPos, summarize(npc.heldItems()));
+		return new IntentCandidates(logs, containers, playerPos, summarize(npc.heldItems()), furnaces);
 	}
 
 	/** item id → count, the most numerous first, bounded. */

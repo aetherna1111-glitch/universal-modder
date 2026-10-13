@@ -26,8 +26,19 @@ class KeywordIntentPlannerTest {
 		return new IntentRequest(AI, ALICE, "Alice", text, List.of(), List.of(), c, busy);
 	}
 
+	static final IntentCandidates.Spot FURNACE = new IntentCandidates.Spot(40L, 3, 2, 1, 5.0);
+
 	IntentCandidates full() {
-		return new IntentCandidates(List.of(LOG_FAR, LOG_NEAR), List.of(CHEST), Optional.of(PLAYER), Map.of("minecraft:stick", 2));
+		return new IntentCandidates(List.of(LOG_FAR, LOG_NEAR), List.of(CHEST), Optional.of(PLAYER), Map.of("minecraft:stick", 2), List.of(FURNACE));
+	}
+
+	@Test
+	void smeltUsesTheNearestFurnaceAndAnItemAContainerHolds() {
+		assertEquals(new NpcAction.Smelt(40L, 20L, "minecraft:cobblestone", 5), plan("smelt 5 cobblestone please").action().orElseThrow());
+		assertEquals(new NpcAction.Smelt(40L, 20L, "minecraft:cobblestone", KeywordIntentPlanner.DEFAULT_SMELT), plan("переплавь cobblestone").action().orElseThrow());
+		assertEquals(Optional.of(Intent.REPLY_NO_SUCH_ITEM), plan("cook some fish").replyKey());
+		IntentCandidates noFurnace = new IntentCandidates(List.of(LOG_NEAR), List.of(CHEST), Optional.of(PLAYER), Map.of());
+		assertEquals(Optional.of(Intent.REPLY_NO_FURNACE), planner.planNow(req("smelt cobblestone", noFurnace, false)).orElseThrow().replyKey());
 	}
 
 	Intent plan(String text) {
