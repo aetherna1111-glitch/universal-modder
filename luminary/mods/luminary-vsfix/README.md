@@ -26,6 +26,12 @@ VS 2.4.11 is the newest 1.20.1 Fabric build, and no VS setting changes this.
 - It runs the receiver again through the server's or client's executor, which is what vanilla does for every
   packet. Packets keep their arrival order.
 - A mixin plugin applies it only to VS 2.4.11, whose Kotlin lambda names it targets.
+- **When the server is stopped**, `execute()` runs tasks inline on the network thread, so each task first checks
+  that it is on the game thread and drops the packet otherwise, as vanilla does.
+- **A failing VS handler** disconnects that player, as an exception on the network thread did before, and the
+  server keeps running. On the client it is logged.
+- **Scope:** packets on the TCP channel. In this pack that is all of them, because `vs-core-server.toml` has
+  `enableUdp = false`.
 - Install it on the server and on clients.
 
 ## Build and test
@@ -44,6 +50,17 @@ On a Fabric 1.20.1 server with VS 2.4.11:
 |---|---|---|
 | Without the fix | `Netty Server IO #test` | read on that thread |
 | With the fix | `Server thread` | still `[1, 2, 3, 4, 5]` |
+
+A second test call makes VS's handler throw. With the fix the failure is logged on `Server thread`, the
+player-disconnect path runs, and the server keeps ticking. Without the fix the exception escapes on the network
+thread, which is what a player sees as an `Internal Exception` disconnect.
+
+Four independent reviews checked the fix against VS 2.4.11's bytecode (all 3,815 classes, every
+`vs_packet` handler):
+- no handler blocks on, or takes a lock held while waiting for, the game thread, so it cannot deadlock;
+- the payload copy is required, because vanilla releases the buffer when the receiver returns;
+- order is kept, because packets go into the same FIFO queue as vanilla packets;
+- a dedicated server never loads the client classes (checked with a JVM verification run).
 
 The client path was not run, because no client was available. The exported transformed class shows the same
 injection there.

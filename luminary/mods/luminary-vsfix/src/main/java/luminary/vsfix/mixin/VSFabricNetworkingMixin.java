@@ -4,7 +4,9 @@ import java.util.concurrent.Executor;
 
 import io.netty.buffer.Unpooled;
 import net.fabricmc.fabric.api.networking.v1.PacketSender;
+import net.minecraft.class_1255;
 import net.minecraft.class_2540;
+import net.minecraft.class_2561;
 import net.minecraft.class_310;
 import net.minecraft.class_3222;
 import net.minecraft.class_3244;
@@ -32,6 +34,12 @@ import org.valkyrienskies.mod.fabric.common.VSFabricNetworking;
  * Vanilla handles every packet on the game thread; this does the same for VS: the receiver copies the payload
  * (Fabric frees its buffer once the receiver returns) and re-runs itself through the server's or client's
  * executor, which keeps the packets in arrival order.
+ *
+ * A stopped server runs execute() tasks inline on the calling (network) thread, so the task checks it is on the game
+ * thread and otherwise drops the packet, as vanilla does. A handler failure disconnects that player, as an exception
+ * on the network thread did before, instead of only being logged; Errors other than VirtualMachineError are handled
+ * the same way. Covers packets on the TCP channel, which in this pack is all of them (vs-core-server.toml has
+ * enableUdp = false); with UDP on, VS's own UDP thread handles ship/physics transforms, which never call setPos.
  */
 @Mixin(value = VSFabricNetworking.class, remap = false)
 public abstract class VSFabricNetworkingMixin {
@@ -61,11 +69,19 @@ public abstract class VSFabricNetworkingMixin {
         }
         class_2540 copy = new class_2540(Unpooled.copiedBuffer(buf));
         ((Executor) server).execute(() -> {
+            if (!server.method_18854()) {
+                return; // server stopped: execute() ran this inline on the network thread; drop it, as vanilla does
+            }
             luminary$DEFERRED.set(Boolean.TRUE);
             try {
                 register$lambda$1(hooks, server, player, handler, copy, sender);
-            } catch (RuntimeException e) {
-                luminary$LOG.error("Valkyrien Skies packet from a client failed", e);
+            } catch (VirtualMachineError e) {
+                throw e;
+            } catch (Throwable t) {
+                luminary$LOG.error("Valkyrien Skies packet from {} failed; disconnecting that player", player, t);
+                if (handler != null) {
+                    handler.method_14367(class_2561.method_43470("Valkyrien Skies: ошибка обработки пакета, перезайдите"));
+                }
             } finally {
                 luminary$DEFERRED.set(Boolean.FALSE);
             }
@@ -81,11 +97,16 @@ public abstract class VSFabricNetworkingMixin {
         }
         class_2540 copy = new class_2540(Unpooled.copiedBuffer(buf));
         ((Executor) (Object) client).execute(() -> {
+            if (!((class_1255<?>) (Object) client).method_18854()) {
+                return; // client shutting down: not on the render thread, drop it
+            }
             luminary$DEFERRED.set(Boolean.TRUE);
             try {
                 registerClientNetworking$lambda$0(hooks, client, handler, copy, sender);
-            } catch (RuntimeException e) {
-                luminary$LOG.error("Valkyrien Skies packet from the server failed", e);
+            } catch (VirtualMachineError e) {
+                throw e;
+            } catch (Throwable t) {
+                luminary$LOG.error("Valkyrien Skies packet from the server failed", t);
             } finally {
                 luminary$DEFERRED.set(Boolean.FALSE);
             }

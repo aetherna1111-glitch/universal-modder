@@ -20,7 +20,7 @@ import zipfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-NEEDED_LIBS = ("sponge-mixin", "fabric-loader", "netty-buffer", "netty-common", "slf4j-api", "asm-tree", "asm-9")
+NEEDED_LIBS = ("sponge-mixin", "fabric-loader", "netty-buffer", "netty-common", "slf4j-api", "asm-tree", "asm-9", "brigadier", "datafixerupper")
 
 
 def find_libs(libs: Path) -> list[Path]:

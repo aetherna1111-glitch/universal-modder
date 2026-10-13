@@ -65,6 +65,20 @@ public final class VsFixTest implements ModInitializer {
             lambda.invoke(hooks, server, (class_3222) player, (class_3244) null, buf, (PacketSender) null);
             Arrays.fill(backing, (byte) 0); // what a reused/released Netty buffer looks like after the receiver returns
             System.out.println("VSFIX-TEST receiver returned; original buffer overwritten");
+            // a failing VS handler must not escape into the server loop (it disconnects the player; handler is null here)
+            VsiCoreHooksIn failing = (VsiCoreHooksIn) Proxy.newProxyInstance(VsiCoreHooksIn.class.getClassLoader(),
+                    new Class<?>[]{VsiCoreHooksIn.class}, (proxy, method, a) -> {
+                        if (method.getName().equals("onReceiveServer")) {
+                            throw new IllegalStateException("VSFIX-TEST simulated handler failure");
+                        }
+                        return null;
+                    });
+            lambda.invoke(failing, server, (class_3222) player, (class_3244) null,
+                    new class_2540(Unpooled.wrappedBuffer(new byte[]{9})), (PacketSender) null);
+            server.method_5385(() -> {
+                System.out.println("VSFIX-TEST server still ticking after a failing handler");
+                return null;
+            });
         } catch (Throwable t) {
             System.out.println("VSFIX-TEST failed: " + t);
             t.printStackTrace(System.out);
