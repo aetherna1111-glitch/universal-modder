@@ -185,7 +185,16 @@ Single source of truth for resuming this work. Keep it short; update at mileston
   - Checked against the 2.1.3 build: 1,973 + 824 = 2,797 files, one added (`mods/luminary-vsfix-1.0.0.jar`,
     served bytes match the built jar), none changed or removed. `manifest-extra.json` has the same files.
   - The startup excerpt the owner sent shows only the usual VS, Lithium and Moonlight warnings.
-  - Still to confirm: the vsfix line in the server log, and a player on a moving ship.
+  - The full server log (15:32-15:34) has both lines: `Valkyrien Skies 2.4.11: its network packets will be handled on
+    the game thread` and `[Luminary] Сборка обновлена: версия 2026.10.13-153315, файлов 2797` (11.7 s, cold hash
+    cache). After that, the owner reported that everything works.
+  - Log triage (4 of 6 agents finished; the other 2 hit the session limit): nothing to fix, and nothing caused by
+    our mods.
+    - Neruina 2.3.1-beta.1 fails to read its own `world/data/neruina.dat`: it writes `uuid` as a string and reads
+      it as an int array. This was already there before our mods and loses only Neruina's admin list. 3.3.3 fixes
+      it; upgrading is optional.
+    - The server runs older Botania (455 vs 456), Prominent (4.0.0 vs 4.1.1) and OnlyExcavators than the client
+      pack. This was already the case, and players still joined. Optional: align them.
 
 ## Owner actions (blocking production use)
 1. Rent a VPS + domain for the accounts service; deploy per docs/DEPLOYMENT.md §1.
