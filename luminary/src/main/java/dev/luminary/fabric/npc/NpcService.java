@@ -304,6 +304,15 @@ public final class NpcService {
 		return state.roster();
 	}
 
+	/** Every defined NPC remembers an observed fact (integrations, admins); provenance OBSERVED_IN_WORLD. */
+	public void observeForAll(MemoryKind kind, UUID player, String topic, String text) {
+		Instant now = clock.instant();
+		for (NpcDefinition def : dialogue.definitions().npcs()) {
+			dialogue.memory(def.id()).add(MemoryEntry.of(kind, player, topic, text, now, Provenance.OBSERVED_IN_WORLD), now);
+		}
+		state.markDirty();
+	}
+
 	/** Persist roster/memory changes made directly by commands. */
 	public void markDirty() {
 		state.markDirty();

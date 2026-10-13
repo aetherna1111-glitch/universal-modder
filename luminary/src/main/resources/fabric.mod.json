@@ -10,7 +10,8 @@
 	"environment": "*",
 	"entrypoints": {
 		"main": ["dev.luminary.fabric.Luminary"],
-		"client": ["dev.luminary.fabric.client.LuminaryClient"]
+		"client": ["dev.luminary.fabric.client.LuminaryClient"],
+		"thaumcraft-observer": ["dev.luminary.fabric.integration.ThaumcraftObserverEntrypoint"]
 	},
 	"depends": {
 		"fabricloader": ">=0.16.0",

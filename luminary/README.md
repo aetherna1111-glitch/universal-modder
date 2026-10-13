@@ -23,18 +23,19 @@ slice**; design and research live in `../docs/research/luminary-2026-10-11/` (st
 | Fabric layer: NPC entity (`luminary:npc`, persistent, never despawns, right-click to talk), roster reconciliation on entity load/unload (duplicates discarded, missing bodies forgotten), follow goal, `config/luminary.json` (`dialogueProvider`), placeholder client renderer (default player model) | **implemented**; entity + dialogue covered by GameTests; **client rendering not verified** (no client in CI) |
 | Fabric layer: task executor — real block breaking (`ServerWorld.breakBlock`, loot tables), item-entity collection into the NPC's own inventory, insertion into the authorized container's `Inventory`, per-step re-validation, resume after reload; `/luminary npc task` and `/luminary npc container` commands | **implemented**; covered by 8 GameTests incl. item accounting |
 | Fabric layer: chat intake — the nearest NPC within 8 blocks hears a player's chat message; the planner looks for work first (candidates scanned around the body), an action is assigned like a command and the result spoken back, otherwise the line is a dialogue turn; the requester is told when the task ends; `/luminary npc intent`, `/luminary npc planner`, `/luminary npc task move|deposit|withdraw|smelt`; `/luminary npc memory` commands | **implemented**; covered by 8 GameTests (chat → task → chest → memory with no model; a standing order stocking a chest with no command; a real furnace run with full item accounting) |
+| Fabric layer: integrations — `thaumcraft-observer` entrypoint applying `ThaumcraftBridge` translations on the server thread | **implemented**; 1 GameTest drives the entrypoint directly |
 | Gameplay enforcement of capabilities (recipe/item gates), City (facilities), further NPC tasks (milking, crafting, planting) and standing orders, model-proposed orders, GeckoLib model, mod integrations | **designed, not implemented** — see the research set |
-| Thaumcraft 4 port bridge (`dev.luminary.api` plugin entrypoint) | **proposed**, needs the port maintainers |
+| Thaumcraft 4 port bridge — Luminary declares the Fabric entrypoint `thaumcraft-observer` (`Consumer<Map<String,Object>>`, no shared classes); research completions, scans and aspect discoveries become progression signals (`signal/thaumcraft/...`) and NPC observations; the port-side patch is in `docs/integration/` | **Luminary side implemented, unit- and GameTested**; **port side written but unverified**: the port's current commit does not compile on its own (see `docs/integration/README.md`) |
 
 Nothing here grants items, unlocks recipes or changes gameplay yet. The slice proves the architecture: a Minecraft-free
 core, server-side rules, persistence with migrations, admin commands, and an in-world test harness.
 
-## Last recorded verification (2026-10-13, slice 11, JDK 21 runtime, `release 17`)
+## Last recorded verification (2026-10-13, slice 12, JDK 21 runtime, `release 17`)
 
 | Check | Result |
 |---|---|
-| `./gradlew build` (compile main/test/gametest, 100 unit tests, jar) | passed |
-| `./gradlew runGametest` (headless 1.20.1 server, Fabric API 0.92.12, Loader 0.19.5) | "All 27 required tests passed" (3 consecutive runs) |
+| `./gradlew build` (compile main/test/gametest, 104 unit tests, jar) | passed |
+| `./gradlew runGametest` (headless 1.20.1 server, Fabric API 0.92.12, Loader 0.19.5) | "All 28 required tests passed" |
 | `um publish check luminary` | 0 failures (1 warning in the ignored `.gradle/` cache) |
 | Not verified | a real dedicated server with players; the integrated client and the NPC renderer; any other mod loaded alongside; a real Ollama or hosted model endpoint (only the mock server was exercised) |
 
@@ -360,6 +361,14 @@ dialogue:
 GameTest `spokenRequestBecomesAValidatedTaskExecutedAndRemembered` runs the whole chain with no model: a mock player
 says "could you chop 2 logs for me?", two real oak logs end up in the authorized chest, the promise is superseded by
 the completed event.
+
+## Thaumcraft bridge (slice 12)
+
+See `docs/integration/README.md`: the port publishes plain-map events to the Fabric entrypoint `thaumcraft-observer`;
+`ThaumcraftBridge` (core, pure) turns `research_completed`, `scan_completed` and `aspect_discovered` into progression
+signals under `signal/thaumcraft/...` and one `OBSERVATION` memory for every NPC, so technologies can require TC4
+research and the NPC can talk about what a player learned. Neither mod compiles against the other. The port-side
+patch (`docs/integration/thaumcraft-observer-api.patch`) is written but waits for the port to compile again.
 
 ## Acting alone: autonomy (slice 10)
 

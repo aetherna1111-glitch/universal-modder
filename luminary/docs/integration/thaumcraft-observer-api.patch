@@ -1,0 +1,184 @@
+diff --git a/src/main/java/thaumcraft/api/observer/ThaumcraftObserver.java b/src/main/java/thaumcraft/api/observer/ThaumcraftObserver.java
+new file mode 100644
+index 0000000..74211ac
+--- /dev/null
++++ b/src/main/java/thaumcraft/api/observer/ThaumcraftObserver.java
+@@ -0,0 +1,13 @@
++package thaumcraft.api.observer;
++
++import java.util.Map;
++
++/**
++ * Receives server-side knowledge events as plain maps (see {@link ThaumcraftObservers} for the contract). Register
++ * with {@link ThaumcraftObservers#EVENT} from a mod that compiles against Thaumcraft, or as a Fabric entrypoint
++ * {@code thaumcraft-observer} typed {@code java.util.function.Consumer<Map<String, Object>>} from a mod that does not.
++ */
++@FunctionalInterface
++public interface ThaumcraftObserver {
++    void onEvent(Map<String, Object> event);
++}
+diff --git a/src/main/java/thaumcraft/api/observer/ThaumcraftObservers.java b/src/main/java/thaumcraft/api/observer/ThaumcraftObservers.java
+new file mode 100644
+index 0000000..b9c03e4
+--- /dev/null
++++ b/src/main/java/thaumcraft/api/observer/ThaumcraftObservers.java
+@@ -0,0 +1,98 @@
++package thaumcraft.api.observer;
++
++import java.util.ArrayList;
++import java.util.Collections;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.function.Consumer;
++import net.fabricmc.fabric.api.event.Event;
++import net.fabricmc.fabric.api.event.EventFactory;
++import net.fabricmc.loader.api.FabricLoader;
++import net.fabricmc.loader.api.entrypoint.EntrypointContainer;
++import net.minecraft.entity.player.PlayerEntity;
++import thaumcraft.Thaumcraft;
++
++/**
++ * Outbound, read-only notifications about what players learn. This is an API for other mods (companion mods, story
++ * or progression systems); it changes no Thaumcraft behaviour. Events fire on the server thread only, after the
++ * knowledge change has been recorded.
++ *
++ * <h2>Contract</h2>
++ * Every event is a {@code Map<String, Object>} whose values are only {@code String}, {@code Number}, {@code Boolean},
++ * {@code java.util.UUID}, {@code List} or {@code Map} of those, so a receiver needs no Thaumcraft classes:
++ * <pre>
++ * type:        "research_completed" | "scan_completed" | "aspect_discovered"
++ * player:      UUID of the player
++ * playerName:  String
++ * research_completed:  key (String, TC4 research key), warp (Integer, research warp applied)
++ * scan_completed:      scanType ("item" | "entity" | "phenomena"), target (String: item id, entity type id or
++ *                      phenomenon name), prefix ("@" wand/thaumometer scan, "#" sinister/other),
++ *                      aspects (Map&lt;String, Integer&gt; aspect tag → points granted)
++ * aspect_discovered:   aspect (String tag)
++ * </pre>
++ * Two delivery paths carry the same maps: {@link #EVENT} for mods compiling against Thaumcraft, and the Fabric
++ * entrypoint key {@value #ENTRYPOINT} (type {@code java.util.function.Consumer}) for mods that must not depend on
++ * this jar. Receivers run synchronously; an exception in one is logged and does not affect the others or the game.
++ */
++public final class ThaumcraftObservers {
++    public static final String ENTRYPOINT = "thaumcraft-observer";
++
++    public static final Event<ThaumcraftObserver> EVENT = EventFactory.createArrayBacked(ThaumcraftObserver.class,
++            listeners -> event -> {
++                for (ThaumcraftObserver l : listeners) {
++                    try {
++                        l.onEvent(event);
++                    } catch (RuntimeException e) {
++                        Thaumcraft.LOGGER.warn("[thaumcraft] observer {} failed on {}: {}", l.getClass().getName(), event.get("type"), e.toString());
++                    }
++                }
++            });
++
++    private static volatile List<Consumer<Map<String, Object>>> entrypoints;
++
++    private ThaumcraftObservers() {}
++
++    /** Server side only; the caller guards the side. */
++    public static void publish(String type, PlayerEntity player, Map<String, Object> payload) {
++        if (player.getWorld().isClient) return;
++        Map<String, Object> event = new LinkedHashMap<>();
++        event.put("type", type);
++        event.put("player", player.getUuid());
++        event.put("playerName", player.getGameProfile().getName());
++        event.putAll(payload);
++        Map<String, Object> frozen = Collections.unmodifiableMap(event);
++        EVENT.invoker().onEvent(frozen);
++        for (Consumer<Map<String, Object>> c : entrypoints()) {
++            try {
++                c.accept(frozen);
++            } catch (RuntimeException e) {
++                Thaumcraft.LOGGER.warn("[thaumcraft] observer entrypoint {} failed on {}: {}", c.getClass().getName(), type, e.toString());
++            }
++        }
++    }
++
++    @SuppressWarnings({"unchecked", "rawtypes"})
++    private static List<Consumer<Map<String, Object>>> entrypoints() {
++        List<Consumer<Map<String, Object>>> list = entrypoints;
++        if (list == null) {
++            List<Consumer<Map<String, Object>>> found = new ArrayList<>();
++            for (EntrypointContainer<Consumer> c : FabricLoader.getInstance().getEntrypointContainers(ENTRYPOINT, Consumer.class)) {
++                try {
++                    found.add((Consumer<Map<String, Object>>) c.getEntrypoint());
++                    Thaumcraft.LOGGER.info("[thaumcraft] observer registered by mod {}", c.getProvider().getMetadata().getId());
++                } catch (RuntimeException e) {
++                    Thaumcraft.LOGGER.warn("[thaumcraft] observer entrypoint of mod {} could not be created: {}", c.getProvider().getMetadata().getId(), e.toString());
++                }
++            }
++            list = Collections.unmodifiableList(found);
++            entrypoints = list;
++        }
++        return list;
++    }
++
++    /** Tests: forget the cached entrypoint list so a new mod set is seen. */
++    public static void resetEntrypointCache() {
++        entrypoints = null;
++    }
++}
+diff --git a/src/main/java/thaumcraft/research/ResearchManager.java b/src/main/java/thaumcraft/research/ResearchManager.java
+index 273cadd..9501d32 100644
+--- a/src/main/java/thaumcraft/research/ResearchManager.java
++++ b/src/main/java/thaumcraft/research/ResearchManager.java
+@@ -7,6 +7,7 @@ import java.util.Random;
+ import net.minecraft.entity.player.PlayerEntity;
+ import net.minecraft.item.ItemStack;
+ import net.minecraft.server.network.ServerPlayerEntity;
++import thaumcraft.api.observer.ThaumcraftObservers;
+ import net.minecraft.text.Text;
+ import net.minecraft.world.World;
+ import thaumcraft.aspect.Aspect;
+@@ -169,7 +170,13 @@ public final class ResearchManager {
+     /** TC4 completeResearchUnsaved. */
+     public static boolean completeResearchUnsaved(PlayerEntity player, String key) {
+         boolean added = Knowledge.get(player).addResearch(key);
+-        if (added) Knowledge.changed(player);
++        if (added) {
++            Knowledge.changed(player);
++            if (!player.getWorld().isClient) {
++                // outbound notification for other mods; observers cannot change the outcome
++                ThaumcraftObservers.publish("research_completed", player, java.util.Map.of("key", key, "warp", ResearchLoader.getWarp(key)));
++            }
++        }
+         return added;
+     }
+ 
+diff --git a/src/main/java/thaumcraft/research/ScanManager.java b/src/main/java/thaumcraft/research/ScanManager.java
+index 2ed8a33..570d057 100644
+--- a/src/main/java/thaumcraft/research/ScanManager.java
++++ b/src/main/java/thaumcraft/research/ScanManager.java
+@@ -1,5 +1,7 @@
+ package thaumcraft.research;
+ 
++import thaumcraft.api.observer.ThaumcraftObservers;
++
+ import java.util.List;
+ import java.util.Objects;
+ import net.minecraft.block.BlockState;
+@@ -178,6 +180,13 @@ public final class ScanManager {
+             if (a > 0) aspectsFinal.merge(aspect, a);
+         }
+         if (clue != null) ResearchManager.createClue(player.getWorld(), player, clue, aspectsFinal);
++        java.util.Map<String, Object> granted = new java.util.LinkedHashMap<>();
++        for (Aspect aspect : aspectsFinal.getAspects()) granted.put(aspect.getTag(), aspectsFinal.getAmount(aspect));
++        String scanType = item != null ? "item" : scan.type == 2 ? "entity" : "phenomena";
++        String target = item != null ? Registries.ITEM.getId(item).toString()
++                : scan.type == 2 ? Registries.ENTITY_TYPE.getId(scan.entity.getType()).toString() : scan.phenomena;
++        ThaumcraftObservers.publish("scan_completed", player, java.util.Map.of(
++                "scanType", scanType, "target", target, "prefix", prefix, "aspects", java.util.Collections.unmodifiableMap(granted)));
+         return true;
+     }
+ 
+@@ -189,6 +198,7 @@ public final class ScanManager {
+             ResearchNetworking.sendAspectDiscovery(player, aspect);
+             amount += 2;
+             save = amount;
++            ThaumcraftObservers.publish("aspect_discovered", player, java.util.Map.of("aspect", aspect.getTag()));
+         }
+         if (rp.getAspectPoolFor(aspect) >= ThaumcraftConfig.aspectTotalCap) amount = (int) Math.sqrt(amount);
+         if (amount > 1 && rp.getAspectPoolFor(aspect) >= ThaumcraftConfig.aspectTotalCap * 1.25f) amount = 1;
