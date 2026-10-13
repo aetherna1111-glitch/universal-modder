@@ -127,7 +127,10 @@ Single source of truth for resuming this work. Keep it short; update at mileston
   the rest update). Rehearsed with the 2.1.2 sync code against a local copy laid out like servarium (no
   hidden or empty files): fresh install synced all files with 0 errors, a player's own resource pack
   stayed, a stray mod went to `.backup`, a second Play had nothing to do, and an edited config was kept.
-  Not yet uploaded to servarium.
+- 2026-10-13: the owner uploaded the pack and `manifest.json`. The live manifest is byte-identical to the
+  one built here; `make_manifest.py --check-remote` downloaded every file from servarium: 2,796 files,
+  0 errors (126 empty files are created by launchers). Launcher 2.1.2's own config reads the live manifest
+  (7 folders); a new player downloads 2,796 files, 1.77 GB. The modpack is published.
 
 ## Owner actions (blocking production use)
 1. Rent a VPS + domain for the accounts service; deploy per docs/DEPLOYMENT.md §1.
