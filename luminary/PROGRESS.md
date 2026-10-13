@@ -155,6 +155,33 @@ Single source of truth for resuming this work. Keep it short; update at mileston
   the old full manifest has nothing to download on 2.1.3; the committed 2.1.2 code updated itself to 2.1.3
   (8 files). Launcher tests: 186 passed.
 
+## Ninth pass (2026-10-13): VS disconnect fix, manifest rebuilt by the server
+- After 2.1.3, players got past owo's check but were dropped with "Internal Exception ... LongAVLTreeSet$Entry
+  .decBalance() because p is null".
+- A 13-agent investigation (bytecode plus web research, adversarially verified) traced it to Valkyrien Skies
+  2.4.11. VS runs its `vs_packet` handlers on the Netty thread, and the ship-motion handlers call `Entity.setPos`
+  there, racing the game thread on the entity section storage. VS 2.4.11 is the newest 1.20.1 build, and no setting
+  changes this.
+- `mods/luminary-vsfix` (server + clients) copies the payload and re-runs both VS receivers through the server and
+  client executors, like vanilla packets. It applies only to VS 2.4.11.
+  - Tested on a Fabric 1.20.1 server with VS 2.4.11: the packet was handled on "Server thread" with its payload
+    intact. A throwing handler disconnects that player and the server keeps running.
+  - A 16-agent review found no deadlock and no class-loading or ordering problem. Its two minor findings, the
+    shutdown window and the exception policy, are fixed.
+  - The client path has not been run in a real client.
+- `mods/luminary-packindex` (server only), at the owner's request: the server rebuilds the client-pack manifests on
+  every start, so updating the pack is upload, then restart.
+  - On a copy of the live client-pack it reproduces the published manifests exactly (2,796 files, nothing
+    rewritten).
+  - After a jar is added, the 2.1.3 launcher code downloads exactly that file.
+  - A 27-agent review found 18 issues, all fixed and covered by 65 checks. Among them: a missing or emptied folder,
+    upload in progress, a stale hash cache, Windows-invalid names, case parity, empty-entry clashes, a damaged old
+    list.
+  - Real-server run: `Сборка обновлена`, then `Сборка без изменений` (0.3 s).
+- Owner action:
+  - Put both jars in the server's `mods/`, and `luminary-vsfix` also in `client-pack/mods/`.
+  - Restart the server. Players get the 1-file update on their next Play.
+
 ## Owner actions (blocking production use)
 1. Rent a VPS + domain for the accounts service; deploy per docs/DEPLOYMENT.md §1.
 2. Reserve existing player names from usercache.json (§2).

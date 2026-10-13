@@ -35,6 +35,35 @@ The rules match the launcher (`luminary_app/modpack.py`) and `make_manifest.py`:
 - **Non-ASCII names work** (Cyrillic, `§`) even when the server's JVM runs without a UTF-8 locale. File names are
   read from the raw bytes (`Path.toUri()`) and never built from text.
 
+## Safety rules (from an independent review)
+
+The update stops, the old manifests stay, and the console prints the reason in these cases:
+
+- **A folder is gone or emptied.** This covers a folder whose published list had files in it but which is now missing
+  or has no files left, for example after a failed upload or unpack. Publishing it would move every player's copy of
+  that folder to `.backup`. To drop a folder on purpose, remove it from `config/luminary-packindex.json`.
+- **A file changed while it was being hashed** (an upload still running), so its hash would match no complete file.
+- **Names Windows cannot create**, which every launcher accepts but Windows players could never sync:
+  `? * | < > "`, control characters, `CON .jar`, `COM¹`, `CONIN$`.
+- **Characters the server's Java does not know** (newer Unicode), whose letter case could compare differently from
+  the launcher's.
+- **An unreadable previous manifest.** It is the only record of the empty files.
+
+While an update is refused, the console also lists published files that no longer match the folder. Players cannot
+fetch those until the list is rebuilt.
+
+Other behaviour:
+
+- **Hash cache:** keyed on size, mtime and ctime in nanoseconds, so a same-size edit that restores the old mtime is
+  still re-hashed.
+- **Case comparison:** final sigma is folded, so Java never sees two names where the launcher sees one.
+- **Empty files from the old list:** an entry is dropped when its parent path is now a file.
+- **Unchanged check:** the old list counts as unchanged only if it is strict JSON, by the launcher's rules, and
+  lists exactly the same entries. Otherwise it is rewritten.
+
+**Do not edit or delete `manifest.json` by hand.** It is the only record of the 126 empty files, which servarium
+cannot store.
+
 ## Build and test
 
 ```sh
@@ -42,7 +71,7 @@ python3 build.py --libs <fabric server libraries dir> --out build --test
 ```
 
 It needs only Fabric Loader, Gson and SLF4J, which are all on a Fabric 1.20.1 server's classpath. `--test` runs
-`test/` (26 checks). `PackIndexerTest cli <client-pack> <cache.json>` indexes a folder from the command line.
+`test/` (65 checks). `PackIndexerTest cli <client-pack> <cache.json>` indexes a folder from the command line.
 
 ## Verified
 

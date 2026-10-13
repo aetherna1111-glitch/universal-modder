@@ -48,9 +48,16 @@ public final class LuminaryPackIndex implements DedicatedServerModInitializer {
             }
             if (!out.problems.isEmpty()) {
                 LOG.error("[Luminary] Список файлов сборки НЕ обновлён: исправь {} файл(ов) в {} и перезапусти сервер. "
-                        + "Игроки пока получают прежнюю версию.", out.problems.size(), cfg.packDir);
+                        + "Игроки пока получают прежний список.", out.problems.size(), cfg.packDir);
                 for (String p : out.problems) {
                     LOG.error("[Luminary]   {}", p);
+                }
+                if (!out.stale.isEmpty()) {
+                    LOG.error("[Luminary] В прежнем списке {} файл(ов) уже не совпадают с папкой: игроки не смогут их скачать, "
+                            + "и обновление сборки у них не пройдёт, пока список не обновится. Например:", out.stale.size());
+                    for (String p : out.stale.subList(0, Math.min(10, out.stale.size()))) {
+                        LOG.error("[Luminary]   {}", p);
+                    }
                 }
                 return;
             }
@@ -61,7 +68,7 @@ public final class LuminaryPackIndex implements DedicatedServerModInitializer {
             } else {
                 LOG.info("[Luminary] Сборка без изменений: версия {}, файлов {}, {} ({} мс)", out.version, out.files, size, ms);
             }
-        } catch (Exception e) {
+        } catch (Exception | StackOverflowError | OutOfMemoryError e) { // FIX: an Error must not abort server start
             LOG.error("[Luminary] Не удалось обновить список файлов сборки — игроки получают прежнюю версию", e);
         }
     }

@@ -182,6 +182,23 @@ player, so keep it offline and backed up. If it is lost, create a new one with
 installed launchers only trust the old key. The update host can be any static HTTPS host; to move it, change
 `launcher_update.url` through an update before the old host goes away.
 
+### Updating the modpack (luminary-packindex)
+
+With `luminary-packindex-1.0.0.jar` in the Minecraft server's `mods/`, nobody builds or uploads `manifest.json`:
+
+1. Stop the server.
+2. Upload, replace or delete files in `client-pack/mods`, `config`, `resourcepacks` and the other folders.
+3. Start the server.
+
+On start the mod rebuilds `manifest.json` and `manifest-extra.json` from the folder. The console reports one of:
+
+- `[Luminary] Сборка обновлена` — the new list is published.
+- `[Luminary] Сборка без изменений` — nothing changed, so nothing is rewritten.
+- `[Luminary] Список файлов сборки НЕ обновлён` — the old list stays, followed by the problems to fix.
+
+See `mods/luminary-packindex/README.md` for the rules. The manual procedure below is still how `make_manifest.py`
+works, and how to publish without the mod.
+
 ### Publishing the modpack
 
 `config_updater.json` points at the servarium folder. On 2026-10-12 that folder still had no

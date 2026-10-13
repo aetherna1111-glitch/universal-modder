@@ -55,7 +55,13 @@ public final class PackIndexer {
     static final Set<String> PROTECTED = Set.of("saves", "versions", "libraries", "assets", "logs", "crash-reports",
             "screenshots", "natives", "bin", "backups", "runtime", "jre", ".luminary_staging", "launcher");
     static final Set<String> SKIP_NAMES = Set.of("thumbs.db", "desktop.ini", ".ds_store");
-    static final List<String> SKIP_SUFFIXES = List.of(".part", ".tmp", ".crdownload");
+    static final List<String> SKIP_SUFFIXES = List.of(".part", ".tmp", ".crdownload", ".filepart"); // FIX: WinSCP
+    /** Names Windows refuses besides CON/PRN/AUX/NUL/COM1-9/LPT1-9 (superscript digits count as digits there). */
+    static final Set<String> WIN_RESERVED_EXTRA = Set.of("com\u00b9", "com\u00b2", "com\u00b3", "lpt\u00b9", "lpt\u00b2",
+            "lpt\u00b3", "conin$", "conout$");
+    static final String WIN_BAD_CHARS = "<>\"|?*";
+    static final int MAX_FOLDERS = 64;
+    static final String EMPTY_SHA = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
     static final long MAX_FILE_SIZE = 2L * 1024 * 1024 * 1024;
     static final Pattern FOLDER_RE = Pattern.compile("^[A-Za-z0-9_][A-Za-z0-9_\\-]*$");
     static final Pattern MANIFEST_NAME_RE = Pattern.compile("^[A-Za-z0-9][A-Za-z0-9_.\\-]*\\.json$");
@@ -79,6 +85,8 @@ public final class PackIndexer {
         public int keptEmpty;
         public final List<String> problems = new ArrayList<>();
         public final List<String> skipped = new ArrayList<>();
+        /** When problems stop the update: published files the folder no longer matches (players fail to fetch them). */
+        public final List<String> stale = new ArrayList<>();
     }
 
     private PackIndexer() {
@@ -93,26 +101,67 @@ public final class PackIndexer {
             return out;
         }
         Map<String, Entry> previous = readPrevious(packDir, cfg);
+        // FIX: the published manifests are the only record of the empty files; do not drop them silently
+        for (String name : List.of(cfg.manifestName, cfg.extraManifestName)) {
+            Path f = packDir.resolve(name);
+            JsonObject o = readJson(f);
+            if (Files.exists(f, LinkOption.NOFOLLOW_LINKS) && (o == null || !o.has("files") || !o.get("files").isJsonArray())) {
+                out.problems.add(name + ": прежний список не читается, пустые файлы из него не перенести. Верни рабочую "
+                        + "копию или удали " + name + " (пустые файлы пропадут из сборки)");
+            }
+        }
+        if (!out.problems.isEmpty()) {
+            return out;
+        }
         HashCache cache = HashCache.load(cacheFile);
         Map<String, String> seenLower = new HashMap<>();
-        Set<String> present = new HashSet<>(); // every name in the folders, published or not (lower case)
-        List<Entry> main = scan(packDir, cfg.folders, cache, seenLower, present, out);
-        List<Entry> extra = scan(packDir, cfg.extraFolders, cache, seenLower, present, out);
+        Set<String> present = new HashSet<>(); // every name in the folders, published or not (case key)
+        Set<String> presentFiles = new HashSet<>(); // the ones that are not folders
+        List<Entry> main = scan(packDir, cfg.folders, cache, seenLower, present, presentFiles, out);
+        List<Entry> extra = scan(packDir, cfg.extraFolders, cache, seenLower, present, presentFiles, out);
         // keep empty files a previous manifest listed: they can never be uploaded to servarium
         for (Entry e : previous.values()) {
-            if (e.size() != 0 || present.contains(e.path().toLowerCase(Locale.ROOT))) {
+            String lower = caseKey(e.path());
+            if (e.size() != 0 || present.contains(lower) || seenLower.containsKey(lower)) { // FIX: no case duplicates
+                continue;
+            }
+            if (ancestorIsFile(lower, presentFiles)) { // config/x became a file: config/x/y can no longer exist
+                out.skipped.add(e.path() + " (пустой файл из прежнего списка: на месте его папки теперь файл)");
                 continue;
             }
             String top = e.path().split("/", 2)[0];
             List<Entry> target = cfg.folders.containsKey(top) ? main : cfg.extraFolders.containsKey(top) ? extra : null;
             if (target != null && validPath(e.path(), top) == null) {
-                target.add(e);
-                seenLower.put(e.path().toLowerCase(Locale.ROOT), e.path());
+                target.add(new Entry(e.path(), EMPTY_SHA, 0)); // FIX: an empty file always has this hash
+                seenLower.put(lower, e.path());
                 out.keptEmpty++;
             }
         }
         cache.save();
+        // a folder that is gone or has no files left, while the published list had files in it: never publish that,
+        // or every player's copy is moved to .backup (a failed upload or unpack looks exactly like this)
+        for (Map<String, String> group : List.of(cfg.folders, cfg.extraFolders)) {
+            for (String folder : group.keySet()) {
+                String prefix = caseKey(folder + "/");
+                long had = previous.values().stream().filter(e -> e.size() > 0 && caseKey(e.path()).startsWith(prefix)).count();
+                long now = java.util.stream.Stream.concat(main.stream(), extra.stream())
+                        .filter(e -> e.size() > 0 && caseKey(e.path()).startsWith(prefix)).count();
+                if (had > 0 && now == 0) {
+                    out.problems.add(folder + "/: папки нет или в ней не осталось файлов, а в прежнем списке их " + had
+                            + ". Если так и задумано, убери " + folder + " из config/luminary-packindex.json");
+                }
+            }
+        }
         if (!out.problems.isEmpty()) {
+            Map<String, Entry> now = new HashMap<>();
+            for (Entry e : main) now.put(caseKey(e.path()), e);
+            for (Entry e : extra) now.put(caseKey(e.path()), e);
+            for (Entry e : previous.values()) {
+                if (e.size() == 0) continue;
+                Entry n = now.get(caseKey(e.path()));
+                if (!present.contains(caseKey(e.path()))) out.stale.add(e.path() + " (удалён)");
+                else if (n != null && (!n.sha256().equals(e.sha256()) || n.size() != e.size())) out.stale.add(e.path() + " (заменён)");
+            }
             return out;
         }
         main.sort(Comparator.comparing(Entry::path));
@@ -121,12 +170,15 @@ public final class PackIndexer {
         out.bytes = main.stream().mapToLong(Entry::size).sum() + extra.stream().mapToLong(Entry::size).sum();
 
         boolean useExtra = !cfg.extraFolders.isEmpty();
-        JsonObject prevMain = readJson(packDir.resolve(cfg.manifestName));
-        JsonObject prevExtra = useExtra ? readJson(packDir.resolve(cfg.extraManifestName)) : null;
-        if (prevMain != null && sameFiles(prevMain, main) && sameFolders(prevMain, cfg.folders)
-                && sameExtras(prevMain, useExtra ? cfg.extraManifestName : null)
-                && (!useExtra || (prevExtra != null && sameFiles(prevExtra, extra) && sameFolders(prevExtra, cfg.extraFolders)))) {
-            out.version = prevMain.has("version") ? prevMain.get("version").getAsString() : "?";
+        // "unchanged" only if each published file is valid by the launcher's own (strict) JSON rules and lists exactly
+        // the same folders and files. A BOM, comment, single quote or "size": "123" (Gson's lenient parser accepts
+        // them, launchers do not) or a damaged field gets rewritten instead of being kept forever. Entry order does
+        // not matter (make_manifest.py lists folder by folder, this mod sorts by path).
+        String prevMainVersion = sameContent(packDir.resolve(cfg.manifestName), cfg.folders, main,
+                useExtra ? cfg.extraManifestName : null);
+        if (prevMainVersion != null
+                && (!useExtra || sameContent(packDir.resolve(cfg.extraManifestName), cfg.extraFolders, extra, null) != null)) {
+            out.version = prevMainVersion;
             return out; // unchanged: keep the published files byte for byte
         }
         if (useExtra) {
@@ -158,6 +210,9 @@ public final class PackIndexer {
                 }
             }
         }
+        if (cfg.folders.size() > MAX_FOLDERS || cfg.extraFolders.size() > MAX_FOLDERS) {
+            out.problems.add("config: больше " + MAX_FOLDERS + " папок в одном манифесте (лаунчер отклонит)");
+        }
         if (cfg.folders.isEmpty()) {
             out.problems.add("config: пустой список folders");
         }
@@ -173,7 +228,9 @@ public final class PackIndexer {
 
     /** null if the launcher accepts this manifest path, else the reason it would reject the whole manifest. */
     static String validPath(String path, String folder) {
-        if (path.isEmpty() || path.length() > 400 || path.indexOf('\0') >= 0) return "пустой или слишком длинный путь";
+        if (path.isEmpty() || path.codePointCount(0, path.length()) > 400 || path.indexOf('\0') >= 0) {
+            return "пустой или слишком длинный путь";
+        }
         if (path.indexOf('\\') >= 0 || path.indexOf(':') >= 0) return "недопустимые символы в пути";
         String[] parts = path.split("/", -1);
         if (parts.length < 2 || !parts[0].equals(folder)) return "недопустимый путь";
@@ -181,14 +238,43 @@ public final class PackIndexer {
             if (part.isEmpty() || part.equals(".") || part.equals("..")) return "недопустимый путь";
             String stem = part.split("\\.", -1)[0].toLowerCase(Locale.ROOT);
             if (WIN_RESERVED.contains(stem) || part.endsWith(" ") || part.endsWith(".")) return "недопустимое имя файла";
+            // Windows players could not create these, and every launcher version accepts them: refuse here
+            String bare = stem.replaceFirst(" +$", "");
+            if (WIN_RESERVED.contains(bare) || WIN_RESERVED_EXTRA.contains(bare)) return "Windows не может создать такой файл";
+            for (int i = 0; i < part.length(); i++) {
+                char c = part.charAt(i);
+                if (c < 0x20 || WIN_BAD_CHARS.indexOf(c) >= 0) return "Windows не может создать такой файл";
+            }
+            // a letter this Java does not know (newer Unicode) may compare differently from the launcher's Python
+            if (part.codePoints().anyMatch(cp -> !Character.isDefined(cp))) return "символ, неизвестный этой версии Java";
         }
         return null;
     }
 
+    /**
+     * Key for "same name apart from letter case". Folds the final sigma so Java never sees two names where the
+     * launcher's Python str.lower() sees one (they disagree on where a word ends).
+     */
+    static String caseKey(String s) {
+        return s.toLowerCase(Locale.ROOT).replace('\u03c2', '\u03c3');
+    }
+
+    /** For tests. */
+    public static String caseKeyForTest(String s) {
+        return caseKey(s);
+    }
+
+    static boolean ancestorIsFile(String key, Set<String> presentFiles) {
+        for (int i = key.indexOf('/'); i >= 0; i = key.indexOf('/', i + 1)) {
+            if (presentFiles.contains(key.substring(0, i))) return true;
+        }
+        return false;
+    }
+
     // ------------------------------------------------------------------ scanning
 
-    private static List<Entry> scan(Path packDir, Map<String, String> folders, HashCache cache,
-                                    Map<String, String> seenLower, Set<String> present, Outcome out) throws IOException {
+    private static List<Entry> scan(Path packDir, Map<String, String> folders, HashCache cache, Map<String, String> seenLower,
+                                    Set<String> present, Set<String> presentFiles, Outcome out) throws IOException {
         List<Entry> entries = new ArrayList<>();
         for (String folder : folders.keySet()) {
             Path root = packDir.resolve(folder);
@@ -197,16 +283,17 @@ public final class PackIndexer {
                 continue;
             }
             if (!Files.isDirectory(root)) {
-                out.skipped.add(folder + "/ (папки нет)");
+                out.skipped.add(folder + "/ (папки нет)"); // run() refuses it if the published list had files there
                 continue;
             }
-            walk(packDir, root, folder, cache, seenLower, present, out, entries);
+            walk(packDir, root, folder, cache, seenLower, present, presentFiles, out, entries);
         }
         return entries;
     }
 
     private static void walk(Path packDir, Path dir, String folder, HashCache cache, Map<String, String> seenLower,
-                             Set<String> present, Outcome out, List<Entry> entries) throws IOException {
+                             Set<String> present, Set<String> presentFiles, Outcome out, List<Entry> entries)
+            throws IOException {
         List<Path> listed;
         try (Stream<Path> s = Files.list(dir)) {
             listed = new ArrayList<>(s.toList());
@@ -225,25 +312,33 @@ public final class PackIndexer {
             String rel = child.getKey();
             Path p = child.getValue();
             String name = rel.substring(rel.lastIndexOf('/') + 1);
-            present.add(rel.toLowerCase(Locale.ROOT));
+            present.add(caseKey(rel));
             BasicFileAttributes attrs = Files.readAttributes(p, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
-            if (attrs.isSymbolicLink()) {
-                out.problems.add(rel + ": ссылка (положи сам файл или папку)");
-                continue;
+            if (!attrs.isDirectory()) {
+                presentFiles.add(caseKey(rel));
             }
-            if (name.startsWith(".")) {
+            if (name.startsWith(".")) { // hidden files, folders and links alike: servarium does not serve them
                 out.skipped.add(rel + (attrs.isDirectory() ? "/" : "") + " (скрытое: servarium такое не раздаёт)");
                 continue;
             }
+            String lower = name.toLowerCase(Locale.ROOT);
+            boolean temp = SKIP_NAMES.contains(lower) || SKIP_SUFFIXES.stream().anyMatch(lower::endsWith);
+            if (attrs.isSymbolicLink()) {
+                if (temp) {
+                    out.skipped.add(rel + " (временный файл)");
+                } else {
+                    out.problems.add(rel + ": ссылка (положи сам файл или папку)");
+                }
+                continue;
+            }
             if (attrs.isDirectory()) {
-                walk(packDir, p, folder, cache, seenLower, present, out, entries);
+                walk(packDir, p, folder, cache, seenLower, present, presentFiles, out, entries);
                 continue;
             }
             if (!attrs.isRegularFile()) {
                 continue;
             }
-            String lower = name.toLowerCase(Locale.ROOT);
-            if (SKIP_NAMES.contains(lower) || SKIP_SUFFIXES.stream().anyMatch(lower::endsWith)) {
+            if (temp) {
                 out.skipped.add(rel + " (временный файл)");
                 continue;
             }
@@ -252,7 +347,7 @@ public final class PackIndexer {
                 out.problems.add(rel + ": " + why + " (лаунчер отклонит такой список)");
                 continue;
             }
-            String key = rel.toLowerCase(Locale.ROOT);
+            String key = caseKey(rel);
             if (seenLower.containsKey(key)) {
                 out.problems.add(rel + ": отличается от " + seenLower.get(key) + " только регистром");
                 continue;
@@ -261,8 +356,13 @@ public final class PackIndexer {
                 out.problems.add(rel + ": файл больше 2 ГБ");
                 continue;
             }
+            String digest = cache.sha256(rel, p, attrs);
+            if (digest == null) { // FIX: changed while being hashed (upload still running)
+                out.problems.add(rel + ": файл меняется (ещё загружается?) — дождись конца загрузки и перезапусти сервер");
+                continue;
+            }
             seenLower.put(key, rel);
-            entries.add(new Entry(rel, cache.sha256(rel, p, attrs), attrs.size()));
+            entries.add(new Entry(rel, digest, attrs.size()));
         }
     }
 
@@ -303,7 +403,7 @@ public final class PackIndexer {
         Map<String, Entry> m = new LinkedHashMap<>();
         for (String name : List.of(cfg.manifestName, cfg.extraManifestName)) {
             JsonObject o = readJson(packDir.resolve(name));
-            if (o == null || !o.has("files")) continue;
+            if (o == null || !o.has("files") || !o.get("files").isJsonArray()) continue; // FIX: "files": null/{}/""
             for (JsonElement el : o.getAsJsonArray("files")) {
                 try {
                     JsonObject f = el.getAsJsonObject();
@@ -319,43 +419,81 @@ public final class PackIndexer {
 
     static JsonObject readJson(Path file) {
         try {
-            if (!Files.isRegularFile(file)) return null;
-            JsonElement e = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8));
+            String text = readText(file);
+            if (text == null) return null;
+            JsonElement e = JsonParser.parseString(text);
             return e.isJsonObject() ? e.getAsJsonObject() : null;
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** FIX: size cap, so a stray multi-GB file named manifest.json cannot throw OutOfMemoryError (an Error). */
+    static String readText(Path file) {
+        try {
+            if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) || Files.size(file) > 64L * 1024 * 1024) return null;
+            return Files.readString(file, StandardCharsets.UTF_8);
         } catch (IOException | RuntimeException e) {
             return null;
         }
     }
 
-    private static boolean sameFiles(JsonObject manifest, List<Entry> entries) {
-        if (!manifest.has("files")) return false;
-        Set<Entry> before = new HashSet<>();
+    /**
+     * The published file's version if it parses as strict JSON (what the launcher's Python json.loads accepts: no
+     * BOM, comments, single quotes or trailing data), every field has the type launchers require, and it lists exactly
+     * these folders, files and extra manifests. Otherwise null, and the file is rewritten.
+     */
+    static String sameContent(Path file, Map<String, String> folders, List<Entry> files, String extraName) {
+        String text = readText(file);
+        if (text == null || text.startsWith("\uFEFF")) return null;
         try {
-            for (JsonElement el : manifest.getAsJsonArray("files")) {
-                JsonObject f = el.getAsJsonObject();
-                before.add(new Entry(f.get("path").getAsString(), f.get("sha256").getAsString(), f.get("size").getAsLong()));
+            com.google.gson.stream.JsonReader reader = new com.google.gson.stream.JsonReader(new java.io.StringReader(text));
+            reader.setLenient(false);
+            JsonElement root = new Gson().getAdapter(JsonElement.class).read(reader);
+            if (reader.peek() != com.google.gson.stream.JsonToken.END_DOCUMENT || !root.isJsonObject()) return null;
+            JsonObject o = root.getAsJsonObject();
+            if (!isString(o.get("version")) || !isString(o.get("updated")) || !o.has("folders") || !o.get("folders").isJsonObject()
+                    || !o.has("files") || !o.get("files").isJsonArray()) {
+                return null;
             }
-        } catch (RuntimeException e) {
-            return false;
+            Map<String, String> beforeFolders = new LinkedHashMap<>();
+            for (Map.Entry<String, JsonElement> e : o.getAsJsonObject("folders").entrySet()) {
+                if (!isString(e.getValue())) return null;
+                beforeFolders.put(e.getKey(), e.getValue().getAsString());
+            }
+            Set<Entry> before = new HashSet<>();
+            for (JsonElement el : o.getAsJsonArray("files")) {
+                if (!el.isJsonObject()) return null;
+                JsonObject f = el.getAsJsonObject();
+                JsonElement size = f.get("size");
+                if (!isString(f.get("path")) || !isString(f.get("sha256")) || !(size instanceof com.google.gson.JsonPrimitive sp)
+                        || !sp.isNumber() || sp.getAsBigDecimal().scale() > 0) {
+                    return null;
+                }
+                before.add(new Entry(f.get("path").getAsString(), f.get("sha256").getAsString(), size.getAsLong()));
+            }
+            List<String> extras = new ArrayList<>();
+            if (o.has("extra_manifests")) {
+                if (!o.get("extra_manifests").isJsonArray()) return null;
+                for (JsonElement el : o.getAsJsonArray("extra_manifests")) {
+                    if (!isString(el)) return null;
+                    extras.add(el.getAsString());
+                }
+            }
+            boolean same = beforeFolders.equals(folders) && before.size() == files.size() && before.equals(new HashSet<>(files))
+                    && extras.equals(extraName == null ? List.of() : List.of(extraName));
+            return same ? o.get("version").getAsString() : null;
+        } catch (IOException | RuntimeException e) {
+            return null;
         }
-        return before.equals(new HashSet<>(entries));
     }
 
-    private static boolean sameFolders(JsonObject manifest, Map<String, String> folders) {
-        if (!manifest.has("folders") || !manifest.get("folders").isJsonObject()) return false;
-        Map<String, String> before = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonElement> e : manifest.getAsJsonObject("folders").entrySet()) {
-            before.put(e.getKey(), e.getValue().getAsString());
-        }
-        return before.equals(folders);
+    private static boolean isString(JsonElement e) {
+        return e instanceof com.google.gson.JsonPrimitive p && p.isString();
     }
 
-    private static boolean sameExtras(JsonObject manifest, String extraName) {
-        JsonArray before = manifest.has("extra_manifests") ? manifest.getAsJsonArray("extra_manifests") : new JsonArray();
-        List<String> names = new ArrayList<>();
-        before.forEach(e -> names.add(e.getAsString()));
-        return names.equals(extraName == null ? List.of() : List.of(extraName));
-    }
+
+
 
     private static String manifest(String version, String updated, Map<String, String> folders, List<Entry> files,
                                    String extraName) {
@@ -383,7 +521,14 @@ public final class PackIndexer {
     /** Hidden temp name (servarium does not serve it), then an atomic replace: readers see old or new, never half. */
     static void writeAtomically(Path target, String text) throws IOException {
         Path tmp = target.resolveSibling("." + target.getFileName() + ".writing");
-        Files.writeString(tmp, text, StandardCharsets.UTF_8);
+        // FIX: never write through a leftover link at the temp name, and flush before the rename (crash safety)
+        Files.deleteIfExists(tmp);
+        try (java.nio.channels.FileChannel ch = java.nio.channels.FileChannel.open(tmp,
+                java.nio.file.StandardOpenOption.CREATE_NEW, java.nio.file.StandardOpenOption.WRITE)) {
+            java.nio.ByteBuffer buf = java.nio.ByteBuffer.wrap(text.getBytes(StandardCharsets.UTF_8));
+            while (buf.hasRemaining()) ch.write(buf);
+            ch.force(true);
+        }
         try {
             Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (AtomicMoveNotSupportedException e) {
@@ -409,8 +554,9 @@ public final class PackIndexer {
             if (o != null) {
                 for (Map.Entry<String, JsonElement> e : o.entrySet()) {
                     try {
-                        JsonArray a = e.getValue().getAsJsonArray();
-                        c.data.put(e.getKey(), new Object[]{a.get(0).getAsLong(), a.get(1).getAsLong(), a.get(2).getAsString()});
+                        JsonArray a = e.getValue().getAsJsonArray(); // old 3-field entries fail here: re-hashed once
+                        c.data.put(e.getKey(), new Object[]{a.get(0).getAsLong(), a.get(1).getAsLong(), a.get(2).getAsLong(),
+                                a.get(3).getAsString()});
                     } catch (RuntimeException ignored) {
                         // stale or damaged entry: re-hash
                     }
@@ -419,18 +565,38 @@ public final class PackIndexer {
             return c;
         }
 
+        /** null if the file changed while it was being hashed. */
         String sha256(String rel, Path p, BasicFileAttributes attrs) throws IOException {
             used.add(rel);
             long size = attrs.size();
-            long mtime = attrs.lastModifiedTime().toMillis();
+            // FIX: nanoseconds, plus ctime: no tool can set ctime, so an upload/unpack that restores the old mtime on
+            // same-size new content (tar/unzip of a reproducible archive, WinSCP "preserve timestamp") still re-hashes
+            long mtime = attrs.lastModifiedTime().to(java.util.concurrent.TimeUnit.NANOSECONDS);
+            long ctime = ctime(p);
             Object[] hit = data.get(rel);
-            if (hit != null && Objects.equals(hit[0], size) && Objects.equals(hit[1], mtime)) {
-                return (String) hit[2];
+            if (hit != null && Objects.equals(hit[0], size) && Objects.equals(hit[1], mtime) && Objects.equals(hit[2], ctime)) {
+                return (String) hit[3];
             }
-            String digest = hash(p);
-            data.put(rel, new Object[]{size, mtime, digest});
+            long[] read = new long[1];
+            String digest = hash(p, read);
+            BasicFileAttributes after = Files.readAttributes(p, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+            if (read[0] != size || after.size() != size || !after.lastModifiedTime().equals(attrs.lastModifiedTime())
+                    || ctime(p) != ctime) {
+                data.remove(rel);
+                return null; // FIX: still being written: do not publish or cache a hash that matches no complete file
+            }
+            data.put(rel, new Object[]{size, mtime, ctime, digest});
             dirty = true;
             return digest;
+        }
+
+        static long ctime(Path p) {
+            try {
+                return ((java.nio.file.attribute.FileTime) Files.getAttribute(p, "unix:ctime", LinkOption.NOFOLLOW_LINKS))
+                        .to(java.util.concurrent.TimeUnit.NANOSECONDS);
+            } catch (IOException | RuntimeException e) {
+                return 0; // no unix view (Windows host): size + mtime only, as before
+            }
         }
 
         void save() throws IOException {
@@ -442,7 +608,8 @@ public final class PackIndexer {
                 JsonArray a = new JsonArray();
                 a.add((Long) e.getValue()[0]);
                 a.add((Long) e.getValue()[1]);
-                a.add((String) e.getValue()[2]);
+                a.add((Long) e.getValue()[2]);
+                a.add((String) e.getValue()[3]);
                 o.add(e.getKey(), a);
             }
             Files.createDirectories(file.getParent());
@@ -451,6 +618,10 @@ public final class PackIndexer {
     }
 
     static String hash(Path p) throws IOException {
+        return hash(p, new long[1]);
+    }
+
+    static String hash(Path p, long[] read) throws IOException {
         MessageDigest md;
         try {
             md = MessageDigest.getInstance("SHA-256");
@@ -462,6 +633,7 @@ public final class PackIndexer {
             int n;
             while ((n = in.read(buf)) > 0) {
                 md.update(buf, 0, n);
+                read[0] += n;
             }
         }
         StringBuilder sb = new StringBuilder(64);
