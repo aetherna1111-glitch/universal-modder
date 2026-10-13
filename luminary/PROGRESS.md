@@ -181,6 +181,11 @@ Single source of truth for resuming this work. Keep it short; update at mileston
 - Owner action:
   - Put both jars in the server's `mods/`, and `luminary-vsfix` also in `client-pack/mods/`.
   - Restart the server. Players get the 1-file update on their next Play.
+- Deployed (2026-10-13 15:33): the server rebuilt the live manifests itself (version `2026.10.13-153315`).
+  - Checked against the 2.1.3 build: 1,973 + 824 = 2,797 files, one added (`mods/luminary-vsfix-1.0.0.jar`,
+    served bytes match the built jar), none changed or removed. `manifest-extra.json` has the same files.
+  - The startup excerpt the owner sent shows only the usual VS, Lithium and Moonlight warnings.
+  - Still to confirm: the vsfix line in the server log, and a player on a moving ship.
 
 ## Owner actions (blocking production use)
 1. Rent a VPS + domain for the accounts service; deploy per docs/DEPLOYMENT.md §1.
