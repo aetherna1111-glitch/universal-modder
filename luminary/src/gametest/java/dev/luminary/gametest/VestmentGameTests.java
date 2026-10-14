@@ -50,7 +50,8 @@ public final class VestmentGameTests implements FabricGameTest {
 			// knocked out and looted: the bag is empty and the vestments are not loot
 			body.damage(body.getDamageSources().playerAttack(player), 1000f);
 			expect(body.isDown(), "down");
-			expect(LuminaryRuntime.get().orElseThrow().npc().behaviour().interactDown(body, player, ItemStack.EMPTY) == BehaviourService.DownInteraction.NOTHING, "nothing to loot");
+			expect(LuminaryRuntime.get().orElseThrow().npc().behaviour().interactDown(body, player, ItemStack.EMPTY) == BehaviourService.DownInteraction.STOLE_WEAPON, "an empty hand takes the blade");
+			expect(LuminaryRuntime.get().orElseThrow().npc().behaviour().interactDown(body, player, ItemStack.EMPTY) == BehaviourService.DownInteraction.NOTHING, "then nothing to loot");
 			expect(LuminArmorItem.wearsFullSet(body), "the set is still on him while he lies there");
 			expect(body.getBoundingBox().getXLength() > 1.0 && body.getBoundingBox().getYLength() < 0.8, "lying down he is a wide low box a player can click: " + body.getBoundingBox());
 			// an operator reset: same place, clean state, sword and set back

@@ -253,11 +253,9 @@ public final class BehaviourGameTests implements FabricGameTest {
 		PlayerEntity friend = ctx.createMockSurvivalPlayer();
 		hit(body, thief, 1000f);
 		expect(body.isDown(), "down");
-		expect(b.interactDown(body, thief, ItemStack.EMPTY) == BehaviourService.DownInteraction.NOTHING, "nothing to loot from an empty bag");
-		thief.setSneaking(true);
-		expect(b.interactDown(body, thief, ItemStack.EMPTY) == BehaviourService.DownInteraction.STOLE_WEAPON, "sneak + empty hand takes the blade");
-		thief.setSneaking(false);
-		expect(b.interactDown(body, thief, ItemStack.EMPTY) == BehaviourService.DownInteraction.NOTHING, "it cannot be taken twice");
+		expect(b.interactDown(body, thief, new ItemStack(Items.STICK)) == BehaviourService.DownInteraction.NOTHING, "a stick in hand: neither food nor an empty hand");
+		expect(b.interactDown(body, thief, ItemStack.EMPTY) == BehaviourService.DownInteraction.STOLE_WEAPON, "an empty hand takes the blade first");
+		expect(b.interactDown(body, thief, ItemStack.EMPTY) == BehaviourService.DownInteraction.NOTHING, "it cannot be taken twice, and the bag is empty");
 		WeaponCustody custody = record.weapon();
 		expect(custody.custody() == WeaponCustody.Custody.STOLEN, "custody STOLEN");
 		UUID stolenInstance = custody.instanceId();

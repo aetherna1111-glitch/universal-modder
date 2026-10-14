@@ -864,10 +864,8 @@ public final class BehaviourService {
 			state.markDirty();
 			return DownInteraction.HELPED;
 		}
-		if (inHand.isEmpty() && player.isSneaking()) {
-			if (record.weapon().custody() != WeaponCustody.Custody.NPC) {
-				return DownInteraction.NOTHING;
-			}
+		// an empty hand (no sneaking: the pack's Carry On takes sneak + empty hand for lifting the body) takes the blade first, then the bag
+		if (inHand.isEmpty() && record.weapon().custody() == WeaponCustody.Custody.NPC) {
 			Optional<WeaponCustody.State> taken = record.weapon().onTaken(player.getUuid(), now, config.theftDuration());
 			if (taken.isEmpty()) {
 				return DownInteraction.NOTHING;

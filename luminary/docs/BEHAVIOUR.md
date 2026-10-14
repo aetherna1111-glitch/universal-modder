@@ -129,3 +129,8 @@ Three layers read a chat line, in order:
    the vestments, this player's points, tasks, purchases, karma and worthiness, today's shop, how to deal with him),
    and explicit answering rules (a greeting gets a greeting, a question a direct answer, no questions-only replies,
    no repeating earlier turns). Work cues were widened (напили, насобирай, захвати, притащи, отнеси, выплави…).
+
+## The downed body without sneaking (2026-10-14)
+The pack's Carry On takes sneak + empty hand (it lifts the body), so nothing of Lumin's needs sneaking any more: on a
+downed Lumin an empty hand takes the blade first (while it is his), then searches the bag; food helps him up. Talking is
+by chat or the screen's «Поговорить» button; sneak + right-click still talks only when Carry On is not installed.

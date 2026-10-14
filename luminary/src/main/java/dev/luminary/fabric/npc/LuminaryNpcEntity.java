@@ -274,7 +274,7 @@ public class LuminaryNpcEntity extends PathAwareEntity {
 				LuminaryRuntime.get().ifPresent(rt -> {
 					var result = rt.npc().behaviour().interactDown(this, player, inHand);
 					if (result == BehaviourService.DownInteraction.NOTHING) {
-						String key = player.isSneaking() && inHand.isEmpty() ? "npc.luminary.down.no_weapon" : inHand.isEmpty() ? "npc.luminary.down.bag_empty" : "npc.luminary.down.hint";
+						String key = inHand.isEmpty() ? "npc.luminary.down.bag_empty" : "npc.luminary.down.hint";
 						player.sendMessage(net.minecraft.text.Text.translatable(key).formatted(net.minecraft.util.Formatting.GRAY, net.minecraft.util.Formatting.ITALIC), true);
 					}
 				});
@@ -286,8 +286,8 @@ public class LuminaryNpcEntity extends PathAwareEntity {
 				});
 			} else if (GearManager.isTool(inHand) || GearManager.isArmor(inHand)) {
 				LuminaryRuntime.get().ifPresent(rt -> rt.npc().offer(this, player, inHand));
-			} else if (player.isSneaking()) {
-				LuminaryRuntime.get().ifPresent(rt -> rt.npc().talk(this, player));
+			} else if (player.isSneaking() && !net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("carryon")) {
+				LuminaryRuntime.get().ifPresent(rt -> rt.npc().talk(this, player));   // sneak + right-click talks, unless Carry On owns that gesture
 			} else if (player instanceof net.minecraft.server.network.ServerPlayerEntity sp && npcId != null
 					&& LuminaryRuntime.get().map(rt -> rt.npc().trade().trades(npcId)).orElse(false)) {
 				// a plain right-click opens his dialogue screen: quests, the shop, a look at his gear; conversation is by chat (or sneak + right-click)
