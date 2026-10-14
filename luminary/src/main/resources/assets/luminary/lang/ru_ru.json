@@ -328,5 +328,9 @@
   "screen.luminary.trade.standing.wary": "Настороженность",
   "screen.luminary.trade.standing.hostile": "Враждебность",
   "screen.luminary.trade.unworthy": "Недостоин",
-  "luminary.trade.unworthy": "Этот человек недостоин получить священный меч."
+  "luminary.trade.unworthy": "Этот человек недостоин получить священный меч.",
+  "screen.luminary.trade.donate": "Пожертвовать %s ✧",
+  "screen.luminary.trade.karma.alms": "Пожертвование: %s изумрудов = +%s кармы.",
+  "luminary.trade.not_enough_emeralds": "Не хватает изумрудов для подаяния.",
+  "npc.luminary.trade.donation": "Твои подаяния очищают твою душу и смывают грехи."
 }

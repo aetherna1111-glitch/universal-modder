@@ -75,6 +75,11 @@ public final class TradeScreen extends Screen {
 		questTab = addDrawableChild(new ThemeButton(tabX, tabY, 70, 16, Text.translatable("screen.luminary.trade.tab.quests"), b -> switchTab(Tab.QUESTS), tab == Tab.QUESTS));
 		shopTab = addDrawableChild(new ThemeButton(tabX + 74, tabY, 70, 16, Text.translatable("screen.luminary.trade.tab.shop"), b -> switchTab(Tab.SHOP), tab == Tab.SHOP));
 		addDrawableChild(new ThemeButton(tabX + 148, tabY, 64, 16, Text.translatable("screen.luminary.trade.tab.gear"), b -> send(TradeManager.ACTION_GEAR, ""), false));
+		// alms under the karma lines: emeralds for karma
+		ThemeButton donate = new ThemeButton(x0 + 10, y0 + 184, LEFT_W - 20, 14, Text.translatable("screen.luminary.trade.donate", dev.luminary.core.npc.relationship.KarmaEffects.DONATION_EMERALDS),
+				b -> send(TradeManager.ACTION_DONATE, ""), false);
+		donate.active = client.player != null && client.player.getInventory().count(net.minecraft.item.Items.EMERALD) >= dev.luminary.core.npc.relationship.KarmaEffects.DONATION_EMERALDS;
+		addDrawableChild(donate);
 		// bottom row: talk and close
 		addDrawableChild(new ThemeButton(x0 + 8, y0 + H - 24, LEFT_W - 16, 16, Text.translatable("screen.luminary.trade.talk"), b -> {
 			send(TradeManager.ACTION_TALK, "");
@@ -273,6 +278,7 @@ public final class TradeScreen extends Screen {
 		out.add(Text.empty());
 		out.add(Text.translatable(snap.worthy ? "screen.luminary.trade.karma.worthy" : "screen.luminary.trade.karma.unworthy").formatted(snap.worthy ? Formatting.GREEN : Formatting.RED));
 		out.add(Text.translatable("screen.luminary.trade.karma.how").formatted(Formatting.DARK_GRAY, Formatting.ITALIC));
+		out.add(Text.translatable("screen.luminary.trade.karma.alms", dev.luminary.core.npc.relationship.KarmaEffects.DONATION_EMERALDS, dev.luminary.core.npc.relationship.KarmaEffects.DONATION_KARMA).formatted(Formatting.DARK_GRAY, Formatting.ITALIC));
 		return out;
 	}
 

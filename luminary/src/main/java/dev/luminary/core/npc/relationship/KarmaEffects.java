@@ -11,6 +11,9 @@ public final class KarmaEffects {
 	public static final double MAX_LUCK = 4.0;
 	/** Traders' markup at karma -100: three quarters more; nothing at zero or above. */
 	public static final double MAX_MARKUP = 0.75;
+	/** Alms: this many emeralds to the NPC buy {@value #DONATION_KARMA} karma (the {@code DONATION} event). */
+	public static final int DONATION_EMERALDS = 10;
+	public static final int DONATION_KARMA = 5;
 
 	private KarmaEffects() {
 	}

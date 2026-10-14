@@ -389,6 +389,18 @@
           "It is yours. Not because I tired of carrying it, but because you asked for nothing in return. Your name is on it now.",
           "Take the blade. I would give it only to one who did all this and bought nothing. The harp is left to me, and that is fair."
         ]
+      },
+      "donation": {
+        "ru": [
+          "Твои подаяния очищают твою душу и смывают грехи. Я запомню это.",
+          "Ты отдал и не попросил ничего взамен. Так смывают грехи — не словами.",
+          "Принято. Подаяние очищает того, кто даёт, а не того, кто берёт."
+        ],
+        "en": [
+          "Your alms cleanse your soul and wash your sins away. I will remember it.",
+          "You gave and asked nothing back. That is how sins are washed away: not with words.",
+          "Accepted. Alms cleanse the one who gives, not the one who takes."
+        ]
       }
     }
   },

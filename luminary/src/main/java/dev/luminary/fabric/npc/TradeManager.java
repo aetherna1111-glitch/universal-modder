@@ -39,9 +39,10 @@ import java.util.function.Supplier;
 public final class TradeManager {
 	public static final Identifier OPEN_PACKET = new Identifier(Luminary.MOD_ID, "trade_open");
 	public static final Identifier ACTION_PACKET = new Identifier(Luminary.MOD_ID, "trade_action");
-	public static final int ACTION_ACCEPT = 0, ACTION_CLAIM = 1, ACTION_BUY = 2, ACTION_GEAR = 3, ACTION_TALK = 4, ACTION_REFRESH = 5;
+	public static final int ACTION_ACCEPT = 0, ACTION_CLAIM = 1, ACTION_BUY = 2, ACTION_GEAR = 3, ACTION_TALK = 4, ACTION_REFRESH = 5, ACTION_DONATE = 6;
 	public static final double REACH = 8.0;
 	public static final String REASON_UNWORTHY = "luminary.trade.unworthy";
+	public static final String REASON_NOT_ENOUGH_EMERALDS = "luminary.trade.not_enough_emeralds";
 
 	private final NpcService npc;
 	private final NpcWorldState state;
@@ -177,6 +178,40 @@ public final class TradeManager {
 			state.markDirty();
 		}
 		return changed;
+	}
+
+	/** Alms: {@value KarmaEffects#DONATION_EMERALDS} emeralds out of the player's inventory, {@value KarmaEffects#DONATION_KARMA} karma onto the ledger. */
+	public Result donate(LuminaryId id, PlayerEntity player) {
+		int need = dev.luminary.core.npc.relationship.KarmaEffects.DONATION_EMERALDS;
+		if (count(player, net.minecraft.item.Items.EMERALD) < need) {
+			return Result.fail(REASON_NOT_ENOUGH_EMERALDS);
+		}
+		int left = need;
+		for (int i = 0; i < player.getInventory().size() && left > 0; i++) {
+			ItemStack s = player.getInventory().getStack(i);
+			if (s.isOf(net.minecraft.item.Items.EMERALD)) {
+				int take = Math.min(left, s.getCount());
+				s.decrement(take);
+				left -= take;
+			}
+		}
+		player.getInventory().markDirty();
+		state.roster().ensureRecord(id).relationships().apply(player.getUuid(), dev.luminary.core.npc.relationship.RelationshipEvent.DONATION, clock.get(), state.roster().rules().relationship());
+		npc.behaviour().applyKarmaLuck(player);
+		npc.behaviour().remember(id, MemoryKind.RECENT_INTERACTION, player.getUuid(), "donation", player.getGameProfile().getName() + " gave me " + need + " emeralds and asked nothing");
+		state.markDirty();
+		return Result.OK;
+	}
+
+	static int count(PlayerEntity player, Item item) {
+		int n = 0;
+		for (int i = 0; i < player.getInventory().size(); i++) {
+			ItemStack s = player.getInventory().getStack(i);
+			if (s.isOf(item)) {
+				n += s.getCount();
+			}
+		}
+		return n;
 	}
 
 	public Result buy(LuminaryId id, PlayerEntity player, int index) {
@@ -376,6 +411,10 @@ public final class TradeManager {
 				}
 				r = buy(id, player, index);
 				line = r.ok() ? npc.behaviour().line(id, "trade_bought", clock.get().getEpochSecond()).orElse("") : "";
+			}
+			case ACTION_DONATE -> {
+				r = donate(id, player);
+				line = r.ok() ? npc.behaviour().line(id, "donation", clock.get().getEpochSecond()).orElse(Text.translatable("npc.luminary.trade.donation").getString()) : "";
 			}
 			case ACTION_GEAR -> {
 				player.openHandledScreen(GearViewScreenHandler.factory(body));

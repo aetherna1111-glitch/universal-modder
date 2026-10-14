@@ -28,5 +28,7 @@ public enum RelationshipEvent {
 	/** Took the NPC's ordinary belongings while it was knocked out. */
 	LOOTED_WHILE_DOWN,
 	/** Finished a task the NPC handed out. */
-	QUEST_DONE
+	QUEST_DONE,
+	/** Gave the NPC emeralds for nothing in return: alms that wash a wrong away. */
+	DONATION
 }

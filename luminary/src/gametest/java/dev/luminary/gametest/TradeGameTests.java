@@ -220,6 +220,13 @@ public final class TradeGameTests implements FabricGameTest {
 		net.minecraft.village.TradeOffer first = villager.getOffers().get(0);
 		int extra = dev.luminary.core.npc.relationship.KarmaEffects.extraPrice(first.getOriginalFirstBuyItem().getCount(), dev.luminary.core.npc.relationship.KarmaEffects.markup(karma));
 		expect(extra > 0 && first.getSpecialPrice() >= extra, "the price went up by at least " + extra + ": special=" + first.getSpecialPrice());
+		// alms: ten emeralds buy five karma, none without them
+		Result poor = trade.donate(ID, player);
+		expect(!poor.ok() && poor.reasonKey().equals(TradeManager.REASON_NOT_ENOUGH_EMERALDS), "no emeralds, no alms");
+		player.giveItemStack(new ItemStack(net.minecraft.item.Items.EMERALD, 12));
+		double before = b.karmaOf(player.getUuid());
+		expect(trade.donate(ID, player).ok(), "alms accepted");
+		expect(Math.abs(b.karmaOf(player.getUuid()) - before - 5) < 0.01 && count(player, net.minecraft.item.Items.EMERALD) == 2, "+5 karma for 10 emeralds: " + b.karmaOf(player.getUuid()) + ", emeralds left " + count(player, net.minecraft.item.Items.EMERALD));
 		// the ledger reset does not forgive: karma is the relationship, not the trade
 		trade.reset(ID, player);
 		expect(b.karmaOf(player.getUuid()) < 0, "a wiped ledger keeps the karma");

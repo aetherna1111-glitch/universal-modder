@@ -328,5 +328,9 @@
   "screen.luminary.trade.standing.wary": "Wary",
   "screen.luminary.trade.standing.hostile": "Hostile",
   "screen.luminary.trade.unworthy": "Unworthy",
-  "luminary.trade.unworthy": "This one is not worthy of the holy sword."
+  "luminary.trade.unworthy": "This one is not worthy of the holy sword.",
+  "screen.luminary.trade.donate": "Donate %s ✧",
+  "screen.luminary.trade.karma.alms": "Alms: %s emeralds = +%s karma.",
+  "luminary.trade.not_enough_emeralds": "Not enough emeralds for alms.",
+  "npc.luminary.trade.donation": "Your alms cleanse your soul and wash your sins away."
 }
