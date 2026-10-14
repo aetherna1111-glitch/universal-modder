@@ -92,7 +92,7 @@ final class TradeScreenShot {
 				row("three_essences", 1, 1, 3, 30, false, false, "soulsweapons:chaos_monarch"),
 				row("trial_of_the_envoy", 4, 0, 5, 0, true, true, "archon:null"));
 		return new TradeScreen.Snapshot(-1, Text.literal("Люмин"), "Что тебе нужно? Я плачу своими очками за то, что считаю важным, и продаю то, что мне самому дорого.", "",
-				22, 2, 0, false, offers, quests);
+				22, 2, 0, false, -35, 12, 30, "WARY", false, -1.5, 0.26, offers, quests);
 	}
 
 	private static TradeScreen.QuestRow row(String name, int state, int progress, int required, int points, boolean special, boolean reset, String entity) {

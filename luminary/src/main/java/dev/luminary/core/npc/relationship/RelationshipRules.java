@@ -41,6 +41,7 @@ public record RelationshipRules(Map<RelationshipEvent, Delta> deltas, Duration t
 		d.put(RelationshipEvent.RETURNED_WEAPON, new Delta(15, 20, -20));
 		d.put(RelationshipEvent.HELPED_WHILE_DOWN, new Delta(12, 15, -30));
 		d.put(RelationshipEvent.LOOTED_WHILE_DOWN, new Delta(-6, -8, 5));
+		d.put(RelationshipEvent.QUEST_DONE, new Delta(3, 4, -5));
 		return d;
 	}
 }

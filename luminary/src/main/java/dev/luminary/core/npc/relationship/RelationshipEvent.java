@@ -26,5 +26,7 @@ public enum RelationshipEvent {
 	/** Fed or otherwise helped the NPC while it was knocked out. */
 	HELPED_WHILE_DOWN,
 	/** Took the NPC's ordinary belongings while it was knocked out. */
-	LOOTED_WHILE_DOWN
+	LOOTED_WHILE_DOWN,
+	/** Finished a task the NPC handed out. */
+	QUEST_DONE
 }

@@ -314,5 +314,19 @@
   "luminary.command.trade_completed": "Выполнено по указу: %s поручений у %s для %s; очков теперь %s.",
   "luminary.command.trade_reset": "Счёт у %s для %s стёрт: очки, поручения и покупки с нуля; переданный меч возвращён.",
   "luminary.command.trade_reset_nothing": "У %s нечего стирать для %s.",
-  "luminary.command.trade_points": "Очки %s: теперь %s."
+  "luminary.command.trade_points": "Очки %s: теперь %s.",
+  "screen.luminary.trade.karma": "Карма %s",
+  "screen.luminary.trade.karma.title": "Карма: как к тебе относятся",
+  "screen.luminary.trade.karma.trust": "Доверие %s · Угроза %s",
+  "screen.luminary.trade.karma.luck": "Удача %s (атрибут игрока)",
+  "screen.luminary.trade.karma.prices": "Цены у торговцев: +%s%%",
+  "screen.luminary.trade.karma.worthy": "Достоин Испытания Посланника",
+  "screen.luminary.trade.karma.unworthy": "Недостоин Испытания Посланника",
+  "screen.luminary.trade.karma.how": "Карму дают поручения, помощь и подарки; отнимают удары, грабёж и кража. Со временем тянется к нулю.",
+  "screen.luminary.trade.standing.friend": "Друг",
+  "screen.luminary.trade.standing.neutral": "Знакомый",
+  "screen.luminary.trade.standing.wary": "Настороженность",
+  "screen.luminary.trade.standing.hostile": "Враждебность",
+  "screen.luminary.trade.unworthy": "Недостоин",
+  "luminary.trade.unworthy": "Этот человек недостоин получить священный меч."
 }

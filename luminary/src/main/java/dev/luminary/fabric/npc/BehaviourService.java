@@ -420,6 +420,38 @@ public final class BehaviourService {
 		return state.roster().ensureRecord(id).relationships().get(player, clock.get(), state.roster().rules().relationship());
 	}
 
+	/** The player's karma with every NPC, summed and clamped to -100..100: what luck and the traders go by. */
+	public double karmaOf(UUID player) {
+		Instant now = clock.get();
+		return dev.luminary.core.npc.relationship.KarmaEffects.total(state.roster().all().values().stream()
+				.mapToDouble(r -> r.relationships().get(player, now, state.roster().rules().relationship()).karma()));
+	}
+
+	/** Worthy of the NPC's blade: not WARY or HOSTILE with it, and karma not below zero. */
+	public boolean worthy(LuminaryId id, UUID player) {
+		return dev.luminary.core.npc.relationship.KarmaEffects.worthy(standing(id, player), karmaOf(player));
+	}
+
+	public static final UUID KARMA_LUCK_MODIFIER = UUID.fromString("7c2e9a51-1b3d-4f6e-8a90-5d2c7b1e4f30");
+
+	/** The luck attribute follows karma (±4 at most), as a modifier on the player, replaced whenever it changes. */
+	public void applyKarmaLuck(PlayerEntity player) {
+		var luck = player.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.GENERIC_LUCK);
+		if (luck == null) {
+			return;
+		}
+		double wanted = dev.luminary.core.npc.relationship.KarmaEffects.luck(karmaOf(player.getUuid()));
+		var current = luck.getModifier(KARMA_LUCK_MODIFIER);
+		if (current != null && Math.abs(current.getValue() - wanted) < 0.001) {
+			return;
+		}
+		luck.removeModifier(KARMA_LUCK_MODIFIER);
+		if (wanted != 0) {
+			luck.addPersistentModifier(new net.minecraft.entity.attribute.EntityAttributeModifier(KARMA_LUCK_MODIFIER, "Karma with the NPCs", wanted,
+					net.minecraft.entity.attribute.EntityAttributeModifier.Operation.ADDITION));
+		}
+	}
+
 	public void event(LuminaryId id, UUID player, RelationshipEvent event) {
 		state.roster().ensureRecord(id).relationships().apply(player, event, clock.get(), state.roster().rules().relationship());
 		state.markDirty();
@@ -772,6 +804,11 @@ public final class BehaviourService {
 	/** Server tick (bodies may be unloaded): due returns are honoured even without a body. */
 	public void tickServer() {
 		sanctuaries.tick(server.getTicks());
+		if (server.getTicks() % 100 == 7) {
+			for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
+				applyKarmaLuck(p);
+			}
+		}
 		if (server.getTicks() % 40 != 13) {
 			return;
 		}

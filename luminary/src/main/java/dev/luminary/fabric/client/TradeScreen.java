@@ -45,6 +45,7 @@ public final class TradeScreen extends Screen {
 	private final List<ButtonWidget> rowButtons = new ArrayList<>();
 	private ButtonWidget shopTab, questTab;
 	private int x0, y0;
+	private List<Text> karmaTooltip;
 
 	public TradeScreen(Snapshot snap) {
 		super(Text.translatable("screen.luminary.trade.title"));
@@ -99,7 +100,12 @@ public final class TradeScreen extends Screen {
 				rowButtons.add(addDrawableChild(b));
 			} else {
 				QuestRow q = snap.quests.get(idx);
-				if (q.state == 0) {        // AVAILABLE
+				if (q.state == 0 && q.special && !snap.worthy) {   // the blade is not for this one: no accepting
+					ThemeButton b = new ThemeButton(bx - 20, by, 74, 16, Text.translatable("screen.luminary.trade.unworthy"), btn -> {
+					}, false);
+					b.active = false;
+					rowButtons.add(addDrawableChild(b));
+				} else if (q.state == 0) {        // AVAILABLE
 					rowButtons.add(addDrawableChild(new ThemeButton(bx, by, 54, 16, Text.translatable("screen.luminary.trade.accept"), btn -> send(TradeManager.ACTION_ACCEPT, q.id), q.special)));
 				} else if (q.state == 2) { // CLAIMABLE
 					rowButtons.add(addDrawableChild(new ThemeButton(bx, by, 54, 16, Text.translatable("screen.luminary.trade.claim"), btn -> send(TradeManager.ACTION_CLAIM, q.id), true)));
@@ -141,6 +147,7 @@ public final class TradeScreen extends Screen {
 	@Override
 	public void render(DrawContext c, int mouseX, int mouseY, float delta) {
 		renderBackground(c);
+		karmaTooltip = null;
 		TextRenderer tr = textRenderer;
 		// frame
 		c.fill(x0 - 2, y0 - 2, x0 + W + 2, y0 + H + 2, GOLD_DIM);
@@ -165,6 +172,14 @@ public final class TradeScreen extends Screen {
 		Text pts = Text.literal("✦ " + snap.points).styled(s -> s.withColor(GOLD));
 		c.drawCenteredTextWithShadow(tr, pts, x0 + LEFT_W / 2, y0 + 138, GOLD);
 		c.drawCenteredTextWithShadow(tr, Text.translatable("screen.luminary.trade.points").styled(s -> s.withColor(MUTED)), x0 + LEFT_W / 2, y0 + 149, MUTED);
+		// karma: the number, his attitude, and what it does to luck and prices
+		int karmaColor = snap.karma < 0 ? RED : snap.karma > 0 ? GREEN : MUTED;
+		String karmaText = (snap.karma > 0 ? "+" : "") + (int) Math.round(snap.karma);
+		c.drawCenteredTextWithShadow(tr, Text.translatable("screen.luminary.trade.karma", karmaText).styled(s -> s.withColor(karmaColor)), x0 + LEFT_W / 2, y0 + 162, karmaColor);
+		c.drawCenteredTextWithShadow(tr, Text.translatable("screen.luminary.trade.standing." + snap.standing.toLowerCase(java.util.Locale.ROOT)).styled(s -> s.withColor(MUTED)), x0 + LEFT_W / 2, y0 + 172, MUTED);
+		if (mouseX >= x0 + 6 && mouseX < x0 + LEFT_W - 6 && mouseY >= y0 + 158 && mouseY < y0 + 182) {
+			karmaTooltip = karmaTooltip();
+		}
 		// right column: the list
 		int listX = x0 + LEFT_W + 8, listY = y0 + 30, listW = W - LEFT_W - 16, listH = ROWS * ROW_H;
 		c.fill(listX, listY - 2, listX + listW, listY + listH + 2, PANEL);
@@ -243,7 +258,22 @@ public final class TradeScreen extends Screen {
 		super.render(c, mouseX, mouseY, delta);
 		if (tooltip != null) {
 			c.drawTooltip(tr, tooltip, mouseX, mouseY);
+		} else if (karmaTooltip != null) {
+			c.drawTooltip(tr, karmaTooltip, mouseX, mouseY);
 		}
+	}
+
+	private List<Text> karmaTooltip() {
+		List<Text> out = new ArrayList<>();
+		out.add(Text.translatable("screen.luminary.trade.karma.title").formatted(Formatting.GOLD, Formatting.BOLD));
+		out.add(Text.translatable("screen.luminary.trade.karma.trust", (int) Math.round(snap.trust), (int) Math.round(snap.threat)).formatted(Formatting.GRAY));
+		String luck = (snap.luck > 0 ? "+" : "") + (snap.luck == Math.floor(snap.luck) ? Integer.toString((int) snap.luck) : Double.toString(snap.luck));
+		out.add(Text.translatable("screen.luminary.trade.karma.luck", luck).formatted(snap.luck < 0 ? Formatting.RED : snap.luck > 0 ? Formatting.GREEN : Formatting.GRAY));
+		out.add(Text.translatable("screen.luminary.trade.karma.prices", (int) Math.round(snap.markup * 100)).formatted(snap.markup > 0 ? Formatting.RED : Formatting.GRAY));
+		out.add(Text.empty());
+		out.add(Text.translatable(snap.worthy ? "screen.luminary.trade.karma.worthy" : "screen.luminary.trade.karma.unworthy").formatted(snap.worthy ? Formatting.GREEN : Formatting.RED));
+		out.add(Text.translatable("screen.luminary.trade.karma.how").formatted(Formatting.DARK_GRAY, Formatting.ITALIC));
+		return out;
 	}
 
 	private List<Text> questTooltip(QuestRow q) {
@@ -268,6 +298,9 @@ public final class TradeScreen extends Screen {
 		}
 		if (q.state == 4) {
 			out.add(Text.translatable("screen.luminary.trade.locked_hint", dev.luminary.core.npc.trade.TradeRules.SPECIAL_AFTER_QUESTS).formatted(Formatting.DARK_GRAY, Formatting.ITALIC));
+		}
+		if (q.special && !snap.worthy) {
+			out.add(Text.translatable("luminary.trade.unworthy").formatted(Formatting.RED));
 		}
 		return out;
 	}
@@ -310,6 +343,7 @@ public final class TradeScreen extends Screen {
 
 	/** One snapshot of the trade packet; read on the network thread, used on the render thread. */
 	public record Snapshot(int entityId, Text name, String greeting, String message, int points, int completed, int purchases, boolean specialAvailable,
+						   double karma, double trust, double threat, String standing, boolean worthy, double luck, double markup,
 						   List<Offer> offers, List<QuestRow> quests) {
 		static Snapshot read(PacketByteBuf buf) {
 			int entityId = buf.readVarInt();
@@ -318,6 +352,10 @@ public final class TradeScreen extends Screen {
 			String message = buf.readString(4096);
 			int points = buf.readVarInt(), completed = buf.readVarInt(), purchases = buf.readVarInt();
 			boolean special = buf.readBoolean();
+			double karma = buf.readDouble(), trust = buf.readDouble(), threat = buf.readDouble();
+			String standing = buf.readString(32);
+			boolean worthy = buf.readBoolean();
+			double luck = buf.readDouble(), markup = buf.readDouble();
 			int n = buf.readVarInt();
 			List<Offer> offers = new ArrayList<>();
 			for (int i = 0; i < n; i++) {
@@ -336,7 +374,7 @@ public final class TradeScreen extends Screen {
 				}
 				quests.add(new QuestRow(id, title, desc, state, progress, required, reward, sp, reset, kills));
 			}
-			return new Snapshot(entityId, name, greeting, message, points, completed, purchases, special, offers, quests);
+			return new Snapshot(entityId, name, greeting, message, points, completed, purchases, special, karma, trust, threat, standing, worthy, luck, markup, offers, quests);
 		}
 	}
 

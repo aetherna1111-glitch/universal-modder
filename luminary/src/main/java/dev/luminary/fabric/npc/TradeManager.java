@@ -41,6 +41,7 @@ public final class TradeManager {
 	public static final Identifier ACTION_PACKET = new Identifier(Luminary.MOD_ID, "trade_action");
 	public static final int ACTION_ACCEPT = 0, ACTION_CLAIM = 1, ACTION_BUY = 2, ACTION_GEAR = 3, ACTION_TALK = 4, ACTION_REFRESH = 5;
 	public static final double REACH = 8.0;
+	public static final String REASON_UNWORTHY = "luminary.trade.unworthy";
 
 	private final NpcService npc;
 	private final NpcWorldState state;
@@ -91,6 +92,9 @@ public final class TradeManager {
 
 	public Result accept(LuminaryId id, PlayerEntity player, LuminaryId quest) {
 		PlayerLedger ledger = ledger(id, player);
+		if (npc.dialogue().definitions().quest(quest).map(Quest::special).orElse(false) && !npc.behaviour().worthy(id, player.getUuid())) {
+			return Result.fail(REASON_UNWORTHY);   // the blade is not for someone he distrusts
+		}
 		Result r = service.accept(quest, ledger);
 		if (r.ok()) {
 			Quest q = npc.dialogue().definitions().quest(quest).orElseThrow();
@@ -108,6 +112,7 @@ public final class TradeManager {
 			return r;
 		}
 		Quest q = npc.dialogue().definitions().quest(questId).orElseThrow();
+		state.roster().ensureRecord(id).relationships().apply(player.getUuid(), dev.luminary.core.npc.relationship.RelationshipEvent.QUEST_DONE, clock.get(), state.roster().rules().relationship());
 		for (String itemId : q.rewardItems()) {
 			Identifier iid = Identifier.tryParse(itemId);
 			if (iid != null) {
@@ -141,6 +146,7 @@ public final class TradeManager {
 				continue;
 			}
 			n++;
+			state.roster().ensureRecord(id).relationships().apply(player.getUuid(), dev.luminary.core.npc.relationship.RelationshipEvent.QUEST_DONE, clock.get(), state.roster().rules().relationship());
 			for (String itemId : q.rewardItems()) {
 				Identifier iid = Identifier.tryParse(itemId);
 				if (iid != null) {
@@ -272,6 +278,15 @@ public final class TradeManager {
 		buf.writeVarInt(ledger.completed().size());
 		buf.writeVarInt(ledger.purchases());
 		buf.writeBoolean(ledger.specialAvailable());
+		dev.luminary.core.npc.relationship.Relationship rel = npc.behaviour().relationship(id, player.getUuid());
+		double karma = npc.behaviour().karmaOf(player.getUuid());
+		buf.writeDouble(karma);
+		buf.writeDouble(rel.trust());
+		buf.writeDouble(rel.threat());
+		buf.writeString(npc.behaviour().standing(id, player.getUuid()).name(), 32);
+		buf.writeBoolean(npc.behaviour().worthy(id, player.getUuid()));
+		buf.writeDouble(dev.luminary.core.npc.relationship.KarmaEffects.luck(karma));
+		buf.writeDouble(dev.luminary.core.npc.relationship.KarmaEffects.markup(karma));
 		buf.writeVarInt(offers.size());
 		for (ShopOffer o : offers) {
 			Item it = item(o).orElseThrow();

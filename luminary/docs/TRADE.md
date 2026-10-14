@@ -81,6 +81,19 @@ Trial of the Envoy, whose reward is his blade, with the player's name on it for 
 - **Lines** (character sheet groups, `lumin.json`): `trade_greeting`, `trade_claimable`, `trade_special`,
   `quest_accepted`, `quest_claimed`, `trade_bought`, `sword_given`.
 
+## Karma: luck, prices, worthiness
+Karma is the NPCs' relationship ledger (-100..100 per NPC, summed over every NPC and clamped, decaying towards zero
+with time): tasks (+3 each), help and gifts raise it; blows, looting and theft lower it. `KarmaEffects` (pure) turns it
+into:
+- **Luck**: the player's `generic.luck` attribute gets a modifier of karma/25 in half points, capped at ±4,
+  refreshed every 5 s per online player (`BehaviourService.applyKarmaLuck`). Per player, persistent.
+- **Traders' prices**: a villager (and every villager-derived trader) asks more of a player with negative karma:
+  up to +75% at karma -100 (`VillagerPricesMixin`, at the tail of vanilla's `prepareOffersFor`, so vanilla's
+  reputation discounts still apply first). Never a discount; the wandering trader is untouched.
+- **Worthiness**: the Trial of the Envoy is refused (`luminary.trade.unworthy`, the button reads «Недостоин») to a
+  player Lumin is WARY or HOSTILE with, or whose karma is below zero.
+The screen's left panel shows the karma and his attitude; hovering it shows trust, threat, the luck and the markup.
+
 ## Testing commands (op 3)
 - `/luminary npc trade lumin status [player]`: the ledger and every quest's state.
 - `/luminary npc trade lumin complete [player]`: all 13 story tasks done by decree (points and reward items as for

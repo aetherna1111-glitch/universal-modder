@@ -13,6 +13,7 @@
 		"client": ["dev.luminary.fabric.client.LuminaryClient"],
 		"thaumcraft-observer": ["dev.luminary.fabric.integration.ThaumcraftObserverEntrypoint"]
 	},
+	"mixins": ["luminary.mixins.json"],
 	"depends": {
 		"fabricloader": ">=0.16.0",
 		"minecraft": "1.20.1",

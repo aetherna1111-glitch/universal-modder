@@ -314,5 +314,19 @@
   "luminary.command.trade_completed": "By decree: %s tasks of %s done for %s; points now %s.",
   "luminary.command.trade_reset": "The ledger of %s for %s is wiped: points, tasks and purchases from zero; a given blade is reclaimed.",
   "luminary.command.trade_reset_nothing": "%s has nothing to wipe for %s.",
-  "luminary.command.trade_points": "Points of %s: now %s."
+  "luminary.command.trade_points": "Points of %s: now %s.",
+  "screen.luminary.trade.karma": "Karma %s",
+  "screen.luminary.trade.karma.title": "Karma: how they see you",
+  "screen.luminary.trade.karma.trust": "Trust %s · Threat %s",
+  "screen.luminary.trade.karma.luck": "Luck %s (player attribute)",
+  "screen.luminary.trade.karma.prices": "Traders' prices: +%s%%",
+  "screen.luminary.trade.karma.worthy": "Worthy of the Trial of the Envoy",
+  "screen.luminary.trade.karma.unworthy": "Not worthy of the Trial of the Envoy",
+  "screen.luminary.trade.karma.how": "Tasks, help and gifts raise karma; blows, looting and theft lower it. It drifts back to zero with time.",
+  "screen.luminary.trade.standing.friend": "Friend",
+  "screen.luminary.trade.standing.neutral": "Acquaintance",
+  "screen.luminary.trade.standing.wary": "Wary",
+  "screen.luminary.trade.standing.hostile": "Hostile",
+  "screen.luminary.trade.unworthy": "Unworthy",
+  "luminary.trade.unworthy": "This one is not worthy of the holy sword."
 }

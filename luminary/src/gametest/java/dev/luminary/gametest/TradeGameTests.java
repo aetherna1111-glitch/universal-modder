@@ -187,4 +187,43 @@ public final class TradeGameTests implements FabricGameTest {
 		npc().despawn(ID);
 		ctx.complete();
 	}
+
+	@GameTest(templateName = ARENA, tickLimit = 400, batchId = "trade-karma")
+	public void karmaChangesLuckAndTradersPricesAndTheUnworthyAreRefusedTheTrial(TestContext ctx) {
+		expect(npc().spawn(ID, ctx.getWorld(), Vec3d.ofBottomCenter(ctx.getAbsolutePos(new BlockPos(8, FLOOR_Y + 1, 8)))).ok(), "spawn");
+		TradeManager trade = npc().trade();
+		var b = npc().behaviour();
+		PlayerEntity player = ctx.createMockSurvivalPlayer();
+		expect(ctx.getWorld().spawnEntity(player), "player in the world");
+		expect(trade.completeAll(ID, player, false) == 5, "five tasks by decree");
+		expect(Math.abs(b.karmaOf(player.getUuid()) - 15.0) < 0.01, "each finished task is +3 karma: " + b.karmaOf(player.getUuid()));
+		expect(b.worthy(ID, player.getUuid()), "worthy with good karma");
+		b.applyKarmaLuck(player);
+		expect(Math.abs(player.getAttributeValue(net.minecraft.entity.attribute.EntityAttributes.GENERIC_LUCK) - 0.5) < 0.01, "+15 karma is half a point of luck: " + player.getAttributeValue(net.minecraft.entity.attribute.EntityAttributes.GENERIC_LUCK));
+		// three unprovoked blows: karma -24 from +15 → -9, threat 90: wary/hostile and in debt
+		NpcRoster.NpcRecord record = npc().roster().ensureRecord(ID);
+		for (int i = 0; i < 3; i++) {
+			record.relationships().apply(player.getUuid(), dev.luminary.core.npc.relationship.RelationshipEvent.ATTACKED, npc().now(), npc().roster().rules().relationship());
+		}
+		double karma = b.karmaOf(player.getUuid());
+		expect(karma < 0, "karma below zero after the blows: " + karma);
+		expect(!b.worthy(ID, player.getUuid()), "no longer worthy");
+		Result r = trade.accept(ID, player, quest("trial"));
+		expect(!r.ok() && r.reasonKey().equals(TradeManager.REASON_UNWORTHY), "the trial is refused to the unworthy: " + r.reasonKey());
+		b.applyKarmaLuck(player);
+		expect(player.getAttributeValue(net.minecraft.entity.attribute.EntityAttributes.GENERIC_LUCK) < 0, "bad karma is bad luck: " + player.getAttributeValue(net.minecraft.entity.attribute.EntityAttributes.GENERIC_LUCK));
+		// a villager asks more of this player
+		net.minecraft.entity.passive.VillagerEntity villager = ctx.spawnEntity(EntityType.VILLAGER, new BlockPos(4, FLOOR_Y + 1, 4));
+		villager.setVillagerData(villager.getVillagerData().withProfession(net.minecraft.village.VillagerProfession.LIBRARIAN).withLevel(1));
+		expect(!villager.getOffers().isEmpty(), "the librarian has offers");
+		villager.interact(player, net.minecraft.util.Hand.MAIN_HAND);
+		net.minecraft.village.TradeOffer first = villager.getOffers().get(0);
+		int extra = dev.luminary.core.npc.relationship.KarmaEffects.extraPrice(first.getOriginalFirstBuyItem().getCount(), dev.luminary.core.npc.relationship.KarmaEffects.markup(karma));
+		expect(extra > 0 && first.getSpecialPrice() >= extra, "the price went up by at least " + extra + ": special=" + first.getSpecialPrice());
+		// the ledger reset does not forgive: karma is the relationship, not the trade
+		trade.reset(ID, player);
+		expect(b.karmaOf(player.getUuid()) < 0, "a wiped ledger keeps the karma");
+		npc().despawn(ID);
+		ctx.complete();
+	}
 }
