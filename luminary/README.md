@@ -429,6 +429,12 @@ glance, a whisper, a warning, a fight or a return.
   marks in a 12-block beam of light through everything in line for 3 + 2 × marks damage (undead ×1.5 and set on
   fire), everything struck glows 10 s; 6 s cooldown. **Sanctuary** (sneak + use, 3 marks) plants an 8 s circle of
   light, radius 5: players and Lumin inside regenerate and resist, hostile mobs weaken and glow; 30 s cooldown.
+  **Unique parameters** (the pack's blue "+x" lines): +0.10 Revelation chance (a hit gives two marks and heals the
+  bearer 1) and +25 % holy damage to marked (glowing) targets, applied after the hit as magic damage that ignores
+  armour. **Unique effect, Light of the Catalog:** while wielded, hostile mobs within 4 blocks take 1 damage (undead 2)
+  every 2 s and glow. **Runes** in the two sockets: the Rune of Clarity (+1 Luck, marks fade twice as slowly) and the
+  Netherfused Rune of Embers (every hit kindles 4 s; a hit on a burning target heals 1). The tooltip follows the
+  pack's unique-weapon layout: tier, parameters, unique effect, right-click and sneak abilities with ⌛ cooldowns, sockets.
   **Blessings:** every sword the custody mints carries `weapon.blessings` (default: Sharpness VI, Smite VII,
   Looting IV, Sweeping Edge III, Fire Aspect II, Knockback I; from MC Dungeons Weapons Smiting III, Radiance III,
   Thundering III, Committed III, Phantom's Mark III, Leeching III, Swirling III, Guarding Strike III, Echo II; from

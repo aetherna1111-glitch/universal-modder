@@ -48,6 +48,8 @@ public final class SwordGameTests implements FabricGameTest {
 		ItemStack custom = HolySwordItem.bound(LuminaryItems.LUMIN_BLADE, LuminaryId.parse("luminary:npc/lumin"), UUID.randomUUID());
 		expect(custom.getEnchantments().size() == 1 && net.minecraft.enchantment.EnchantmentHelper.getLevel(net.minecraft.enchantment.Enchantments.SHARPNESS, custom) == 2, "configured blessings, malformed entries ignored");
 		HolySwordItem.setBlessings(HolySwordItem.DEFAULT_BLESSINGS);
+		expect(HolySwordItem.hasRune(sword, HolySwordItem.RUNE_CLARITY) && HolySwordItem.hasRune(sword, HolySwordItem.RUNE_EMBERS), "both sockets filled");
+		expect(sword.getAttributeModifiers(EquipmentSlot.MAINHAND).get(EntityAttributes.GENERIC_LUCK).stream().mapToDouble(m -> m.getValue()).sum() == 1.0, "Rune of Clarity: +1 luck");
 		PlayerEntity player = ctx.createMockSurvivalPlayer();
 		Vec3d at = ctx.getAbsolute(new Vec3d(4.5, FLOOR_Y + 1, 8.5));
 		player.refreshPositionAndAngles(at.x, at.y, at.z, -90f, 0f);   // looking +X
@@ -71,6 +73,17 @@ public final class SwordGameTests implements FabricGameTest {
 		expect(HolySwordItem.evidence(sword) == 0, "marks spent");
 		expect(player.getItemCooldownManager().isCoolingDown(sword.getItem()), "on cooldown");
 		expect(!sword.use(ctx.getWorld(), player, Hand.MAIN_HAND).getResult().isAccepted(), "no second verdict on cooldown or without marks");
+		// the marked take a quarter more as holy damage that ignores armour; embers kindle
+		ZombieEntity marked = ctx.spawnEntity(EntityType.ZOMBIE, new BlockPos(4, FLOOR_Y + 1, 4));
+		marked.setAiDisabled(true);
+		marked.addStatusEffect(new net.minecraft.entity.effect.StatusEffectInstance(StatusEffects.GLOWING, 200));
+		float mb = marked.getHealth();
+		expect(marked.damage(ctx.getWorld().getDamageSources().playerAttack(player), 4f), "a plain 4-damage hit lands");
+		float afterPlain = marked.getHealth();
+		sword.getItem().postHit(sword, marked, player);
+		float bonus = HolySwordItem.holyBonus(sword);
+		expect(Math.abs((afterPlain - marked.getHealth()) - bonus) < 0.01f, "a quarter of the sword's damage follows as holy damage despite the hit's invulnerability frames: " + afterPlain + " -> " + marked.getHealth() + " expected -" + bonus + " (from " + mb + ")");
+		expect(marked.isOnFire(), "the Rune of Embers kindles the target");
 		ctx.waitAndRun(2, () -> {
 			float expected = HolySwordItem.VERDICT_BASE + HolySwordItem.VERDICT_PER_EVIDENCE * HolySwordItem.MAX_EVIDENCE;   // 17
 			expect(cowBefore - cow.getHealth() >= Math.min(expected, cowBefore) - 0.01f || !cow.isAlive(), "the cow in line was struck: " + cowBefore + " -> " + cow.getHealth());
@@ -79,6 +92,25 @@ public final class SwordGameTests implements FabricGameTest {
 			expect(!zombie.isAlive() || zombie.hasStatusEffect(StatusEffects.GLOWING), "struck things glow");
 			ctx.complete();
 		});
+	}
+
+	@GameTest(templateName = ARENA, tickLimit = 200)
+	public void theLightOfTheCatalogHurtsAndMarksHostilesAroundTheBearer(TestContext ctx) {
+		PlayerEntity player = ctx.createMockSurvivalPlayer();
+		Vec3d at = ctx.getAbsolute(new Vec3d(8.5, FLOOR_Y + 1, 8.5));
+		player.refreshPositionAndAngles(at.x, at.y, at.z, 0f, 0f);
+		expect(ctx.getWorld().spawnEntity(player), "player in the world");
+		ZombieEntity near = ctx.spawnEntity(EntityType.ZOMBIE, new BlockPos(10, FLOOR_Y + 1, 8));
+		ZombieEntity far = ctx.spawnEntity(EntityType.ZOMBIE, new BlockPos(20, FLOOR_Y + 1, 20));
+		CowEntity cow = ctx.spawnEntity(EntityType.COW, new BlockPos(8, FLOOR_Y + 1, 10));
+		near.setAiDisabled(true);
+		far.setAiDisabled(true);
+		float nb = near.getHealth(), fb = far.getHealth(), cb = cow.getHealth();
+		int touched = HolySwordItem.aura(ctx.getWorld(), player);
+		expect(touched == 1, "one hostile within 4 blocks: " + touched);
+		expect(nb - near.getHealth() >= 2f - 0.01f && near.hasStatusEffect(StatusEffects.GLOWING), "the undead nearby takes 2 and glows: " + nb + " -> " + near.getHealth());
+		expect(far.getHealth() == fb && cow.getHealth() == cb, "the far zombie and the cow are untouched");
+		ctx.complete();
 	}
 
 	@GameTest(templateName = ARENA, tickLimit = 400)

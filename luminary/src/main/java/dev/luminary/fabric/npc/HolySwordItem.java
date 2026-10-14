@@ -61,6 +61,20 @@ public final class HolySwordItem extends Item {
 	public static final double ATTACK_SPEED = -2.3;    // 1.7 swings per second
 	/** The sword's own rarity tier, above the pack's mythic: the name is drawn in this colour, bold, and the tooltip names the tier. */
 	public static final int GODLIKE_COLOR = 0xFFE27A;
+
+	/** Unique parameters (the blue "+x" lines): chance per hit of a Revelation, bonus holy damage against marked (glowing) targets. */
+	public static final double REVELATION_CHANCE = 0.10;
+	public static final double MARKED_BONUS = 0.25;
+	/** Unique effect: the Light of the Catalog, an aura around the bearer while the sword is in hand. */
+	public static final double AURA_RADIUS = 4.0;
+	public static final int AURA_PERIOD_TICKS = 40;
+	public static final float AURA_DAMAGE = 1.0f;
+	/** Runes in the two sockets. Clarity (runic): +1 luck and marks fade twice as slowly. Embers (netherfused): hits ignite, hitting a burning target heals. */
+	public static final String NBT_RUNE = "LuminaryRune";
+	public static final String NBT_NETHER_RUNE = "LuminaryNetherRune";
+	public static final String RUNE_CLARITY = "clarity";
+	public static final String RUNE_EMBERS = "embers";
+	private static final UUID LUCK_MODIFIER_ID = UUID.fromString("6d1a0f3e-4f0b-4d0a-9c7e-2e5b7a1c9d11");
 	public static final int EVIDENCE_FADE_TICKS = 600;
 	public static final double VERDICT_RANGE = 12.0;
 	public static final float VERDICT_BASE = 3.0f;
@@ -126,6 +140,8 @@ public final class HolySwordItem extends Item {
 		NbtCompound nbt = stack.getOrCreateNbt();
 		nbt.putString(NBT_OWNER, npc.toString());
 		nbt.putUuid(NBT_INSTANCE, instance);
+		nbt.putString(NBT_RUNE, RUNE_CLARITY);
+		nbt.putString(NBT_NETHER_RUNE, RUNE_EMBERS);
 		writeAttributes(stack, 0);
 		bless(stack);
 		return stack;
@@ -170,16 +186,56 @@ public final class HolySwordItem extends Item {
 				new EntityAttributeModifier(ATTACK_DAMAGE_MODIFIER_ID, "Weapon modifier", BASE_DAMAGE - 1.0 + marks * DAMAGE_PER_EVIDENCE, EntityAttributeModifier.Operation.ADDITION), EquipmentSlot.MAINHAND);
 		stack.addAttributeModifier(EntityAttributes.GENERIC_ATTACK_SPEED,
 				new EntityAttributeModifier(ATTACK_SPEED_MODIFIER_ID, "Weapon modifier", ATTACK_SPEED, EntityAttributeModifier.Operation.ADDITION), EquipmentSlot.MAINHAND);
+		if (hasRune(stack, RUNE_CLARITY)) {
+			stack.addAttributeModifier(EntityAttributes.GENERIC_LUCK,
+					new EntityAttributeModifier(LUCK_MODIFIER_ID, "Rune of Clarity", 1.0, EntityAttributeModifier.Operation.ADDITION), EquipmentSlot.MAINHAND);
+		}
+	}
+
+	/** The holy follow-up on a marked target: a quarter of the sword's current damage. */
+	public static float holyBonus(ItemStack stack) {
+		return (float) ((BASE_DAMAGE + evidence(stack) * DAMAGE_PER_EVIDENCE) * MARKED_BONUS);
+	}
+
+	public static boolean hasRune(ItemStack stack, String rune) {
+		NbtCompound nbt = stack.getNbt();
+		return nbt != null && (rune.equals(nbt.getString(NBT_RUNE)) || rune.equals(nbt.getString(NBT_NETHER_RUNE)));
+	}
+
+	static int fadeTicks(ItemStack stack) {
+		return hasRune(stack, RUNE_CLARITY) ? EVIDENCE_FADE_TICKS * 2 : EVIDENCE_FADE_TICKS;
 	}
 
 	@Override
 	public boolean postHit(ItemStack stack, LivingEntity target, LivingEntity attacker) {
-		if (!attacker.getWorld().isClient) {
-			setEvidence(stack, evidence(stack) + 1, attacker.getWorld().getTime());
-			if (attacker.getWorld() instanceof ServerWorld sw) {
-				sw.spawnParticles(ParticleTypes.END_ROD, target.getX(), target.getBodyY(0.6), target.getZ(), 4, 0.3, 0.3, 0.3, 0.02);
+		if (attacker.getWorld().isClient || !(attacker.getWorld() instanceof ServerWorld sw)) {
+			return true;
+		}
+		boolean marked = target.hasStatusEffect(StatusEffects.GLOWING);
+		boolean burning = target.isOnFire();
+		// Revelation: a tenth of the hits reveal more than they should: two marks and a breath of light for the bearer
+		boolean revelation = sw.getRandom().nextDouble() < REVELATION_CHANCE;
+		setEvidence(stack, evidence(stack) + (revelation ? 2 : 1), sw.getTime());
+		if (revelation) {
+			attacker.heal(1.0f);
+			sw.spawnParticles(ParticleTypes.END_ROD, attacker.getX(), attacker.getBodyY(0.8), attacker.getZ(), 10, 0.4, 0.5, 0.4, 0.05);
+		}
+		// Judgement of the marked: a quarter of the sword's damage more, as holy damage that armour does not stop, on anything already glowing
+		if (marked && target.isAlive()) {
+			float extra = holyBonus(stack);
+			int regen = target.timeUntilRegen;
+			target.timeUntilRegen = 0;   // the follow-up must not be swallowed by the invulnerability frames of the hit itself
+			target.damage(sw.getDamageSources().indirectMagic(attacker, attacker), extra);
+			target.timeUntilRegen = Math.max(regen, target.timeUntilRegen);
+		}
+		// Rune of Embers: every hit kindles; a hit on a burning target feeds the bearer
+		if (hasRune(stack, RUNE_EMBERS)) {
+			target.setOnFireFor(4);
+			if (burning) {
+				attacker.heal(1.0f);
 			}
 		}
+		sw.spawnParticles(ParticleTypes.END_ROD, target.getX(), target.getBodyY(0.6), target.getZ(), 4, 0.3, 0.3, 0.3, 0.02);
 		return true;
 	}
 
@@ -244,6 +300,22 @@ public final class HolySwordItem extends Item {
 		LuminaryRuntime.get().ifPresent(rt -> rt.npc().behaviour().sanctuaries().plant(world, user.getPos(), world.getTime() + SANCTUARY_TICKS));
 		world.playSound(null, user.getBlockPos(), SoundEvents.BLOCK_BEACON_ACTIVATE, SoundCategory.PLAYERS, 0.7f, 1.2f);
 		return true;
+	}
+
+	/** The unique effect: the Light of the Catalog. Hostile things near the bearer are hurt a little and marked; undead twice. */
+	public static int aura(ServerWorld world, LivingEntity bearer) {
+		int touched = 0;
+		Box area = Box.of(bearer.getPos(), AURA_RADIUS * 2, AURA_RADIUS, AURA_RADIUS * 2);
+		for (HostileEntity e : world.getEntitiesByClass(HostileEntity.class, area, h -> h.isAlive() && h.getPos().distanceTo(bearer.getPos()) <= AURA_RADIUS)) {
+			e.damage(world.getDamageSources().indirectMagic(bearer, bearer), e.isUndead() ? AURA_DAMAGE * 2 : AURA_DAMAGE);
+			e.addStatusEffect(new StatusEffectInstance(StatusEffects.GLOWING, AURA_PERIOD_TICKS + 20, 0, true, false, false));
+			touched++;
+		}
+		for (int i = 0; i < 8; i++) {
+			double a = (world.getTime() / 8.0 + i) * Math.PI / 4;
+			world.spawnParticles(ParticleTypes.END_ROD, bearer.getX() + Math.cos(a) * AURA_RADIUS, bearer.getY() + 0.3, bearer.getZ() + Math.sin(a) * AURA_RADIUS, 1, 0, 0.02, 0, 0.0);
+		}
+		return touched;
 	}
 
 	/** The circles of light: ticked by the server, nothing is stored. */
@@ -317,11 +389,14 @@ public final class HolySwordItem extends Item {
 		}
 		if (entity instanceof PlayerEntity player) {
 			LuminaryRuntime.get().ifPresent(rt -> rt.npc().behaviour().reconcileHeldBlade(stack, player));
+			if (selected && world.getTime() % AURA_PERIOD_TICKS == 0 && world instanceof ServerWorld sw) {
+				aura(sw, player);
+			}
 		}
 		// evidence fades a mark at a time when the sword rests
 		int marks = evidence(stack);
 		NbtCompound nbt = stack.getNbt();
-		if (marks > 0 && nbt != null && world.getTime() - nbt.getLong(NBT_LAST_HIT) >= EVIDENCE_FADE_TICKS) {
+		if (marks > 0 && nbt != null && world.getTime() - nbt.getLong(NBT_LAST_HIT) >= fadeTicks(stack)) {
 			setEvidence(stack, marks - 1, world.getTime());
 		}
 	}
@@ -333,12 +408,39 @@ public final class HolySwordItem extends Item {
 
 	@Override
 	public void appendTooltip(ItemStack stack, World world, List<Text> tooltip, TooltipContext context) {
+		String k = "item.luminary.holy_sword_of_lumin.";
 		tooltip.add(Text.translatable("item.luminary.rarity.godlike").styled(st -> st.withColor(GODLIKE_COLOR).withBold(true)));
-		tooltip.add(Text.translatable("item.luminary.holy_sword_of_lumin.lore").formatted(Formatting.GRAY, Formatting.ITALIC));
+		tooltip.add(Text.translatable(k + "lore").formatted(Formatting.GRAY, Formatting.ITALIC));
+		tooltip.add(Text.translatable(k + "lore2").formatted(Formatting.GRAY, Formatting.ITALIC));
+		tooltip.add(Text.empty());
+		// unique parameters, in the pack's blue "+x" style
+		tooltip.add(Text.translatable(k + "param.revelation", String.format(java.util.Locale.ROOT, "%.2f", REVELATION_CHANCE)).formatted(Formatting.BLUE));
+		tooltip.add(Text.translatable(k + "param.marked", (int) Math.round(MARKED_BONUS * 100)).formatted(Formatting.BLUE));
 		int marks = evidence(stack);
-		tooltip.add(Text.translatable("item.luminary.holy_sword_of_lumin.witness", marks, MAX_EVIDENCE).formatted(Formatting.AQUA));
-		tooltip.add(Text.translatable("item.luminary.holy_sword_of_lumin.verdict", (int) (VERDICT_BASE + VERDICT_PER_EVIDENCE * marks)).formatted(Formatting.GOLD));
-		tooltip.add(Text.translatable("item.luminary.holy_sword_of_lumin.sanctuary", SANCTUARY_COST).formatted(Formatting.GOLD));
-		tooltip.add(Text.translatable("item.luminary.holy_sword_of_lumin.bound").formatted(Formatting.DARK_PURPLE));
+		tooltip.add(Text.translatable(k + "witness", marks, MAX_EVIDENCE).formatted(Formatting.AQUA));
+		tooltip.add(Text.empty());
+		tooltip.add(Text.translatable(k + "effect.title").formatted(Formatting.GOLD));
+		tooltip.add(Text.translatable(k + "effect.text", (int) AURA_RADIUS, AURA_PERIOD_TICKS / 20).formatted(Formatting.GRAY));
+		tooltip.add(Text.empty());
+		tooltip.add(Text.translatable(k + "use.title").formatted(Formatting.GREEN));
+		tooltip.add(Text.translatable(k + "verdict", (int) (VERDICT_BASE + VERDICT_PER_EVIDENCE * marks)).formatted(Formatting.GRAY));
+		tooltip.add(Text.literal("⌛ " + VERDICT_COOLDOWN / 20 + "s").formatted(Formatting.GOLD, Formatting.ITALIC));
+		tooltip.add(Text.translatable(k + "sneak.title").formatted(Formatting.GREEN));
+		tooltip.add(Text.translatable(k + "sanctuary", SANCTUARY_COST).formatted(Formatting.GRAY));
+		tooltip.add(Text.literal("⌛ " + SANCTUARY_COOLDOWN / 20 + "s").formatted(Formatting.GOLD, Formatting.ITALIC));
+		tooltip.add(Text.empty());
+		NbtCompound nbt = stack.getNbt();
+		String rune = nbt == null ? "" : nbt.getString(NBT_RUNE);
+		String nether = nbt == null ? "" : nbt.getString(NBT_NETHER_RUNE);
+		tooltip.add((rune.isEmpty() ? Text.translatable(k + "socket.rune.empty") : Text.translatable(k + "rune." + rune)).formatted(Formatting.LIGHT_PURPLE));
+		if (!rune.isEmpty()) {
+			tooltip.add(Text.translatable(k + "rune." + rune + ".text").formatted(Formatting.DARK_GRAY));
+		}
+		tooltip.add((nether.isEmpty() ? Text.translatable(k + "socket.nether.empty") : Text.translatable(k + "rune." + nether)).formatted(Formatting.RED));
+		if (!nether.isEmpty()) {
+			tooltip.add(Text.translatable(k + "rune." + nether + ".text").formatted(Formatting.DARK_GRAY));
+		}
+		tooltip.add(Text.empty());
+		tooltip.add(Text.translatable(k + "bound").formatted(Formatting.DARK_PURPLE));
 	}
 }
