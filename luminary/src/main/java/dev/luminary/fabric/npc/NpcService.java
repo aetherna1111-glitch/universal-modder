@@ -574,8 +574,10 @@ public final class NpcService {
 		}
 		IntentCandidates candidates = scanner.scan(world, npc, record, player);
 		MemoryStore memory = dialogue.memory(id);
-		List<MemoryEntry> relevant = MemoryRetriever.select(memory, new MemoryRetriever.Query(player.getUuid(), MemoryRetriever.keywords(text), 8, 800), clock.instant());
-		IntentRequest request = new IntentRequest(id, player.getUuid(), player.getGameProfile().getName(), text, def.get().persona(), relevant, candidates, record.hasActiveTask());
+		// the words without "Lumin," in front: a small model otherwise answers the character instead of the player
+		String said = def.get().stripAddress(text);
+		List<MemoryEntry> relevant = MemoryRetriever.select(memory, new MemoryRetriever.Query(player.getUuid(), MemoryRetriever.keywords(said), 8, 800), clock.instant());
+		IntentRequest request = new IntentRequest(id, player.getUuid(), player.getGameProfile().getName(), said, def.get().persona(), relevant, candidates, record.hasActiveTask());
 		CompletableFuture<Optional<Intent>> planned;
 		try {
 			planned = planner.plan(request);
@@ -583,20 +585,27 @@ public final class NpcService {
 			Luminary.LOGGER.warn("[luminary] intent planner {} failed: {}", planner.id(), e.toString());
 			planned = CompletableFuture.completedFuture(Optional.empty());
 		}
-		if (thinkingLine && !planned.isDone()) {
+		boolean saidThinking = thinkingLine && !planned.isDone();
+		if (saidThinking) {
 			sayThinking(npc, player);
 		}
 		CompletableFuture<ChatOutcome> result = new CompletableFuture<>();
 		planned.whenComplete((intent, error) -> {
 			Optional<Intent> safe = error == null && intent != null ? intent : Optional.empty();
+			if (safe.isPresent() && safe.get().action().isPresent() && !dev.luminary.core.npc.intent.WorkCues.mentionsWork(said)) {
+				// the model heard work where the words carry none: a compliment or a statement never becomes a task
+				Luminary.LOGGER.info("[luminary] {} planner proposed {} for words without a work cue; answering in conversation instead", id, safe.get().action().get().type());
+				safe = Optional.empty();
+			}
+			Optional<Intent> decided = safe;
 			server.execute(() -> {
 				try {
-					if (safe.isEmpty()) {
-						talk(npc, player, Optional.of(text)).whenComplete((turn, e2) ->
+					if (decided.isEmpty()) {
+						talk(npc, player, Optional.of(said), !saidThinking).whenComplete((turn, e2) ->
 								result.complete(new ChatOutcome(Optional.empty(), Optional.empty(), e2 == null && turn != null ? turn : Optional.empty())));
 						return;
 					}
-					result.complete(carryOut(npc, id, player, text, safe.get()));
+					result.complete(carryOut(npc, id, player, text, decided.get()));
 				} catch (RuntimeException e) {
 					Luminary.LOGGER.warn("[luminary] intent handling failed for {}: {}", id, e.toString());
 					result.complete(ChatOutcome.NONE);
@@ -669,13 +678,19 @@ public final class NpcService {
 	}
 
 	public java.util.concurrent.CompletableFuture<Optional<NpcDialogueService.Turn>> talk(LuminaryNpcEntity npc, PlayerEntity player, Optional<String> utterance) {
+		return talk(npc, player, utterance, true);
+	}
+
+	/** @param mayThink whether the "…" line may be shown (false when the caller already showed it for this chat line) */
+	public java.util.concurrent.CompletableFuture<Optional<NpcDialogueService.Turn>> talk(LuminaryNpcEntity npc, PlayerEntity player, Optional<String> utterance, boolean mayThink) {
 		if (npc.npcId().isEmpty()) {
 			return java.util.concurrent.CompletableFuture.completedFuture(Optional.empty());
 		}
 		LuminaryId id = npc.npcId().get();
 		Text name = npc.getCustomName() != null ? npc.getCustomName() : Text.literal(id.toString());
-		CompletableFuture<Optional<NpcDialogueService.Turn>> pending = dialogue.talk(id, player.getUuid(), player.getGameProfile().getName(), utterance);
-		if (thinkingLine && !pending.isDone()) {
+		Optional<String> said = utterance.map(u -> dialogue.definitions().npc(id).map(d -> d.stripAddress(u)).orElse(u));
+		CompletableFuture<Optional<NpcDialogueService.Turn>> pending = dialogue.talk(id, player.getUuid(), player.getGameProfile().getName(), said);
+		if (mayThink && thinkingLine && !pending.isDone()) {
 			sayThinking(npc, player);
 		}
 		return pending.thenApply(turn -> {

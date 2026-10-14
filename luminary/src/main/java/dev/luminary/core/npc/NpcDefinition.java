@@ -59,6 +59,23 @@ public record NpcDefinition(LuminaryId id, String nameKey, LuminaryId dialogue, 
 		return false;
 	}
 
+	/**
+	 * The line without the address to this NPC: "Люмин, ты прекрасен" → "ты прекрасен". The aliases (with a trailing
+	 * comma, colon or dash and any case ending such as "Люмину") are removed so a small model never mistakes the
+	 * player for the character it voices. Empty results fall back to the original.
+	 */
+	public String stripAddress(String text) {
+		if (text == null) {
+			return "";
+		}
+		String out = text;
+		for (String a : aliases) {
+			out = out.replaceAll("(?iU)\\b" + java.util.regex.Pattern.quote(a) + "[\\p{L}]{0,2}\\b[\\s,:!.\\-]*", " ");
+		}
+		out = out.replaceAll("\\s{2,}", " ").strip();
+		return out.isEmpty() ? text.strip() : out;
+	}
+
 	public NpcDefinition(LuminaryId id, String nameKey, LuminaryId dialogue) {
 		this(id, nameKey, dialogue, List.of());
 	}
