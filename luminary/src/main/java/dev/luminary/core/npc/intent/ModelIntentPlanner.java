@@ -2,6 +2,7 @@ package dev.luminary.core.npc.intent;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import dev.luminary.core.npc.llm.LanguageHint;
 import dev.luminary.core.npc.llm.LlmException;
 import dev.luminary.core.npc.llm.LlmMessage;
 import dev.luminary.core.npc.llm.LlmProvider;
@@ -86,7 +87,9 @@ public final class ModelIntentPlanner implements IntentPlanner {
 		s.append("- forget_container: the player takes that container back\n");
 		s.append("- none: not a request for work, or impossible with what is listed (explain briefly in character)\n");
 		s.append("Rules: refer to places only by the indices below; never invent positions, items or abilities. ");
-		s.append("If the character is busy, intent is none and the reply says so. Reply in the player's language, one short sentence.\n\n");
+		s.append("If the message is NOT a request for work (greetings, questions, small talk), set intent to none and leave reply empty: ");
+		s.append("someone else answers conversation. For a work intent, reply with one short in-character sentence confirming what you will do; ");
+		s.append("never mention 'requests', 'tasks' or 'assisting'. ").append(LanguageHint.forText(request.utterance())).append("\n\n");
 		s.append("CHARACTER:\n");
 		for (String p : request.persona()) {
 			s.append("- ").append(p).append('\n');
@@ -187,7 +190,8 @@ public final class ModelIntentPlanner implements IntentPlanner {
 				return Optional.of(literal.isPresent() ? new Intent(Optional.empty(), Optional.empty(), literal, ID, g.grant()) : g);
 			}
 			case "none" -> {
-				return literal.isPresent() ? Optional.of(new Intent(Optional.empty(), Optional.empty(), literal, ID)) : Optional.empty();
+				// not work: the conversation goes to the dialogue provider, whose prompt is about the character, not about jobs
+				return Optional.empty();
 			}
 			case "move_to" -> action = c.playerPos().map(p -> new NpcAction.MoveTo(p.pos()));
 			case "deposit" -> action = index(o, "container", c.containers().size()).map(i -> new NpcAction.Deposit(c.containers().get(i).spot().pos()));

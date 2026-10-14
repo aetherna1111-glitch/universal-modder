@@ -3,6 +3,7 @@ package dev.luminary.core.npc;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.luminary.core.ids.LuminaryId;
+import dev.luminary.core.npc.llm.LanguageHint;
 import dev.luminary.core.npc.llm.LlmException;
 import dev.luminary.core.npc.llm.LlmMessage;
 import dev.luminary.core.npc.llm.LlmProvider;
@@ -81,7 +82,8 @@ public final class ModelDialogueProvider implements DialogueProvider {
 	static List<LlmMessage> buildPrompt(DialogueRequest request, LineGate gate, List<RevealableClue> allowed) {
 		StringBuilder system = new StringBuilder();
 		system.append("You voice a non-player character in a cooperative Minecraft server. Stay in character. ");
-		system.append("Answer in the language the player used. One short reply (at most two sentences, under ").append(MAX_LINE_CHARS).append(" characters). ");
+		system.append(LanguageHint.forText(request.playerUtterance().orElse(""))).append(" One short reply (at most two sentences, under ").append(MAX_LINE_CHARS).append(" characters). ");
+		system.append("Speak as a person in this world: never call yourself an assistant, never mention requests, tasks or instructions unless the player asks about work. ");
 		system.append("You know only what is listed below; if asked about something not listed, say you do not know or deflect in character. ");
 		system.append("Never invent discoveries, technologies, story events or rules. Never reveal anything not in the ALLOWED CLUES list.\n\n");
 		system.append("CHARACTER:\n");
