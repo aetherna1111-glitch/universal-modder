@@ -32,7 +32,7 @@ import java.util.List;
 @Environment(EnvType.CLIENT)
 public final class TradeScreen extends Screen {
 	// palette (the launcher: deep navy, warm gold, parchment text)
-	static final int BG = 0xF00B1426, PANEL = 0xFF15223D, PANEL_LIGHT = 0xFF1C2D4F, GOLD = 0xFFE2B857, GOLD_DIM = 0xFF8C7340, TEXT = 0xFFEFE7D3, MUTED = 0xFF9AA6C0, GREEN = 0xFF7FD48A, RED = 0xFFE07070;
+	public static final int BG = 0xF00B1426, PANEL = 0xFF15223D, PANEL_LIGHT = 0xFF1C2D4F, GOLD = 0xFFE2B857, GOLD_DIM = 0xFF8C7340, TEXT = 0xFFEFE7D3, MUTED = 0xFF9AA6C0, GREEN = 0xFF7FD48A, RED = 0xFFE07070;
 	static final int W = 320, H = 218, LEFT_W = 92, ROW_H = 28, ROWS = 4;
 
 	enum Tab { SHOP, QUESTS }
@@ -400,10 +400,10 @@ public final class TradeScreen extends Screen {
 
 	/** A flat button in the screen's colours: navy field, gold edge, gold text when it is the active tab or the thing to do now. */
 	@Environment(EnvType.CLIENT)
-	static final class ThemeButton extends ButtonWidget {
+	public static final class ThemeButton extends ButtonWidget {
 		private final boolean highlighted;
 
-		ThemeButton(int x, int y, int w, int h, Text label, PressAction action, boolean highlighted) {
+		public ThemeButton(int x, int y, int w, int h, Text label, PressAction action, boolean highlighted) {
 			super(x, y, w, h, label, action, DEFAULT_NARRATION_SUPPLIER);
 			this.highlighted = highlighted;
 		}

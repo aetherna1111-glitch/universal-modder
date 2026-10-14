@@ -31,7 +31,7 @@ final class TradeScreenShot {
 		String title = System.getProperty("luminary.screenshot.title");
 		if (title != null && !title.isEmpty()) {   // just the title screen (to look at the server lock's buttons)
 			ClientTickEvents.END_CLIENT_TICK.register(client -> {
-				if (client.getOverlay() != null || !(client.currentScreen instanceof TitleScreen)) {
+				if (client.getOverlay() != null || !(client.currentScreen instanceof TitleScreen || client.currentScreen instanceof LuminaryTitleScreen)) {
 					return;
 				}
 				if (++ticks == 40) {

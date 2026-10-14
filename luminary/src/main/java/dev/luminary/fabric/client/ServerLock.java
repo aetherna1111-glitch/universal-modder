@@ -42,6 +42,7 @@ import java.util.List;
 public final class ServerLock {
 	private static final Path FILE = FabricLoader.getInstance().getConfigDir().resolve("luminary-client.json");
 	private static boolean enabled;
+	private static boolean customTitle = true;
 	private static String address = "";
 	private static String name = "Luminary";
 
@@ -55,6 +56,7 @@ public final class ServerLock {
 				d.addProperty("lockToServer", false);
 				d.addProperty("serverAddress", "");
 				d.addProperty("serverName", "Luminary");
+				d.addProperty("customTitle", true);
 				Files.writeString(FILE, new GsonBuilder().setPrettyPrinting().create().toJson(d) + "\n");
 				return;
 			}
@@ -62,6 +64,7 @@ public final class ServerLock {
 			enabled = o.has("lockToServer") && o.get("lockToServer").getAsBoolean();
 			address = o.has("serverAddress") ? o.get("serverAddress").getAsString().trim() : "";
 			name = o.has("serverName") ? o.get("serverName").getAsString() : "Luminary";
+			customTitle = !o.has("customTitle") || o.get("customTitle").getAsBoolean();
 			if (enabled && !ServerAddress.isValid(address)) {
 				Luminary.LOGGER.warn("[luminary] lockToServer is on but serverAddress '{}' is not valid: the lock stays off", address);
 				enabled = false;
@@ -76,9 +79,21 @@ public final class ServerLock {
 		return enabled && !address.isEmpty();
 	}
 
+	static boolean customTitle() {
+		return customTitle;
+	}
+
 	static void register() {
 		load();
 		ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
+			if (screen instanceof TitleScreen && customTitle()) {
+				client.execute(() -> {
+					if (client.currentScreen instanceof TitleScreen) {
+						client.setScreen(new LuminaryTitleScreen());   // Luminary's own main menu in place of vanilla's
+					}
+				});
+				return;
+			}
 			if (!active()) {
 				return;
 			}

@@ -334,5 +334,6 @@
   "luminary.trade.not_enough_emeralds": "Not enough emeralds for alms.",
   "npc.luminary.trade.donation": "Your alms cleanse your soul and wash your sins away.",
   "screen.luminary.lock.play": "Play",
-  "screen.luminary.lock.reconnect": "Reconnect"
+  "screen.luminary.lock.reconnect": "Reconnect",
+  "screen.luminary.title.subtitle": "✦ The Catalog of the Unknown ✦"
 }

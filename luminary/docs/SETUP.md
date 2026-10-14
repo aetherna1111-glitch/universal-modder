@@ -90,10 +90,13 @@ his day between them. Everything else is on by default and needs no model. The f
 
 ## Client locked to the server (`config/luminary-client.json`, client side only)
 ```json
-{ "lockToServer": true, "serverAddress": "play.example.com:25565", "serverName": "Luminary" }
+{ "lockToServer": true, "serverAddress": "play.example.com:25565", "serverName": "Luminary", "customTitle": true }
 ```
 With the lock on: the title screen's Singleplayer button becomes «Играть» and connects, Multiplayer and Realms are
 removed, and any way onto the world list or the server list (a FancyMenu button included) connects instead; in the
 pause menu «Отключиться» becomes «Выйти из игры», the death screen's «Главное меню» quits too, and a lost connection
 offers «Переподключиться» and «Выйти из игры». The file is written with the lock off on the first client start; an
 invalid address keeps it off (a warning in the log). Nothing changes on the server side.
+`customTitle` (default true) replaces the vanilla title screen with Luminary's own main menu (navy, dawn glow, drifting
+motes, the name in the blade's shimmer, the trade screen's buttons): Play (or Singleplayer and Multiplayer without
+the lock), Options, Quit Game. `false` keeps vanilla's (or FancyMenu's) title screen.
