@@ -149,8 +149,7 @@
   "npc.luminary.gear.armor_intact": "Keep the %s for now; mine is still whole. Bring it when this one breaks.",
   "npc.luminary.gear.inventory_full": "My hands are full; I cannot take the %s.",
   "npc.luminary.gear.not_gear": "I only take tools and armour; the %s is of no use to me.",
-  "item.luminary.lumin_blade": "Lumin's Blade",
-  "npc.luminary.weapon.vanished": "The blade in your hands turns to light and is gone.",
+  "npc.luminary.weapon.vanished": "The sword in your hands turns to light and is gone.",
   "npc.luminary.plan.done": "Finished: %s.",
   "npc.luminary.plan.failed": "I gave up on '%s': %s.",
   "luminary.intent.hostile": "I will not work for you.",
@@ -166,5 +165,11 @@
   "luminary.command.routine_on": "%s: routine on.",
   "luminary.command.routine_off": "%s: routine off.",
   "luminary.command.plan_started": "%s: plan started.",
-  "luminary.command.plan_cancelled": "%s: plan cancelled."
+  "luminary.command.plan_cancelled": "%s: plan cancelled.",
+  "item.luminary.holy_sword_of_lumin": "Holy Sword of Lumin",
+  "item.luminary.holy_sword_of_lumin.lore": "It cannot break, and it always finds its way home.",
+  "item.luminary.holy_sword_of_lumin.witness": "Witness: %s/%s marks of evidence (+0.5 damage each; a mark fades after 30 s of rest)",
+  "item.luminary.holy_sword_of_lumin.verdict": "Verdict (use): a beam of light through everything in line for %s damage, undead burn; spends the marks, 6 s cooldown",
+  "item.luminary.holy_sword_of_lumin.sanctuary": "Sanctuary (sneak + use, %s marks): a circle of light for 8 s; allies regenerate and resist, monsters weaken and glow; 30 s cooldown",
+  "item.luminary.holy_sword_of_lumin.bound": "Bound to Lumin. Taken, it returns to him within the hour."
 }

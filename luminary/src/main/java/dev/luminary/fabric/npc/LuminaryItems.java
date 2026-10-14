@@ -9,11 +9,11 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.Rarity;
 import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
 
-/** Item registration. The blade's damage is read from config at hit time, so the item itself is config-free. */
+/** Item registration. */
 public final class LuminaryItems {
-	public static final Identifier BLADE_ID = new Identifier(Luminary.MOD_ID, "lumin_blade");
-	/** Attribute shown in the tooltip; the real hit uses the configured fraction of the target's health. */
-	public static final LuminBladeItem LUMIN_BLADE = new LuminBladeItem(new Item.Settings().maxCount(1).rarity(Rarity.EPIC).fireproof(), 10.0);
+	public static final Identifier BLADE_ID = new Identifier(Luminary.MOD_ID, "holy_sword_of_lumin");
+	/** The Holy Sword of Lumin; in the NPC's hands the hit is the configured fraction of the target's health, see {@link HolySwordItem}. */
+	public static final HolySwordItem LUMIN_BLADE = new HolySwordItem(new Item.Settings().maxCount(1).rarity(Rarity.EPIC).fireproof());
 
 	private LuminaryItems() {
 	}

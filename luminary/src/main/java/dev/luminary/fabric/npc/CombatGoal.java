@@ -15,10 +15,13 @@ import java.util.Optional;
  */
 final class CombatGoal extends Goal {
 	private static final int SWING_COOLDOWN_TICKS = 20;
+	private static final int JUDGE_COOLDOWN_TICKS = 120;
+	private static final double JUDGE_RANGE = 10.0;
 
 	private final LuminaryNpcEntity npc;
 	private LivingEntity target;
 	private int cooldown;
+	private int judgeCooldown;
 
 	CombatGoal(LuminaryNpcEntity npc) {
 		this.npc = npc;
@@ -90,6 +93,9 @@ final class CombatGoal extends Goal {
 		} else if (!npc.getNavigation().isIdle()) {
 			npc.getNavigation().stop();
 		}
+		if (judgeCooldown > 0) {
+			judgeCooldown--;
+		}
 		if (cooldown > 0) {
 			cooldown--;
 			return;
@@ -97,6 +103,12 @@ final class CombatGoal extends Goal {
 		if (b.shouldStrike(npc, target) && npc.canSee(target)) {
 			b.strike(npc, target);
 			cooldown = SWING_COOLDOWN_TICKS;
+		} else if (distance > reach && distance <= JUDGE_RANGE && judgeCooldown == 0 && npc.canSee(target)) {
+			// beyond reach and not pursuing: the sword's beam instead of a chase
+			if (b.judge(npc, target)) {
+				judgeCooldown = JUDGE_COOLDOWN_TICKS;
+				cooldown = SWING_COOLDOWN_TICKS;
+			}
 		}
 	}
 }

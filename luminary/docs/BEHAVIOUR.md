@@ -61,11 +61,18 @@ States: `CALM`, `DEFENSIVE_WARNING`, `GUARDED_DEESCALATION`, `COMBAT`, `RECOVERY
 While down: right-click with food helps; empty hand loots one item; sneaking + empty hand takes the blade.
 `/luminary npc behaviour <npc>` shows state, opponent, deadline, custody, routine and plan; `/luminary npc revive`.
 
-## The blade (`weapon`)
+## The Holy Sword of Lumin (`weapon`)
 
 | Key | Default |
 |---|---|
 | `theftDurationMinutes` | 60 |
+
+Item `luminary:holy_sword_of_lumin`: 9 damage, 1.6 swings/s, unbreakable. **Witness**: +1 mark per hit (max 7),
++0.5 damage per mark, a mark fades after 30 s of rest. **Verdict** (use): 12-block beam, 3 + 2 × marks damage,
+undead ×1.5 and burning, glowing 10 s, spends the marks, 6 s cooldown. **Sanctuary** (sneak + use, 3 marks): circle of
+light, radius 5, 8 s: players and Lumin regenerate and resist, hostile mobs weaken and glow; 30 s cooldown. Lumin
+himself uses the beam on an opponent beyond reach (≤ 10 blocks) every 6 s for a quarter of their health instead of
+pursuing. With Better Combat installed it swings as a claymore (`data/luminary/weapon_attributes/`).
 
 Identity is the custody instance id in the item NBT (`LuminaryOwner`, `LuminaryInstance`). Exactly one id is valid;
 copies with another id vanish when a player carries them (`inventoryTick`, once a second) and all reachable copies are

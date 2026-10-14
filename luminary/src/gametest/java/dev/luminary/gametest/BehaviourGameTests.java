@@ -16,7 +16,7 @@ import dev.luminary.core.npc.weapon.WeaponCustody;
 import dev.luminary.fabric.LuminaryRuntime;
 import dev.luminary.fabric.config.LuminaryConfig;
 import dev.luminary.fabric.npc.BehaviourService;
-import dev.luminary.fabric.npc.LuminBladeItem;
+import dev.luminary.fabric.npc.HolySwordItem;
 import dev.luminary.fabric.npc.LuminaryItems;
 import dev.luminary.fabric.npc.LuminaryNpcEntity;
 import dev.luminary.fabric.npc.NpcService;
@@ -211,7 +211,7 @@ public final class BehaviourGameTests implements FabricGameTest {
 		}
 		expect(slot >= 0, "the thief holds the blade");
 		ItemStack held = thief.getInventory().getStack(slot);
-		expect(LuminBladeItem.instance(held).orElseThrow().equals(stolenInstance), "the stack carries the live instance id");
+		expect(HolySwordItem.instance(held).orElseThrow().equals(stolenInstance), "the stack carries the live instance id");
 		expect(b.relationship(id, thief.getUuid()).karma() <= -29.9, "theft is a heavy event: " + b.relationship(id, thief.getUuid()));
 		b.reconcileHeldBlade(held, thief);
 		expect(!held.isEmpty(), "the thief may hold it during the hour");
@@ -242,7 +242,7 @@ public final class BehaviourGameTests implements FabricGameTest {
 			}
 			expect(!thiefStillHas, "the thief's copy is gone");
 			expect(ctx.getWorld().getEntitiesByClass(net.minecraft.entity.ItemEntity.class, body.getBoundingBox().expand(8), e -> e.getStack().isOf(LuminaryItems.LUMIN_BLADE)).isEmpty(), "the dropped copy is gone");
-			ItemStack stale = LuminBladeItem.bound(LuminaryItems.LUMIN_BLADE, id, stolenInstance);
+			ItemStack stale = HolySwordItem.bound(LuminaryItems.LUMIN_BLADE, id, stolenInstance);
 			b.reconcileHeldBlade(stale, thief);
 			expect(stale.isEmpty(), "a stale copy surfacing later (a chest, an offline inventory) is purged on sight");
 			expect(record.weapon().state().thefts() == 1 && record.weapon().state().returns() == 1, "ledger");

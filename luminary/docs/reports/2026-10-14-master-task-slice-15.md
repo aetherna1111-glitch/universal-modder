@@ -37,7 +37,7 @@ All commands run from `luminary/` on JDK 21 (bytecode `release 17`), offline Gra
 | Command | Result |
 |---|---|
 | `./gradlew build` | BUILD SUCCESSFUL; 144 unit tests, 0 failures (was 108) |
-| `./gradlew runGametest` | "All 37 required tests passed" in 3 consecutive runs after the last change (31 before this slice + 6 new) |
+| `./gradlew runGametest` | "All 37 required tests passed" in 3 consecutive runs after the last change (31 before this slice + 6 new); "All 39 required tests passed" after the Holy Sword's two tests were added |
 
 What the GameTests prove on a headless 1.20.1 server with an injected clock (`NpcService.setClockOffset`):
 a gaze earns one authored line and then none inside the cooldown, a whisper reaches a near listener and not a far
@@ -57,6 +57,14 @@ persisted states (now byte arrays).
 
 Not run: a client (no renderer check for the blade model and the lying pose); a real Ollama (the model path is
 unchanged in this slice and was exercised by the owner before).
+
+### Addendum: the Holy Sword of Lumin
+
+At the owner's request the unique weapon became a real artefact in the style of the pack's Simply Swords / MC
+Dungeons weapons: `luminary:holy_sword_of_lumin` with a 32×32 texture, Better Combat claymore moveset, and three
+server-side abilities (Witness marks, the Verdict beam, the Sanctuary circle); Lumin uses the beam himself on an
+opponent who stays out of reach. Covered by `SwordGameTests` (marks and attribute modifiers, the beam through two
+targets with undead bonus, cooldown, the circle's effects inside and not outside, expiry).
 
 ## 4. Local setup
 

@@ -149,8 +149,7 @@
   "npc.luminary.gear.armor_intact": "Оставь пока у себя (%s): моя ещё цела. Принеси, когда эта сломается.",
   "npc.luminary.gear.inventory_full": "Руки заняты, не могу взять: %s.",
   "npc.luminary.gear.not_gear": "Я беру только инструменты и броню; %s мне ни к чему.",
-  "item.luminary.lumin_blade": "Клинок Люмина",
-  "npc.luminary.weapon.vanished": "Клинок в твоих руках обращается в свет и исчезает.",
+  "npc.luminary.weapon.vanished": "Меч в твоих руках обращается в свет и исчезает.",
   "npc.luminary.plan.done": "Закончил: %s.",
   "npc.luminary.plan.failed": "Я бросил «%s»: %s.",
   "luminary.intent.hostile": "Я не буду на тебя работать.",
@@ -166,5 +165,11 @@
   "luminary.command.routine_on": "%s: распорядок включён.",
   "luminary.command.routine_off": "%s: распорядок выключен.",
   "luminary.command.plan_started": "%s: план запущен.",
-  "luminary.command.plan_cancelled": "%s: план отменён."
+  "luminary.command.plan_cancelled": "%s: план отменён.",
+  "item.luminary.holy_sword_of_lumin": "Святой меч Люмина",
+  "item.luminary.holy_sword_of_lumin.lore": "Его нельзя сломать, и он всегда находит дорогу домой.",
+  "item.luminary.holy_sword_of_lumin.witness": "Свидетель: %s/%s отметок улик (+0,5 урона за каждую; отметка гаснет через 30 с покоя)",
+  "item.luminary.holy_sword_of_lumin.verdict": "Приговор (ПКМ): луч света сквозь всех на линии, %s урона, нежить горит; тратит отметки, перезарядка 6 с",
+  "item.luminary.holy_sword_of_lumin.sanctuary": "Святилище (Shift + ПКМ, %s отметки): круг света на 8 с; союзники восстанавливаются и защищены, монстры ослаблены и светятся; перезарядка 30 с",
+  "item.luminary.holy_sword_of_lumin.bound": "Связан с Люмином. Отнятый, он вернётся к нему в течение часа."
 }

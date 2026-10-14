@@ -70,6 +70,7 @@ public final class BehaviourService {
 	private final Supplier<Instant> clock;
 	private final Metrics metrics = new Metrics();
 	private final PlanRunner planRunner = new PlanRunner();
+	private final HolySwordItem.Sanctuaries sanctuaries = new HolySwordItem.Sanctuaries();
 	private LuminaryConfig.Behaviour config = LuminaryConfig.Behaviour.DEFAULTS;
 
 	BehaviourService(NpcService npc, MinecraftServer server, NpcWorldState state, NpcDialogueService dialogue, Supplier<Instant> clock) {
@@ -91,6 +92,10 @@ public final class BehaviourService {
 
 	public Metrics metrics() {
 		return metrics;
+	}
+
+	public HolySwordItem.Sanctuaries sanctuaries() {
+		return sanctuaries;
 	}
 
 	private CombatRules combatRules() {
@@ -409,6 +414,22 @@ public final class BehaviourService {
 		}
 	}
 
+	/** Lumin judges from a distance: the sword's beam at an opponent beyond reach, for half the melee blow. Only while armed. */
+	public boolean judge(LuminaryNpcEntity body, LivingEntity target) {
+		Optional<NpcRoster.NpcRecord> rec = record(body);
+		if (rec.isEmpty() || rec.get().weapon().custody() != WeaponCustody.Custody.NPC || !body.getMainHandStack().isOf(LuminaryItems.LUMIN_BLADE) || !(body.getWorld() instanceof ServerWorld world)) {
+			return false;
+		}
+		Vec3d from = body.getEyePos();
+		Vec3d dir = target.getPos().add(0, target.getHeight() * 0.5, 0).subtract(from);
+		body.swingHand(Hand.MAIN_HAND);
+		boolean fired = HolySwordItem.verdict(body.getMainHandStack(), world, body, from, dir, (float) (target.getMaxHealth() * combatRules().weaponDamageFraction() * 0.5));
+		if (fired) {
+			metrics.inc(Metrics.STRIKES);
+		}
+		return fired;
+	}
+
 	/** Shield in the off hand while guarded; the blade in the main hand only while fighting and still in custody. */
 	void syncEquipment(LuminaryNpcEntity body, NpcRoster.NpcRecord record) {
 		boolean down = record.knockout().isPresent();
@@ -427,7 +448,7 @@ public final class BehaviourService {
 		ItemStack main = body.getMainHandStack();
 		if (blade && !main.isOf(LuminaryItems.LUMIN_BLADE)) {
 			GearManager.stowTool(body);
-			body.equipStack(net.minecraft.entity.EquipmentSlot.MAINHAND, LuminBladeItem.bound(LuminaryItems.LUMIN_BLADE, body.npcId().get(), record.weapon().instanceId()));
+			body.equipStack(net.minecraft.entity.EquipmentSlot.MAINHAND, HolySwordItem.bound(LuminaryItems.LUMIN_BLADE, body.npcId().get(), record.weapon().instanceId()));
 		} else if (!blade && main.isOf(LuminaryItems.LUMIN_BLADE)) {
 			body.equipStack(net.minecraft.entity.EquipmentSlot.MAINHAND, ItemStack.EMPTY);
 		}
@@ -552,7 +573,7 @@ public final class BehaviourService {
 			if (taken.isEmpty()) {
 				return DownInteraction.NOTHING;
 			}
-			ItemStack blade = LuminBladeItem.bound(LuminaryItems.LUMIN_BLADE, id, taken.get().instanceId());
+			ItemStack blade = HolySwordItem.bound(LuminaryItems.LUMIN_BLADE, id, taken.get().instanceId());
 			if (!player.giveItemStack(blade)) {
 				player.dropItem(blade, false);
 			}
@@ -602,6 +623,7 @@ public final class BehaviourService {
 
 	/** Server tick (bodies may be unloaded): due returns are honoured even without a body. */
 	public void tickServer() {
+		sanctuaries.tick(server.getTicks());
 		if (server.getTicks() % 40 != 13) {
 			return;
 		}
@@ -667,14 +689,14 @@ public final class BehaviourService {
 	}
 
 	static boolean isCopy(ItemStack s, LuminaryId id, UUID instance) {
-		return s.isOf(LuminaryItems.LUMIN_BLADE) && LuminBladeItem.owner(s).filter(id::equals).isPresent()
-				&& LuminBladeItem.instance(s).filter(instance::equals).isPresent();
+		return s.isOf(LuminaryItems.LUMIN_BLADE) && HolySwordItem.owner(s).filter(id::equals).isPresent()
+				&& HolySwordItem.instance(s).filter(instance::equals).isPresent();
 	}
 
 	/** From the item's inventory tick: a copy a player holds is valid only for the thief inside the window or the permanent owner. */
 	public void reconcileHeldBlade(ItemStack stack, PlayerEntity player) {
-		Optional<LuminaryId> owner = LuminBladeItem.owner(stack);
-		Optional<UUID> instance = LuminBladeItem.instance(stack);
+		Optional<LuminaryId> owner = HolySwordItem.owner(stack);
+		Optional<UUID> instance = HolySwordItem.instance(stack);
 		if (owner.isEmpty() || instance.isEmpty()) {
 			stack.setCount(0);   // an unbound blade is a forgery
 			return;
@@ -701,7 +723,7 @@ public final class BehaviourService {
 		}
 		LuminaryId id = body.npcId().get();
 		WeaponCustody custody = rec.get().weapon();
-		if (LuminBladeItem.owner(inHand).filter(id::equals).isEmpty() || custody.custody() != WeaponCustody.Custody.STOLEN) {
+		if (HolySwordItem.owner(inHand).filter(id::equals).isEmpty() || custody.custody() != WeaponCustody.Custody.STOLEN) {
 			return false;
 		}
 		inHand.setCount(0);
@@ -726,7 +748,7 @@ public final class BehaviourService {
 			returnWeapon(id, record, "it was about to be given away properly");
 		}
 		WeaponCustody.State s = record.weapon().transferPermanently(player.getUuid(), reason, clock.get());
-		ItemStack blade = LuminBladeItem.bound(LuminaryItems.LUMIN_BLADE, id, s.instanceId());
+		ItemStack blade = HolySwordItem.bound(LuminaryItems.LUMIN_BLADE, id, s.instanceId());
 		if (!player.giveItemStack(blade)) {
 			player.dropItem(blade, false);
 		}

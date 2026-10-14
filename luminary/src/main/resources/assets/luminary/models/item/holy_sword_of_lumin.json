@@ -1,6 +1,6 @@
 {
   "parent": "minecraft:item/handheld",
   "textures": {
-    "layer0": "luminary:item/lumin_blade"
+    "layer0": "luminary:item/holy_sword_of_lumin"
   }
 }

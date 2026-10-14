@@ -37,7 +37,7 @@ core, server-side rules, persistence with migrations, admin commands, and an in-
 | Check | Result |
 |---|---|
 | `./gradlew build` (compile main/test/gametest, 144 unit tests, jar) | passed |
-| `./gradlew runGametest` (headless 1.20.1 server, Fabric API 0.92.12, Loader 0.19.5) | "All 37 required tests passed" (3 consecutive runs) |
+| `./gradlew runGametest` (headless 1.20.1 server, Fabric API 0.92.12, Loader 0.19.5) | "All 39 required tests passed" (3 consecutive runs at 37, then 39 with the sword tests) |
 | `um publish check luminary` | 0 failures (1 warning in the ignored `.gradle/` cache) |
 | Not verified | a real dedicated server with players; the integrated client, the NPC renderer, the blade item model and the lying pose; any other mod loaded alongside; a real Ollama or hosted model endpoint (only the mock server was exercised) |
 
@@ -421,7 +421,17 @@ glance, a whisper, a warning, a fight or a return.
   chunks and restarts do not pause it. Right-click with food shortens the wait by `helpShortensBySeconds` (60); an
   empty hand takes one item from its bag (looting, remembered); sneaking with an empty hand takes the blade.
   `/luminary npc revive <npc>` ends it early.
-- **The blade.** `luminary:lumin_blade`: indestructible, bound to its NPC and to a *custody instance id*. The server's
+- **The Holy Sword of Lumin.** `luminary:holy_sword_of_lumin` (texture `textures/item/holy_sword_of_lumin.png`,
+  Better Combat claymore moveset via `data/luminary/weapon_attributes/`): 9 attack damage, 1.6 swings/s, epic,
+  unbreakable, unenchantable. Three abilities in the style of the pack's unique swords, all server-side:
+  **Witness** (passive) records a mark of evidence per hit, up to 7, each +0.5 damage written into the stack's
+  attribute modifiers (the tooltip shows it); a mark fades after 30 s without a hit. **Verdict** (use) spends all
+  marks in a 12-block beam of light through everything in line for 3 + 2 × marks damage (undead ×1.5 and set on
+  fire), everything struck glows 10 s; 6 s cooldown. **Sanctuary** (sneak + use, 3 marks) plants an 8 s circle of
+  light, radius 5: players and Lumin inside regenerate and resist, hostile mobs weaken and glow; 30 s cooldown.
+  In Lumin's own hands the melee blow is the configured half of the target's health, and an opponent who keeps out
+  of reach but within 10 blocks is judged by the beam every 6 s instead of being chased. Identity: indestructible,
+  bound to its NPC and to a *custody instance id*. The server's
   `WeaponCustody` knows the one valid instance. Taking it from the downed NPC starts a theft of exactly
   `weapon.theftDurationMinutes` (60); at the deadline the weapon returns: the instance is retired, a new one minted,
   every reachable copy (online inventories, dropped items in loaded chunks) removed at once, and any stale copy that
