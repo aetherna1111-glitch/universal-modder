@@ -401,9 +401,32 @@ public final class HolySwordItem extends Item {
 		}
 	}
 
+	/** The name shimmers: each character cycles through gold, white and sky blue, offset along the word, re-rendered every frame. */
+	private static final int[] SHIMMER = {0xFFE27A, 0xFFF6D5, 0xFFFFFF, 0xBFE9FF, 0x8FD3FF, 0xBFE9FF, 0xFFFFFF, 0xFFF6D5};
+
 	@Override
 	public Text getName(ItemStack stack) {
-		return Text.translatable(getTranslationKey(stack)).styled(st -> st.withColor(GODLIKE_COLOR).withBold(true));
+		String name = net.minecraft.util.Language.getInstance().get(getTranslationKey(stack));
+		double phase = (System.currentTimeMillis() % 2400L) / 2400.0 * SHIMMER.length;
+		net.minecraft.text.MutableText out = Text.empty();
+		int i = 0;
+		for (int cp : name.codePoints().toArray()) {
+			double t = phase + i * 0.6;
+			int a = ((int) Math.floor(t)) % SHIMMER.length;
+			int b = (a + 1) % SHIMMER.length;
+			double f = t - Math.floor(t);
+			int color = lerp(SHIMMER[a], SHIMMER[b], f);
+			out.append(Text.literal(new String(Character.toChars(cp))).styled(st -> st.withColor(color).withBold(true)));
+			i++;
+		}
+		return out;
+	}
+
+	private static int lerp(int c1, int c2, double f) {
+		int r = (int) Math.round(((c1 >> 16) & 255) * (1 - f) + ((c2 >> 16) & 255) * f);
+		int g = (int) Math.round(((c1 >> 8) & 255) * (1 - f) + ((c2 >> 8) & 255) * f);
+		int b = (int) Math.round((c1 & 255) * (1 - f) + (c2 & 255) * f);
+		return (r << 16) | (g << 8) | b;
 	}
 
 	@Override

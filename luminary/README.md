@@ -421,7 +421,7 @@ glance, a whisper, a warning, a fight or a return.
   chunks and restarts do not pause it. Right-click with food shortens the wait by `helpShortensBySeconds` (60); an
   empty hand takes one item from its bag (looting, remembered); sneaking with an empty hand takes the blade.
   `/luminary npc revive <npc>` ends it early.
-- **The Holy Sword of Lumin.** `luminary:holy_sword_of_lumin` (texture `textures/item/holy_sword_of_lumin.png`,
+- **The Holy Sword of Lumin.** `luminary:holy_sword_of_lumin` (a volumetric 22-element item model over a palette texture, the flat `holy_sword_of_lumin.png` kept as the particle/icon fallback; the name shimmers gold–white–sky every frame;
   Better Combat claymore moveset via `data/luminary/weapon_attributes/`): 15 attack damage, 1.7 swings/s, its own Godlike tier above mythic (gold-white bold name and a tier line in the tooltip),
   unbreakable, unenchantable. Three abilities in the style of the pack's unique swords, all server-side:
   **Witness** (passive) records a mark of evidence per hit, up to 7, each +0.5 damage written into the stack's
