@@ -55,7 +55,8 @@ Trial of the Envoy, whose reward is his blade, with the player's name on it for 
   | `paladins:netherite_holy_wand` / `netherite_holy_staff` | 90 / 120 |
   | Печать Посланника (`luminary:envoy_seal`, unique: one per player, no trader sells it) | 80 |
 
-- **The Trial of the Envoy** is LOCKED until the player has completed 5 tasks **and bought nothing**. One purchase,
+- **The Trial of the Envoy** is LOCKED until the player has completed 5 tasks **and bought nothing**, and while locked it is
+  not in the screen at all (the server leaves it out of the snapshot, so nothing about it reaches the client). One purchase,
   ever, closes it for good (the ledger's `purchases` never goes back to zero). Claiming it calls
   `BehaviourService.transferWeapon`: custody becomes TRANSFERRED and the player receives the live blade. The blade
   stays **bound exactly as it was**, only the owner changes: `LuminaryOwner` keeps the NPC id (where the custody

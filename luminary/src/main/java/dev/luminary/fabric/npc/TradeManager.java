@@ -320,7 +320,9 @@ public final class TradeManager {
 	PacketByteBuf snapshot(LuminaryNpcEntity body, LuminaryId id, ServerPlayerEntity player, String message) {
 		PlayerLedger ledger = ledger(id, player);
 		List<ShopOffer> offers = offers(id);
-		List<TradeService.QuestView> views = service.views(quests(id), ledger);
+		// a locked special quest is not sent at all: the player learns of the trial only once it is theirs to take
+		List<TradeService.QuestView> views = service.views(quests(id), ledger).stream()
+				.filter(v -> !(v.quest().special() && v.state() == TradeService.QuestState.LOCKED)).toList();
 		PacketByteBuf buf = PacketByteBufs.create();
 		buf.writeVarInt(body.getId());
 		buf.writeText(body.getCustomName() != null ? body.getCustomName() : Text.translatable(npc.dialogue().definitions().npc(id).map(NpcDefinition::nameKey).orElse("npc")));
