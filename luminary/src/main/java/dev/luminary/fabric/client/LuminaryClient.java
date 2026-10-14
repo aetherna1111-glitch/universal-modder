@@ -22,12 +22,16 @@ public final class LuminaryClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 		EntityRendererRegistry.register(NpcEntities.NPC, NpcRenderer::new);
+		VestmentArmorRenderer.register();
 	}
 
 	@Environment(EnvType.CLIENT)
 	static final class NpcRenderer extends BipedEntityRenderer<LuminaryNpcEntity, BipedEntityModel<LuminaryNpcEntity>> {
 		NpcRenderer(EntityRendererFactory.Context ctx) {
 			super(ctx, new BipedEntityModel<>(ctx.getPart(EntityModelLayers.PLAYER)), 0.5f);
+			// BipedEntityRenderer draws held items but not armour: add the armour layer so the vestments (and any handed armour) show
+			addFeature(new net.minecraft.client.render.entity.feature.ArmorFeatureRenderer<>(this,
+					new BipedEntityModel<>(ctx.getPart(EntityModelLayers.PLAYER_INNER_ARMOR)), new BipedEntityModel<>(ctx.getPart(EntityModelLayers.PLAYER_OUTER_ARMOR)), ctx.getModelManager()));
 		}
 
 		private static final Identifier LUMIN = new Identifier("luminary", "textures/entity/lumin.png");
