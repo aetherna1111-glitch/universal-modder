@@ -76,7 +76,7 @@ public final class TradeScreen extends Screen {
 		shopTab = addDrawableChild(new ThemeButton(tabX + 74, tabY, 70, 16, Text.translatable("screen.luminary.trade.tab.shop"), b -> switchTab(Tab.SHOP), tab == Tab.SHOP));
 		addDrawableChild(new ThemeButton(tabX + 148, tabY, 64, 16, Text.translatable("screen.luminary.trade.tab.gear"), b -> send(TradeManager.ACTION_GEAR, ""), false));
 		// alms under the karma lines: emeralds for karma
-		ThemeButton donate = new ThemeButton(x0 + 10, y0 + 184, LEFT_W - 20, 14, Text.translatable("screen.luminary.trade.donate", dev.luminary.core.npc.relationship.KarmaEffects.DONATION_EMERALDS),
+		ThemeButton donate = new ThemeButton(x0 + 10, y0 + 170, LEFT_W - 20, 14, Text.translatable("screen.luminary.trade.donate", dev.luminary.core.npc.relationship.KarmaEffects.DONATION_EMERALDS),
 				b -> send(TradeManager.ACTION_DONATE, ""), false);
 		donate.active = client.player != null && client.player.getInventory().count(net.minecraft.item.Items.EMERALD) >= dev.luminary.core.npc.relationship.KarmaEffects.DONATION_EMERALDS;
 		addDrawableChild(donate);
@@ -163,26 +163,26 @@ public final class TradeScreen extends Screen {
 		c.fill(x0 + 6, y0 + 6, x0 + LEFT_W - 6, y0 + 7, GOLD_DIM);
 		Entity e = client.world == null ? portraitOverride : client.world.getEntityById(snap.entityId);
 		if (e instanceof LivingEntity living) {
-			int px = x0 + LEFT_W / 2, py = y0 + 106;   // feet; 34 px per block keeps the armoured body (wings, halo) inside the panel
-			c.enableScissor(x0 + 7, y0 + 8, x0 + LEFT_W - 7, y0 + 116);
+			int px = x0 + LEFT_W / 2, py = y0 + 98;   // feet; 34 px per block keeps the armoured body (wings, halo) inside the panel
+			c.enableScissor(x0 + 7, y0 + 8, x0 + LEFT_W - 7, y0 + 108);
 			try {
-				InventoryScreen.drawEntity(c, px, py, 34, (float) px - mouseX, (float) (py - 55) - mouseY, living);
+				InventoryScreen.drawEntity(c, px, py, 32, (float) px - mouseX, (float) (py - 52) - mouseY, living);
 			} catch (RuntimeException ex) {
 				portraitOverride = null;   // a world-less portrait that cannot be drawn: leave the panel empty
 				dev.luminary.fabric.Luminary.LOGGER.warn("[luminary] portrait not drawn", ex);
 			}
 			c.disableScissor();
 		}
-		c.drawCenteredTextWithShadow(tr, snap.name.copy().styled(s -> s.withColor(GOLD).withBold(true)), x0 + LEFT_W / 2, y0 + 124, GOLD);
+		c.drawCenteredTextWithShadow(tr, snap.name.copy().styled(s -> s.withColor(GOLD).withBold(true)), x0 + LEFT_W / 2, y0 + 113, GOLD);
 		Text pts = Text.literal("✦ " + snap.points).styled(s -> s.withColor(GOLD));
-		c.drawCenteredTextWithShadow(tr, pts, x0 + LEFT_W / 2, y0 + 138, GOLD);
-		c.drawCenteredTextWithShadow(tr, Text.translatable("screen.luminary.trade.points").styled(s -> s.withColor(MUTED)), x0 + LEFT_W / 2, y0 + 149, MUTED);
+		c.drawCenteredTextWithShadow(tr, pts, x0 + LEFT_W / 2, y0 + 125, GOLD);
+		c.drawCenteredTextWithShadow(tr, Text.translatable("screen.luminary.trade.points").styled(s -> s.withColor(MUTED)), x0 + LEFT_W / 2, y0 + 135, MUTED);
 		// karma: the number, his attitude, and what it does to luck and prices
 		int karmaColor = snap.karma < 0 ? RED : snap.karma > 0 ? GREEN : MUTED;
 		String karmaText = (snap.karma > 0 ? "+" : "") + (int) Math.round(snap.karma);
-		c.drawCenteredTextWithShadow(tr, Text.translatable("screen.luminary.trade.karma", karmaText).styled(s -> s.withColor(karmaColor)), x0 + LEFT_W / 2, y0 + 162, karmaColor);
-		c.drawCenteredTextWithShadow(tr, Text.translatable("screen.luminary.trade.standing." + snap.standing.toLowerCase(java.util.Locale.ROOT)).styled(s -> s.withColor(MUTED)), x0 + LEFT_W / 2, y0 + 172, MUTED);
-		if (mouseX >= x0 + 6 && mouseX < x0 + LEFT_W - 6 && mouseY >= y0 + 158 && mouseY < y0 + 182) {
+		c.drawCenteredTextWithShadow(tr, Text.translatable("screen.luminary.trade.karma", karmaText).styled(s -> s.withColor(karmaColor)), x0 + LEFT_W / 2, y0 + 148, karmaColor);
+		c.drawCenteredTextWithShadow(tr, Text.translatable("screen.luminary.trade.standing." + snap.standing.toLowerCase(java.util.Locale.ROOT)).styled(s -> s.withColor(MUTED)), x0 + LEFT_W / 2, y0 + 158, MUTED);
+		if (mouseX >= x0 + 6 && mouseX < x0 + LEFT_W - 6 && mouseY >= y0 + 144 && mouseY < y0 + 168) {
 			karmaTooltip = karmaTooltip();
 		}
 		// right column: the list
