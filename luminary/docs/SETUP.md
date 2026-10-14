@@ -35,6 +35,13 @@ Ollama runs the model on the machine that hosts the Minecraft server (or one rea
 Content of prompts and replies is never written to disk unless `logContent` is true; the journal
 `logs/luminary/llm.jsonl` records sizes, latency and outcome per request.
 
+The model must be reachable **from the machine that runs the Minecraft server**. `http://127.0.0.1:11434` means
+"this same machine". If the server is on a hosting provider and Ollama runs at home, either run Ollama on a machine
+the hosting can reach (set `endpoint` to its address, add its host to `allowedHosts`, start Ollama with
+`OLLAMA_HOST=0.0.0.0`), publish the home machine through a tunnel (for example a Cloudflare Tunnel; its host name goes
+into `allowedHosts`), or use a hosted API (section 3). `/luminary llm status` showing `failed` and `busy` counts with
+`ok=0` is this problem, not a Luminary one; until it is fixed the NPC answers with its scripted lines.
+
 ## 3. A hosted model (OpenAI-compatible API)
 
 Set `"provider": "openai"`, `"endpoint": "https://<host>/v1"`, `"model": "<name>"`, add the host to `allowedHosts`,
@@ -52,7 +59,7 @@ A key written into `luminary.json` is ignored with a warning.
 /luminary npc spawn luminary:npc/lumin            spawn Lumin near you
 right-click Lumin                                 scripted or model line
 <chat> "hello Lumin, who are you?"                dialogue through the model (if configured)
-/luminary npc container allow luminary:npc/lumin <x y z of a chest>
+look at a chest, <chat> "Lumin, use this chest"      hands it over (or /luminary npc container allow luminary:npc/lumin <x y z>)
 <chat> "Lumin, chop 3 logs for me"                keyword or model intent → validated task → logs in the chest
 /luminary npc task status luminary:npc/lumin     state, ledger
 /luminary npc memory luminary:npc/lumin          what Lumin remembers
