@@ -265,7 +265,17 @@ public final class LuminaryCommands {
 						.then(CommandManager.literal("behaviour")
 								.then(CommandManager.argument("id", IdentifierArgumentType.identifier()).executes(LuminaryCommands::npcBehaviour)))
 						.then(CommandManager.literal("relations")
-								.then(CommandManager.argument("id", IdentifierArgumentType.identifier()).executes(LuminaryCommands::npcRelations)))
+								.then(CommandManager.argument("id", IdentifierArgumentType.identifier())
+										.executes(LuminaryCommands::npcRelations)
+										.then(CommandManager.literal("reset")
+												.requires(src -> src.hasPermissionLevel(3))
+												.executes(ctx -> karmaReset(ctx, ctx.getSource().getPlayerOrThrow()))
+												.then(CommandManager.argument("player", EntityArgumentType.player()).executes(ctx -> karmaReset(ctx, EntityArgumentType.getPlayer(ctx, "player")))))
+										.then(CommandManager.literal("karma")
+												.requires(src -> src.hasPermissionLevel(3))
+												.then(CommandManager.argument("player", EntityArgumentType.player())
+														.then(CommandManager.argument("value", com.mojang.brigadier.arguments.IntegerArgumentType.integer(-100, 100))
+																.executes(LuminaryCommands::karmaSet))))))
 						.then(CommandManager.literal("revive")
 								.requires(src -> src.hasPermissionLevel(3))
 								.then(CommandManager.argument("id", IdentifierArgumentType.identifier()).executes(LuminaryCommands::npcRevive)))
@@ -817,6 +827,39 @@ public final class LuminaryCommands {
 				return 0;
 			}
 			ctx.getSource().sendFeedback(() -> Text.literal(id + ": " + rt.npc().behaviour().describe(id)), false);
+			return 1;
+		}).orElse(0);
+	}
+
+	/** Karma, trust and threat with the NPC back to zero for one player; the luck modifier follows at once. */
+	private static int karmaReset(CommandContext<ServerCommandSource> ctx, ServerPlayerEntity player) {
+		LuminaryId id = parseId(ctx);
+		return runtime(ctx.getSource()).map(rt -> {
+			if (rt.npc().dialogue().definitions().npc(id).isEmpty()) {
+				ctx.getSource().sendError(Text.translatable(NpcService.REASON_UNKNOWN_NPC));
+				return 0;
+			}
+			boolean had = rt.npc().roster().ensureRecord(id).relationships().reset(player.getUuid());
+			rt.npc().behaviour().applyKarmaLuck(player);
+			rt.npc().markDirty();
+			ctx.getSource().sendFeedback(() -> Text.translatable(had ? "luminary.command.karma_reset" : "luminary.command.karma_reset_nothing", id.toString(), player.getGameProfile().getName()), true);
+			return had ? 1 : 0;
+		}).orElse(0);
+	}
+
+	private static int karmaSet(CommandContext<ServerCommandSource> ctx) throws CommandSyntaxException {
+		LuminaryId id = parseId(ctx);
+		ServerPlayerEntity player = EntityArgumentType.getPlayer(ctx, "player");
+		int value = com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "value");
+		return runtime(ctx.getSource()).map(rt -> {
+			if (rt.npc().dialogue().definitions().npc(id).isEmpty()) {
+				ctx.getSource().sendError(Text.translatable(NpcService.REASON_UNKNOWN_NPC));
+				return 0;
+			}
+			var r = rt.npc().roster().ensureRecord(id).relationships().setKarma(player.getUuid(), value, rt.npc().now(), rt.npc().roster().rules().relationship());
+			rt.npc().behaviour().applyKarmaLuck(player);
+			rt.npc().markDirty();
+			ctx.getSource().sendFeedback(() -> Text.translatable("luminary.command.karma_set", player.getGameProfile().getName(), id.toString(), (int) r.karma(), rt.npc().behaviour().standing(id, player.getUuid()).name()), true);
 			return 1;
 		}).orElse(0);
 	}

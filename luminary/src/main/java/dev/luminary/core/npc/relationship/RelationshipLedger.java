@@ -28,6 +28,19 @@ public final class RelationshipLedger {
 		return Collections.unmodifiableMap(relations);
 	}
 
+	/** Admin: the player's standing with this NPC starts over (karma, trust and threat at zero). Returns whether there was anything. */
+	public boolean reset(UUID player) {
+		return relations.remove(player) != null;
+	}
+
+	/** Admin: the player's karma set outright; trust and threat kept. */
+	public Relationship setKarma(UUID player, double karma, Instant now, RelationshipRules rules) {
+		Relationship d = get(player, now, rules);
+		Relationship r = new Relationship(Math.max(-100, Math.min(100, karma)), d.trust(), d.threat(), now, d.lastEvent(), d.attacks());
+		relations.put(player, r);
+		return r;
+	}
+
 	/** Codec only. */
 	public void restore(UUID player, Relationship r) {
 		relations.put(player, r);

@@ -106,6 +106,8 @@ The screen's left panel shows the karma and his attitude; hovering it shows trus
 - `/luminary npc trade lumin reset [player]`: points, tasks and purchases wiped; a blade given to that player is
   reclaimed (`reclaimWeapon`), so the trial can be played again from zero.
 - `/luminary npc trade lumin points <player> <amount>`: grant or take points.
+- `/luminary npc relations lumin reset [player]`: karma, trust and threat with Lumin back to zero (luck follows at once);
+  `/luminary npc relations lumin karma <player> <value>`: karma set outright.
 
 ## The proclamation
 When the blade changes hands (`transferWeapon`, so the Trial's claim and the admin command alike), every player on the

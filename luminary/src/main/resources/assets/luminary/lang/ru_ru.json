@@ -335,5 +335,8 @@
   "npc.luminary.trade.donation": "Твои подаяния очищают твою душу и смывают грехи.",
   "screen.luminary.lock.play": "Играть",
   "screen.luminary.lock.reconnect": "Переподключиться",
-  "screen.luminary.title.subtitle": "✦ Каталог Неизвестного ✦"
+  "screen.luminary.title.subtitle": "✦ Каталог Неизвестного ✦",
+  "luminary.command.karma_reset": "Отношение %s к %s обнулено: карма, доверие и угроза с нуля.",
+  "luminary.command.karma_reset_nothing": "%s ещё не знаком с %s: обнулять нечего.",
+  "luminary.command.karma_set": "Карма %s у %s теперь %s (%s)."
 }

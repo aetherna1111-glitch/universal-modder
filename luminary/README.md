@@ -96,6 +96,8 @@ cd luminary
 /luminary npc trade <npc> complete [player] [all]     [3]  every task done by decree ("all" includes the trial: the blade changes hands)
 /luminary npc trade <npc> reset [player]              [3]  the ledger wiped; a given blade reclaimed
 /luminary npc trade <npc> points <player> <amount>    [3]  grant (or take, negative) points
+/luminary npc relations <npc> reset [player]          [3]  karma, trust and threat with the NPC back to zero
+/luminary npc relations <npc> karma <player> <value>  [3]  karma set outright (-100..100)
 /luminary npc place <npc> <study|desk|site|home|workshop> <pos> | clear <kind>  [3]  routine places
 /luminary npc routine <npc> on|off              [3]
 /luminary npc plan status|cancel <npc>          [2/3]

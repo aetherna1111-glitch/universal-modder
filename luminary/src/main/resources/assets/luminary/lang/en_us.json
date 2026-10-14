@@ -335,5 +335,8 @@
   "npc.luminary.trade.donation": "Your alms cleanse your soul and wash your sins away.",
   "screen.luminary.lock.play": "Play",
   "screen.luminary.lock.reconnect": "Reconnect",
-  "screen.luminary.title.subtitle": "✦ The Catalog of the Unknown ✦"
+  "screen.luminary.title.subtitle": "✦ The Catalog of the Unknown ✦",
+  "luminary.command.karma_reset": "%s's standing with %s is reset: karma, trust and threat from zero.",
+  "luminary.command.karma_reset_nothing": "%s does not know %s yet: nothing to reset.",
+  "luminary.command.karma_set": "Karma of %s with %s is now %s (%s)."
 }

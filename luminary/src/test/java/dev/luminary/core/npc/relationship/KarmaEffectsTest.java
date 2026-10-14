@@ -38,4 +38,20 @@ class KarmaEffectsTest {
 		assertEquals(100, KarmaEffects.total(DoubleStream.of(80, 60)), "summed over NPCs, clamped");
 		assertEquals(-100, KarmaEffects.total(DoubleStream.of(-80, -60)));
 	}
+
+	@Test
+	void theLedgerResetsAndSetsKarmaOutright() {
+		RelationshipLedger l = new RelationshipLedger();
+		java.util.UUID p = java.util.UUID.randomUUID();
+		java.time.Instant t = java.time.Instant.parse("2026-10-14T12:00:00Z");
+		assertFalse(l.reset(p), "nothing to reset for a stranger");
+		l.apply(p, RelationshipEvent.ATTACKED, t, RelationshipRules.DEFAULTS);
+		assertTrue(l.get(p, t, RelationshipRules.DEFAULTS).karma() < 0);
+		assertEquals(42.0, l.setKarma(p, 42, t, RelationshipRules.DEFAULTS).karma());
+		assertEquals(30.0, l.get(p, t, RelationshipRules.DEFAULTS).threat(), "trust and threat are kept");
+		assertEquals(100.0, l.setKarma(p, 500, t, RelationshipRules.DEFAULTS).karma(), "clamped");
+		assertTrue(l.reset(p));
+		assertEquals(0.0, l.get(p, t, RelationshipRules.DEFAULTS).karma());
+		assertEquals(0.0, l.get(p, t, RelationshipRules.DEFAULTS).threat());
+	}
 }
