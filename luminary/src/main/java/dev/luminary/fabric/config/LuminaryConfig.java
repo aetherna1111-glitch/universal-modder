@@ -32,14 +32,22 @@ import java.util.Set;
  * intentPlanner: keyword (default) | none | model (falls back to keyword)
  * autonomy: { "enabled": false, "thinkIntervalTicks": 100, "maxDecisionsPerHour": 12, "failureCooldownSeconds": 600 }
  *   (server-wide switch, off by default; each NPC additionally needs /luminary npc autonomy <npc> on)
- * conversation: { "containerGrantPermission": 0, "thinkingLine": true }
- *   (operator level needed to hand the NPC a chest by chat, 0 = anyone; show "…" at once while a model answers)
+ * conversation: { "containerGrantPermission": 0, "thinkingLine": true, "requireName": true, "chatRange": 0 }
+ *   (operator level needed to hand the NPC a chest by chat, 0 = anyone; show "…" at once while a model answers;
+ *    requireName: the NPC hears only lines containing one of its aliases, at any distance; chatRange applies only
+ *    when requireName is false, 0 = unlimited)
  * llm.keepAliveSeconds (default 3600) keeps the Ollama model loaded between turns; llm.contextTokens (default 4096)
  * </pre>
  */
 public record LuminaryConfig(String dialogueProvider, String intentPlanner, LlmConfig llm, boolean llmLogContent, Duration dialogueTimeout,
-							 boolean autonomyEnabled, AutonomyRules autonomy, int containerGrantPermission, boolean thinkingLine) {
-	public static final LuminaryConfig DEFAULTS = new LuminaryConfig("scripted", "keyword", LlmConfig.DISABLED, false, Duration.ofSeconds(8), false, AutonomyRules.DEFAULTS, 0, true);
+							 boolean autonomyEnabled, AutonomyRules autonomy, int containerGrantPermission, boolean thinkingLine,
+							 boolean requireName, double chatRange) {
+	public static final LuminaryConfig DEFAULTS = new LuminaryConfig("scripted", "keyword", LlmConfig.DISABLED, false, Duration.ofSeconds(8), false, AutonomyRules.DEFAULTS, 0, true, true, 0);
+
+	public LuminaryConfig(String dialogueProvider, String intentPlanner, LlmConfig llm, boolean llmLogContent, Duration dialogueTimeout,
+						  boolean autonomyEnabled, AutonomyRules autonomy, int containerGrantPermission, boolean thinkingLine) {
+		this(dialogueProvider, intentPlanner, llm, llmLogContent, dialogueTimeout, autonomyEnabled, autonomy, containerGrantPermission, thinkingLine, true, 0);
+	}
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
 	public static LuminaryConfig load(Path file) {
@@ -100,12 +108,16 @@ public record LuminaryConfig(String dialogueProvider, String intentPlanner, LlmC
 			}
 			int grant = 0;
 			boolean thinking = true;
+			boolean requireName = true;
+			double chatRange = 0;
 			if (o.has("conversation") && o.get("conversation").isJsonObject()) {
 				JsonObject c = o.getAsJsonObject("conversation");
 				grant = c.has("containerGrantPermission") ? c.get("containerGrantPermission").getAsInt() : 0;
 				thinking = !c.has("thinkingLine") || c.get("thinkingLine").getAsBoolean();
+				requireName = !c.has("requireName") || c.get("requireName").getAsBoolean();
+				chatRange = c.has("chatRange") ? c.get("chatRange").getAsDouble() : 0;
 			}
-			return new LuminaryConfig(provider, planner, llm.withApiKey(key), logContent, dialogueTimeout, autonomyEnabled, autonomy, grant, thinking);
+			return new LuminaryConfig(provider, planner, llm.withApiKey(key), logContent, dialogueTimeout, autonomyEnabled, autonomy, grant, thinking, requireName, chatRange);
 		} catch (IOException | RuntimeException e) {
 			Luminary.LOGGER.error("[luminary] cannot read {}; using defaults ({})", file, e.getMessage());
 			return new LuminaryConfig(DEFAULTS.dialogueProvider(), DEFAULTS.intentPlanner(), DEFAULTS.llm().withApiKey(key), false, DEFAULTS.dialogueTimeout(), false, AutonomyRules.DEFAULTS, 0, true);
@@ -140,6 +152,8 @@ public record LuminaryConfig(String dialogueProvider, String intentPlanner, LlmC
 			JsonObject conversation = new JsonObject();
 			conversation.addProperty("containerGrantPermission", config.containerGrantPermission());
 			conversation.addProperty("thinkingLine", config.thinkingLine());
+			conversation.addProperty("requireName", config.requireName());
+			conversation.addProperty("chatRange", config.chatRange());
 			o.add("conversation", conversation);
 			Files.writeString(tmp, GSON.toJson(o) + "\n", StandardCharsets.UTF_8);
 			Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);

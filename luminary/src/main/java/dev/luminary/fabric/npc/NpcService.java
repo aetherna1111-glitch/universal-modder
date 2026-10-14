@@ -30,6 +30,7 @@ import dev.luminary.fabric.state.NpcWorldState;
 import net.minecraft.entity.Entity;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.ItemStack;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
@@ -434,6 +435,43 @@ public final class NpcService {
 	// ------------------------------------------------------------------ conversation
 
 	public static final double CHAT_RANGE = 8.0;
+	/** Chat reaches an NPC only when the line contains one of its aliases (any distance in the same world). */
+	private boolean requireName = true;
+	/** Range for name-less chat intake when {@link #requireName} is off (0 = unlimited). */
+	private double chatRange = CHAT_RANGE;
+
+	public void configureChat(boolean requireName, double chatRange) {
+		this.requireName = requireName;
+		this.chatRange = chatRange;
+	}
+
+	public boolean requireName() {
+		return requireName;
+	}
+
+	/** A player holds a tool or armour out to the NPC (right-click). */
+	public GearManager.Offer offer(LuminaryNpcEntity npc, PlayerEntity player, ItemStack inHand) {
+		String item = inHand.getName().getString();
+		GearManager.Offer result = GearManager.offer(npc, player, inHand);
+		Text name = npc.getCustomName() != null ? npc.getCustomName() : Text.literal(npc.npcId().map(Object::toString).orElse("npc"));
+		String key = switch (result) {
+			case TOOK_TOOL -> "npc.luminary.gear.took_tool";
+			case WEARING -> "npc.luminary.gear.wearing";
+			case ARMOR_INTACT -> "npc.luminary.gear.armor_intact";
+			case INVENTORY_FULL -> "npc.luminary.gear.inventory_full";
+			case NOT_GEAR -> "npc.luminary.gear.not_gear";
+		};
+		player.sendMessage(Text.empty().append(Text.literal("<").append(name).append("> ").formatted(Formatting.GOLD)).append(Text.translatable(key, item)), false);
+		npc.npcId().ifPresent(id -> {
+			if (result == GearManager.Offer.TOOK_TOOL || result == GearManager.Offer.WEARING) {
+				Instant now = clock.instant();
+				dialogue.memory(id).add(MemoryEntry.of(MemoryKind.RELATIONSHIP, player.getUuid(), "gift/" + item.toLowerCase(java.util.Locale.ROOT),
+						player.getGameProfile().getName() + " gave me " + item, now, Provenance.OBSERVED_IN_WORLD), now);
+				state.markDirty();
+			}
+		});
+		return result;
+	}
 
 	/**
 	 * Chat intake: the nearest NPC body within {@link #CHAT_RANGE} blocks of the player hears the message and answers
@@ -444,12 +482,32 @@ public final class NpcService {
 			return CompletableFuture.completedFuture(ChatOutcome.NONE);
 		}
 		LuminaryNpcEntity nearest = null;
-		double best = CHAT_RANGE * CHAT_RANGE;
-		for (LuminaryNpcEntity npc : world.getEntitiesByClass(LuminaryNpcEntity.class, player.getBoundingBox().expand(CHAT_RANGE), e -> e.npcId().isPresent())) {
-			double d = npc.squaredDistanceTo(player);
-			if (d <= best && state.roster().isBody(npc.npcId().get(), npc.getUuid())) {
-				best = d;
-				nearest = npc;
+		double best = Double.MAX_VALUE;
+		if (requireName) {
+			// addressed by name: any registered body in this world whose definition owns one of the aliases in the line
+			for (var e : world.iterateEntities()) {
+				if (!(e instanceof LuminaryNpcEntity npc) || npc.npcId().isEmpty() || !state.roster().isBody(npc.npcId().get(), npc.getUuid())) {
+					continue;
+				}
+				Optional<NpcDefinition> def = dialogue.definitions().npc(npc.npcId().get());
+				if (def.isEmpty() || !def.get().isAddressed(text)) {
+					continue;
+				}
+				double d = npc.squaredDistanceTo(player);
+				if (d < best) {
+					best = d;
+					nearest = npc;
+				}
+			}
+		} else {
+			double limit = chatRange <= 0 ? Double.MAX_VALUE : chatRange * chatRange;
+			double box = chatRange <= 0 ? 256.0 : chatRange;
+			for (LuminaryNpcEntity npc : world.getEntitiesByClass(LuminaryNpcEntity.class, player.getBoundingBox().expand(box), e -> e.npcId().isPresent())) {
+				double d = npc.squaredDistanceTo(player);
+				if (d <= limit && d < best && state.roster().isBody(npc.npcId().get(), npc.getUuid())) {
+					best = d;
+					nearest = npc;
+				}
 			}
 		}
 		if (nearest == null) {

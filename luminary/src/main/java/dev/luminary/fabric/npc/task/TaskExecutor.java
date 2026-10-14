@@ -9,7 +9,9 @@ import dev.luminary.core.npc.task.NpcTask;
 import dev.luminary.core.npc.task.TaskRules;
 import dev.luminary.core.npc.task.TaskState;
 import dev.luminary.fabric.Luminary;
+import dev.luminary.fabric.npc.GearManager;
 import dev.luminary.fabric.npc.LuminaryNpcEntity;
+import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.AbstractFurnaceBlockEntity;
 import net.minecraft.block.entity.BlockEntity;
 import java.util.ArrayList;
@@ -196,12 +198,20 @@ public final class TaskExecutor {
 			return;
 		}
 		npc.getLookControl().lookAt(Vec3d.ofCenter(target));
-		if (task.tickPhase() < rules.breakTicksPerLog()) {
+		BlockState state = world.getBlockState(target);
+		if (task.phaseTicks() == 0) {
+			GearManager.drawTool(npc, state);   // the best axe into the hand for this trunk
+		}
+		int needed = GearManager.breakTicks(world, target, state, npc.getMainHandStack());
+		if (task.tickPhase() < needed) {
 			return;
 		}
 		// Real break: loot tables produce the drops as ItemEntities; nothing is granted directly.
 		if (world.breakBlock(target, true, npc)) {
 			task.ledger().blockBroken();
+			if (GearManager.wearTool(npc)) {
+				log("tool broke while gathering at {}", target);
+			}
 		}
 		BlockPos up = target.up();
 		if (task.ledger().blocksBroken() < action.maxLogs() && WorldActionContext.kindAt(world, up) == ActionContext.BlockKind.LOG) {
@@ -213,6 +223,9 @@ public final class TaskExecutor {
 	}
 
 	private void stepCollecting(LuminaryNpcEntity npc, ServerWorld world, NpcTask task, NpcAction.GatherWood action) {
+		if (task.phaseTicks() == 0) {
+			GearManager.stowTool(npc);   // work with the trunk is over: the axe goes back into the bag
+		}
 		Vec3d base = Vec3d.ofCenter(BlockPos.fromLong(action.targetPos()));
 		List<ItemEntity> drops = world.getEntitiesByClass(ItemEntity.class, Box.of(base, COLLECT_RADIUS * 2, COLLECT_RADIUS * 2, COLLECT_RADIUS * 2),
 				e -> e.isAlive() && !e.getStack().isEmpty() && e.getStack().isIn(ItemTags.LOGS));
@@ -282,8 +295,8 @@ public final class TaskExecutor {
 		boolean anyLeft = false;
 		for (int slot = 0; slot < held.size(); slot++) {
 			ItemStack stack = held.getStack(slot);
-			if (stack.isEmpty()) {
-				continue;
+			if (stack.isEmpty() || GearManager.isTool(stack) || GearManager.isArmor(stack)) {
+				continue;   // the NPC's own gear is never cargo
 			}
 			int moved = insert(inv, stack);
 			if (moved > 0) {

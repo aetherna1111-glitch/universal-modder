@@ -13,7 +13,7 @@ import java.util.EnumSet;
  * Tasks and follow orders have priority (they hold the controls first).
  */
 final class AttendPlayerGoal extends Goal {
-	static final double RANGE = 8.0;
+	static final double RANGE = 12.0;
 	static final double SLACK = 0.5;
 	private static final int GRACE_TICKS = 40;
 

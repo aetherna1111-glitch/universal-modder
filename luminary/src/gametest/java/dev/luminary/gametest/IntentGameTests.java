@@ -175,6 +175,7 @@ public final class IntentGameTests implements FabricGameTest {
 		LuminaryRuntime rt = LuminaryRuntime.get().orElseThrow();
 		rt.setIntentPlanner(new KeywordIntentPlanner(TaskRules.DEFAULTS));
 		Arena a = arena(ctx, "intent_gather", 2);
+		a.npc().configureChat(false, NpcService.CHAT_RANGE);
 		PlayerEntity player = ctx.createMockSurvivalPlayer();
 		Vec3d near = Vec3d.ofBottomCenter(ctx.getAbsolutePos(NPC_SPAWN.add(1, 0, 0)));
 		player.refreshPositionAndAngles(near.x, near.y, near.z, 0, 0);
@@ -206,6 +207,7 @@ public final class IntentGameTests implements FabricGameTest {
 	public void smallTalkStillReachesDialogueAndNonePlannerNeverPlans(TestContext ctx) {
 		LuminaryRuntime rt = LuminaryRuntime.get().orElseThrow();
 		NpcService npc = rt.npc();
+		npc.configureChat(false, NpcService.CHAT_RANGE);   // these tests exercise nearby, name-less intake
 		LuminaryId id = LuminaryId.parse("luminary-gametest:npc/intent_talk");
 		Vec3d pos = ctx.getAbsolute(new Vec3d(0.5, 1, 0.5));
 		expect(npc.spawn(id, ctx.getWorld(), pos).ok(), "spawn failed");
@@ -231,6 +233,7 @@ public final class IntentGameTests implements FabricGameTest {
 	public void standingOrderMakesTheNpcStockTheChestOnItsOwnThenRest(TestContext ctx) {
 		LuminaryRuntime rt = LuminaryRuntime.get().orElseThrow();
 		Arena a = arena(ctx, "auto_stock", 2);
+		a.npc().configureChat(false, NpcService.CHAT_RANGE);
 		AutonomyState auto = a.npc().roster().ensureRecord(a.npcId()).autonomy();
 		auto.addOrder(new StandingOrder.StockWood(a.chest().asLong(), 2));
 		// NPC switch on, server switch still off: nothing may happen
@@ -301,6 +304,7 @@ public final class IntentGameTests implements FabricGameTest {
 		LuminaryRuntime rt = LuminaryRuntime.get().orElseThrow();
 		rt.setIntentPlanner(new KeywordIntentPlanner(TaskRules.DEFAULTS));
 		NpcService npc = rt.npc();
+		npc.configureChat(false, NpcService.CHAT_RANGE);   // these tests exercise nearby, name-less intake
 		LuminaryId id = LuminaryId.parse("luminary-gametest:npc/intent_grant");
 		ctx.setBlockState(CHEST, Blocks.CHEST.getDefaultState());
 		BlockPos chest = ctx.getAbsolutePos(CHEST);

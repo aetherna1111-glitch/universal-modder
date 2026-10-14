@@ -3,6 +3,7 @@ package dev.luminary.fabric.npc.task;
 import dev.luminary.core.npc.NpcRoster;
 import dev.luminary.core.npc.task.ActionContext;
 import dev.luminary.core.npc.task.NpcAction;
+import dev.luminary.fabric.npc.GearManager;
 import dev.luminary.fabric.npc.LuminaryNpcEntity;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.AbstractFurnaceBlockEntity;
@@ -161,9 +162,17 @@ public final class WorldActionContext implements ActionContext {
 		return input.isEmpty() || (input.isOf(Registries.ITEM.get(id)) && input.getCount() < input.getMaxCount());
 	}
 
+	/** Cargo only: tools and armour in the bag are the NPC's own and never count as something to deposit. */
 	@Override
 	public int heldItemCount() {
-		return npc.heldCount();
+		int n = 0;
+		for (int i = 0; i < npc.heldItems().size(); i++) {
+			ItemStack s = npc.heldItems().getStack(i);
+			if (!s.isEmpty() && !GearManager.isTool(s) && !GearManager.isArmor(s)) {
+				n += s.getCount();
+			}
+		}
+		return n;
 	}
 
 	@Override

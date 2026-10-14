@@ -143,5 +143,10 @@
   "npc.luminary.intent.container_granted": "Understood. I will use this container.",
   "npc.luminary.intent.container_revoked": "Understood. I will leave that container alone.",
   "npc.luminary.intent.look_at_container": "Which one? Look at the chest you mean and tell me again.",
-  "luminary.intent.grant_not_allowed": "you are not allowed to hand me containers"
+  "luminary.intent.grant_not_allowed": "you are not allowed to hand me containers",
+  "npc.luminary.gear.took_tool": "Thank you. I will use the %s.",
+  "npc.luminary.gear.wearing": "Thank you. I am wearing the %s now.",
+  "npc.luminary.gear.armor_intact": "Keep the %s for now; mine is still whole. Bring it when this one breaks.",
+  "npc.luminary.gear.inventory_full": "My hands are full; I cannot take the %s.",
+  "npc.luminary.gear.not_gear": "I only take tools and armour; the %s is of no use to me."
 }

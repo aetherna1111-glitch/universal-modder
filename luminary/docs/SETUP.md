@@ -58,7 +58,9 @@ A key written into `luminary.json` is ignored with a warning.
 ```
 /luminary npc spawn luminary:npc/lumin            spawn Lumin near you
 right-click Lumin                                 scripted or model line
-<chat> "hello Lumin, who are you?"                dialogue through the model (if configured)
+<chat> "Lumin, who are you?"                      dialogue through the model; the line must contain his name (any distance)
+right-click Lumin holding an axe or a helmet      he takes the tool / wears the armour (one piece per slot)
+/luminary npc gear luminary:npc/lumin             what he holds and wears
 look at a chest, <chat> "Lumin, use this chest"      hands it over (or /luminary npc container allow luminary:npc/lumin <x y z>)
 <chat> "Lumin, chop 3 logs for me"                keyword or model intent → validated task → logs in the chest
 /luminary npc task status luminary:npc/lumin     state, ledger

@@ -10,6 +10,7 @@ import net.minecraft.entity.ai.goal.WanderAroundGoal;
 import net.minecraft.entity.mob.PathAwareEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.inventory.SimpleInventory;
+import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.server.world.ServerWorld;
@@ -115,7 +116,12 @@ public class LuminaryNpcEntity extends PathAwareEntity {
 			return ActionResult.PASS;
 		}
 		if (!getWorld().isClient) {
-			LuminaryRuntime.get().ifPresent(rt -> rt.npc().talk(this, player));
+			ItemStack inHand = player.getStackInHand(hand);
+			if (GearManager.isTool(inHand) || GearManager.isArmor(inHand)) {
+				LuminaryRuntime.get().ifPresent(rt -> rt.npc().offer(this, player, inHand));
+			} else {
+				LuminaryRuntime.get().ifPresent(rt -> rt.npc().talk(this, player));
+			}
 		}
 		return ActionResult.success(getWorld().isClient);
 	}

@@ -12,7 +12,8 @@
 			"dev.luminary.gametest.LlmGameTests",
 			"dev.luminary.gametest.MemoryGameTests",
 			"dev.luminary.gametest.IntentGameTests",
-			"dev.luminary.gametest.IntegrationGameTests"
+			"dev.luminary.gametest.IntegrationGameTests",
+			"dev.luminary.gametest.GearGameTests"
 		]
 	},
 	"depends": {

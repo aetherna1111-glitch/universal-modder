@@ -31,6 +31,7 @@ public final class MemoryGameTests implements FabricGameTest {
 	public void nearbyChatIsHeardRememberedAndAnsweredFarChatIsNot(TestContext ctx) {
 		LuminaryRuntime rt = LuminaryRuntime.get().orElseThrow();
 		NpcService npc = rt.npc();
+		npc.configureChat(false, NpcService.CHAT_RANGE);   // these tests exercise nearby, name-less intake
 		Vec3d pos = ctx.getAbsolute(new Vec3d(0.5, 1, 0.5));
 		if (!npc.spawn(NPC, ctx.getWorld(), pos).ok()) {
 			throw new GameTestException("spawn failed");

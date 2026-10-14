@@ -143,5 +143,10 @@
   "npc.luminary.intent.container_granted": "Понял. Буду пользоваться этим сундуком.",
   "npc.luminary.intent.container_revoked": "Понял. Этот сундук больше не трогаю.",
   "npc.luminary.intent.look_at_container": "Какой именно? Посмотри на нужный сундук и скажи ещё раз.",
-  "luminary.intent.grant_not_allowed": "тебе нельзя выдавать мне сундуки"
+  "luminary.intent.grant_not_allowed": "тебе нельзя выдавать мне сундуки",
+  "npc.luminary.gear.took_tool": "Спасибо. Буду пользоваться: %s.",
+  "npc.luminary.gear.wearing": "Спасибо. Надел: %s.",
+  "npc.luminary.gear.armor_intact": "Оставь пока у себя (%s): моя ещё цела. Принеси, когда эта сломается.",
+  "npc.luminary.gear.inventory_full": "Руки заняты, не могу взять: %s.",
+  "npc.luminary.gear.not_gear": "Я беру только инструменты и броню; %s мне ни к чему."
 }

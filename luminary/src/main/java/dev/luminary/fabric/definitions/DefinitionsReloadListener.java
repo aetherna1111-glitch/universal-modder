@@ -185,7 +185,13 @@ public final class DefinitionsReloadListener implements SimpleSynchronousResourc
 				persona.add(el.getAsString());
 			}
 		}
-		return new NpcDefinition(id, nameKey, LuminaryId.parse(require(json, "dialogue", file).getAsString()), persona);
+		List<String> aliases = new ArrayList<>();
+		if (json.has("aliases")) {
+			for (JsonElement el : json.getAsJsonArray("aliases")) {
+				aliases.add(el.getAsString());
+			}
+		}
+		return new NpcDefinition(id, nameKey, LuminaryId.parse(require(json, "dialogue", file).getAsString()), persona, aliases);
 	}
 
 	/**

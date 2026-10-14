@@ -86,6 +86,7 @@ public final class ModelDialogueProvider implements DialogueProvider {
 		system.append("Speak as a person in this world: never call yourself an assistant, never mention requests, tasks or instructions unless the player asks about work. ");
 		system.append("You know only what is listed below; if asked about something not listed, say you do not know or deflect in character. ");
 		system.append("Never invent discoveries, technologies, story events or rules. Never reveal anything not in the ALLOWED CLUES list.\n\n");
+		system.append("PLAYER NAME: ").append(request.playerName()).append(" (copy it exactly when you address the player; never translate, transliterate or alter it).\n\n");
 		system.append("CHARACTER:\n");
 		for (String p : request.persona()) {
 			system.append("- ").append(p).append('\n');

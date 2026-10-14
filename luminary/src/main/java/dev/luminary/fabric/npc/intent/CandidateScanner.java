@@ -3,6 +3,7 @@ package dev.luminary.fabric.npc.intent;
 import dev.luminary.core.npc.NpcRoster;
 import dev.luminary.core.npc.intent.IntentCandidates;
 import dev.luminary.core.npc.task.TaskRules;
+import dev.luminary.fabric.npc.GearManager;
 import dev.luminary.fabric.npc.LuminaryNpcEntity;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.AbstractFurnaceBlockEntity;
@@ -36,7 +37,7 @@ public final class CandidateScanner {
 	public static final int SCAN_XZ = 16;
 	public static final int SCAN_Y = 6;
 	/** How far "this chest" may be from the player's eyes. */
-	public static final double LOOK_REACH = 6.0;
+	public static final double LOOK_REACH = 12.0;
 
 	private final TaskRules rules;
 
@@ -102,7 +103,7 @@ public final class CandidateScanner {
 			playerPos = Optional.of(new IntentCandidates.Spot(p.asLong(), p.getX(), p.getY(), p.getZ(), npc.squaredDistanceTo(player)));
 			lookedAt = lookedAtContainer(world, player, npc);
 		}
-		return new IntentCandidates(logs, containers, playerPos, summarize(npc.heldItems()), furnaces, lookedAt);
+		return new IntentCandidates(logs, containers, playerPos, cargo(npc), furnaces, lookedAt);
 	}
 
 	/** The inventory block the player is looking at within reach, if any (the thing "this chest" refers to). */
@@ -116,6 +117,18 @@ public final class CandidateScanner {
 			return Optional.empty();
 		}
 		return Optional.of(new IntentCandidates.Spot(pos.asLong(), pos.getX(), pos.getY(), pos.getZ(), npc.squaredDistanceTo(Vec3d.ofCenter(pos))));
+	}
+
+	/** What the NPC carries that is cargo (its own tools and armour excluded). */
+	static Map<String, Integer> cargo(LuminaryNpcEntity npc) {
+		Map<String, Integer> counts = new TreeMap<>();
+		for (int i = 0; i < npc.heldItems().size(); i++) {
+			ItemStack s = npc.heldItems().getStack(i);
+			if (!s.isEmpty() && !GearManager.isTool(s) && !GearManager.isArmor(s)) {
+				counts.merge(Registries.ITEM.getId(s.getItem()).toString(), s.getCount(), Integer::sum);
+			}
+		}
+		return counts;
 	}
 
 	/** item id → count, the most numerous first, bounded. */

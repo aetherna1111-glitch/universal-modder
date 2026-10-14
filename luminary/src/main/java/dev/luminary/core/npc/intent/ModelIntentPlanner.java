@@ -90,6 +90,7 @@ public final class ModelIntentPlanner implements IntentPlanner {
 		s.append("If the message is NOT a request for work (greetings, questions, small talk), set intent to none and leave reply empty: ");
 		s.append("someone else answers conversation. For a work intent, reply with one short in-character sentence confirming what you will do; ");
 		s.append("never mention 'requests', 'tasks' or 'assisting'. ").append(LanguageHint.forText(request.utterance())).append("\n\n");
+		s.append("PLAYER NAME: ").append(request.playerName()).append(" (copy it exactly; never translate, transliterate or alter it).\n\n");
 		s.append("CHARACTER:\n");
 		for (String p : request.persona()) {
 			s.append("- ").append(p).append('\n');

@@ -30,12 +30,12 @@ slice**; design and research live in `../docs/research/luminary-2026-10-11/` (st
 Nothing here grants items, unlocks recipes or changes gameplay yet. The slice proves the architecture: a Minecraft-free
 core, server-side rules, persistence with migrations, admin commands, and an in-world test harness.
 
-## Last recorded verification (2026-10-14, slice 13, JDK 21 runtime, `release 17`)
+## Last recorded verification (2026-10-14, slice 14, JDK 21 runtime, `release 17`)
 
 | Check | Result |
 |---|---|
-| `./gradlew build` (compile main/test/gametest, 106 unit tests, jar) | passed |
-| `./gradlew runGametest` (headless 1.20.1 server, Fabric API 0.92.12, Loader 0.19.5) | "All 29 required tests passed" (3 consecutive runs) |
+| `./gradlew build` (compile main/test/gametest, 108 unit tests, jar) | passed |
+| `./gradlew runGametest` (headless 1.20.1 server, Fabric API 0.92.12, Loader 0.19.5) | "All 31 required tests passed" (3 consecutive runs) |
 | `um publish check luminary` | 0 failures (1 warning in the ignored `.gradle/` cache) |
 | Not verified | a real dedicated server with players; the integrated client and the NPC renderer; any other mod loaded alongside; a real Ollama or hosted model endpoint (only the mock server was exercised) |
 
@@ -85,6 +85,7 @@ cd luminary
 /luminary npc follow <npc> <player> | stop      [3]  follow order (walks to within ~2.5 blocks, repaths once per second)
 /luminary npc talk <npc>                        [2]  talk without clicking (player executor, body must be present)
 /luminary npc provider <scripted|disabled|model> [4]  swap the dialogue provider until restart
+/luminary npc gear <npc>                        [2]  hand, armour and bag with durability
 /luminary npc planner <none|keyword|model>       [4]  swap the intent planner until /reload or restart
 /luminary npc autonomy server on|off             [4]  server-wide autonomy switch until /reload or restart
 /luminary npc autonomy <npc> [on|off]            [3]  per-NPC switch; without on/off: status, budget, orders
@@ -367,6 +368,24 @@ dialogue:
 GameTest `spokenRequestBecomesAValidatedTaskExecutedAndRemembered` runs the whole chain with no model: a mock player
 says "could you chop 2 logs for me?", two real oak logs end up in the authorized chest, the promise is superseded by
 the completed event.
+
+## Names, gear and reach (slice 14)
+
+- **Addressed by name.** An NPC definition carries `aliases` (`"aliases": ["Lumin", "Люмин"]`; default: the last
+  segment of its id). With `conversation.requireName` (default true) a chat line reaches an NPC only when it contains
+  one of its aliases, case-insensitively and as a substring ("Люмину," matches), at **any distance** in the same
+  world; lines without a name are ignored. With `requireName: false` the old nearby intake applies (`chatRange`,
+  0 = unlimited). Prompts carry `PLAYER NAME: <name>` with an instruction to copy it exactly.
+- **Reach.** Attending and the looked-at chest both work up to 12 blocks.
+- **Gear by right-click.** Holding a tool or armour out to the NPC (right-click with it) hands it over: a tool goes
+  into the bag, armour is worn, one piece per slot; a second piece for an intact slot is refused and stays with the
+  player, and only a broken piece makes room for the next. Anything else is declined. `/luminary npc gear <npc>`
+  lists hand, armour and bag with durability.
+- **Tools in use.** Gathering draws the best axe into the hand for the trunk and stows it afterwards; break time is
+  vanilla's (`speed / hardness / 30`, bare hands 60 ticks per log, iron axe 10); one durability per block is spent
+  through the real `ItemStack.damage`; a broken tool disappears and the next suitable one is used. The NPC's own
+  tools and armour are never cargo: deposits, the empty-hands reflex and the intent candidates skip them. Worn armour
+  takes damage as on any mob.
 
 ## Presence and handover (slice 13)
 

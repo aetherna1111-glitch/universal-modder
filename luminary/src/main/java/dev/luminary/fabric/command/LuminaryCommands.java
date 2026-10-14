@@ -180,6 +180,8 @@ public final class LuminaryCommands {
 																.executes(LuminaryCommands::orderStockWood)))))
 								.then(CommandManager.literal("clear")
 										.then(CommandManager.argument("id", IdentifierArgumentType.identifier()).executes(LuminaryCommands::orderClear))))
+						.then(CommandManager.literal("gear")
+								.then(CommandManager.argument("id", IdentifierArgumentType.identifier()).executes(LuminaryCommands::npcGear)))
 						.then(CommandManager.literal("planner")
 								.requires(src -> src.hasPermissionLevel(4))
 								.then(CommandManager.argument("planner", com.mojang.brigadier.arguments.StringArgumentType.word())
@@ -405,6 +407,19 @@ public final class LuminaryCommands {
 		BlockPos container = BlockPosArgumentType.getLoadedBlockPos(ctx, "container");
 		String item = IdentifierArgumentType.getIdentifier(ctx, "item").toString();
 		return runtime(ctx.getSource()).map(rt -> report(ctx.getSource(), rt.npc().assign(id, new NpcAction.Smelt(furnace.asLong(), container.asLong(), item, count)), "luminary.command.task_assigned", id)).orElse(0);
+	}
+
+	private static int npcGear(CommandContext<ServerCommandSource> ctx) {
+		return runtime(ctx.getSource()).map(rt -> {
+			LuminaryId id = parseId(ctx);
+			Optional<LuminaryNpcEntity> body = rt.npc().body(id);
+			if (body.isEmpty()) {
+				ctx.getSource().sendError(Text.translatable(NpcService.REASON_NOT_PRESENT));
+				return 0;
+			}
+			ctx.getSource().sendFeedback(() -> Text.literal(id + ": " + dev.luminary.fabric.npc.GearManager.describe(body.get())), false);
+			return 1;
+		}).orElse(0);
 	}
 
 	private static int npcPlanner(CommandContext<ServerCommandSource> ctx) {
