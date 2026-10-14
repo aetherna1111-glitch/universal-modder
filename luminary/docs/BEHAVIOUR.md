@@ -148,3 +148,9 @@ A right-click on Lumin with his stolen blade in hand used to return it at once, 
 thief the blade. Now the first click only asks (an action-bar line) and a second click within 6 s returns it; a click
 with anything else in hand opens the screen as usual. Topics (small talk included) are answered from the sheet whenever
 it has a line; the model gets only what no topic covers.
+
+## Pressing the attacker, fewer warnings (2026-10-14)
+In COMBAT he now closes in at 1.35 speed, re-pathing every half second so a strafing player is followed; an opponent
+who struck him within the last 8 s is pressed wherever they stand, one who stopped and walked off is followed only
+inside the hold-ground radius (default now 10 blocks). A warning line comes once when the shield goes up and then at
+most every 8 s per attacker, not per blow.

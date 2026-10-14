@@ -579,6 +579,9 @@ public final class BehaviourService {
 	// ------------------------------------------------------------------ combat
 
 	/** The body took a hit. Returns false when the hit must be ignored (down, or not a real attack). */
+	private final java.util.Map<UUID, Instant> warnings = new java.util.HashMap<>();
+	public static final Duration WARNING_COOLDOWN = Duration.ofSeconds(8);
+
 	public void onAttacked(LuminaryNpcEntity body, DamageSource source, float amount) {
 		Optional<NpcRoster.NpcRecord> rec = record(body);
 		if (rec.isEmpty() || !(source.getAttacker() instanceof PlayerEntity attacker)) {
@@ -605,7 +608,10 @@ public final class BehaviourService {
 		String name = attacker.getGameProfile().getName();
 		switch (tr.reaction()) {
 			case RAISE_SHIELD, WARN -> {
-				if (tr.changed() || tr.reaction() == CombatMachine.Reaction.WARN) {
+				// one warning when the shield comes up, one more at most every WARNING_COOLDOWN after that: no line per blow
+				Instant lastWarned = warnings.get(attacker.getUuid());
+				if (tr.changed() || lastWarned == null || now.isAfter(lastWarned.plus(WARNING_COOLDOWN))) {
+					warnings.put(attacker.getUuid(), now);
 					line(id, CharacterSheet.LINES_WARNING, record.combat().recentHits()).ifPresent(l -> say(body, attacker, l));
 				}
 				if (tr.changed()) {
