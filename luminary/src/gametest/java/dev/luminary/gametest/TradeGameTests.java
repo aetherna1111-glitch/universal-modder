@@ -226,6 +226,7 @@ public final class TradeGameTests implements FabricGameTest {
 		player.giveItemStack(new ItemStack(net.minecraft.item.Items.EMERALD, 12));
 		double before = b.karmaOf(player.getUuid());
 		expect(trade.donate(ID, player).ok(), "alms accepted");
+		TradeManager.almsEffects(npc().body(ID).orElseThrow());   // the bell and the light: must not throw on a server world
 		expect(Math.abs(b.karmaOf(player.getUuid()) - before - 5) < 0.01 && count(player, net.minecraft.item.Items.EMERALD) == 2, "+5 karma for 10 emeralds: " + b.karmaOf(player.getUuid()) + ", emeralds left " + count(player, net.minecraft.item.Items.EMERALD));
 		// the ledger reset does not forgive: karma is the relationship, not the trade
 		trade.reset(ID, player);

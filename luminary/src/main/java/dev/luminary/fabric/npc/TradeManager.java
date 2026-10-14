@@ -203,6 +203,23 @@ public final class TradeManager {
 		return Result.OK;
 	}
 
+	/** Alms received: a bell and a chime at the body, light rising around it and souls drifting off the giver's wrong. */
+	public static void almsEffects(LuminaryNpcEntity body) {
+		if (!(body.getWorld() instanceof net.minecraft.server.world.ServerWorld world)) {
+			return;
+		}
+		world.playSound(null, body.getBlockPos(), net.minecraft.sound.SoundEvents.BLOCK_BELL_RESONATE, net.minecraft.sound.SoundCategory.NEUTRAL, 0.8f, 1.2f);
+		world.playSound(null, body.getBlockPos(), net.minecraft.sound.SoundEvents.BLOCK_AMETHYST_BLOCK_CHIME, net.minecraft.sound.SoundCategory.NEUTRAL, 1.0f, 1.0f);
+		world.playSound(null, body.getBlockPos(), net.minecraft.sound.SoundEvents.ENTITY_PLAYER_LEVELUP, net.minecraft.sound.SoundCategory.NEUTRAL, 0.5f, 1.6f);
+		for (int i = 0; i < 24; i++) {   // a ring of light rising around him
+			double a = i * Math.PI / 12;
+			world.spawnParticles(net.minecraft.particle.ParticleTypes.END_ROD, body.getX() + Math.cos(a) * 0.9, body.getY() + 0.2, body.getZ() + Math.sin(a) * 0.9, 1, 0, 0.06, 0, 0.0);
+		}
+		world.spawnParticles(net.minecraft.particle.ParticleTypes.SOUL, body.getX(), body.getY() + 1.6, body.getZ(), 10, 0.5, 0.4, 0.5, 0.02);
+		world.spawnParticles(net.minecraft.particle.ParticleTypes.GLOW, body.getX(), body.getY() + 1.0, body.getZ(), 20, 0.6, 0.8, 0.6, 0.01);
+		world.spawnParticles(net.minecraft.particle.ParticleTypes.HAPPY_VILLAGER, body.getX(), body.getY() + 2.2, body.getZ(), 8, 0.4, 0.3, 0.4, 0.0);
+	}
+
 	static int count(PlayerEntity player, Item item) {
 		int n = 0;
 		for (int i = 0; i < player.getInventory().size(); i++) {
@@ -414,6 +431,9 @@ public final class TradeManager {
 			}
 			case ACTION_DONATE -> {
 				r = donate(id, player);
+				if (r.ok()) {
+					almsEffects(body);
+				}
 				line = r.ok() ? npc.behaviour().line(id, "donation", clock.get().getEpochSecond()).orElse(Text.translatable("npc.luminary.trade.donation").getString()) : "";
 			}
 			case ACTION_GEAR -> {

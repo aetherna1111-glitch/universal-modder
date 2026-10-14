@@ -74,6 +74,7 @@ final class TradeScreenShot {
 			npc.readCustomDataFromNbt(nbt);
 			return npc;
 		} catch (RuntimeException e) {
+			dev.luminary.fabric.Luminary.LOGGER.warn("[luminary] no portrait for the screenshot", e);
 			return null;
 		}
 	}

@@ -95,7 +95,7 @@ into:
 The screen's left panel shows the karma and his attitude; hovering it shows trust, threat, the luck and the markup.
 - **Alms**: the «Пожертвовать 10 ✧» button under the karma takes 10 emeralds from the player's inventory for +5 karma
   (the `DONATION` event: +5 karma, +2 trust, −10 threat; `KarmaEffects.DONATION_*`), and he answers with a `donation`
-  line («Твои подаяния очищают твою душу и смывают грехи»). Disabled without the emeralds; checked again on the server.
+  line («Твои подаяния очищают твою душу и смывают грехи»). Disabled without the emeralds; checked again on the server. At the body: a bell, a chime and a level-up note, a ring of light rising, souls and glow drifting off (`TradeManager.almsEffects`).
 
 ## Testing commands (op 3)
 - `/luminary npc trade lumin status [player]`: the ledger and every quest's state.
