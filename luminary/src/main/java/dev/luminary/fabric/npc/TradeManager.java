@@ -125,6 +125,54 @@ public final class TradeManager {
 		return r;
 	}
 
+	/**
+	 * Admin: every quest of the NPC completed for the player by decree, {@code special} included or not. Points and
+	 * reward items are handed out as for a real claim; the special quest hands over the blade. Returns how many.
+	 */
+	public int completeAll(LuminaryId id, PlayerEntity player, boolean special) {
+		PlayerLedger ledger = ledger(id, player);
+		int n = 0;
+		for (Quest q : quests(id)) {
+			if (q.special() && !special) {
+				continue;
+			}
+			Optional<Quest> done = service.forceComplete(q.id(), ledger);
+			if (done.isEmpty()) {
+				continue;
+			}
+			n++;
+			for (String itemId : q.rewardItems()) {
+				Identifier iid = Identifier.tryParse(itemId);
+				if (iid != null) {
+					Registries.ITEM.getOrEmpty(iid).ifPresent(it -> give(player, new ItemStack(it)));
+				}
+			}
+			if (q.special()) {
+				npc.behaviour().transferWeapon(id, player, "command: every quest completed by decree");
+			}
+		}
+		if (n > 0) {
+			npc.behaviour().remember(id, MemoryKind.SIGNIFICANT_EVENT, player.getUuid(), "quest/decree", "an administrator marked " + n + " of my tasks done for " + player.getGameProfile().getName());
+			state.markDirty();
+		}
+		return n;
+	}
+
+	/** Admin: the player's ledger with the NPC wiped; a blade transferred to that player is reclaimed. Returns whether anything changed. */
+	public boolean reset(LuminaryId id, PlayerEntity player) {
+		NpcRoster.NpcRecord record = state.roster().ensureRecord(id);
+		boolean changed = record.resetLedger(player.getUuid());
+		if (record.hasWeaponRecord() && record.weapon().custody() == dev.luminary.core.npc.weapon.WeaponCustody.Custody.TRANSFERRED
+				&& record.weapon().state().holder().filter(player.getUuid()::equals).isPresent()) {
+			npc.behaviour().reclaimWeapon(id);
+			changed = true;
+		}
+		if (changed) {
+			state.markDirty();
+		}
+		return changed;
+	}
+
 	public Result buy(LuminaryId id, PlayerEntity player, int index) {
 		List<ShopOffer> offers = offers(id);
 		boolean ownsUnique = index >= 0 && index < offers.size() && item(offers.get(index)).map(it -> owns(player, it)).orElse(false);

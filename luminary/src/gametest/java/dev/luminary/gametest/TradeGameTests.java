@@ -141,6 +141,14 @@ public final class TradeGameTests implements FabricGameTest {
 		expect(trade.buy(ID, player, 1).reasonKey().equals(TradeService.REASON_UNIQUE_OWNED), "one of a kind");
 		expect(trade.buy(ID, player, 5).reasonKey().equals(TradeService.REASON_UNKNOWN_OFFER), "no such offer");
 		expect(ledger.purchases() == 2, "two purchases on the ledger");
+		// the testing commands: reset wipes everything and reclaims the blade; complete-by-decree does it all again
+		expect(trade.reset(ID, player), "reset changes something");
+		PlayerLedger fresh = trade.ledger(ID, player);
+		expect(fresh.points() == 0 && fresh.completed().isEmpty() && fresh.purchases() == 0, "a clean ledger");
+		expect(record.weapon().custody() == WeaponCustody.Custody.NPC, "the blade is his again after the reset");
+		expect(trade.completeAll(ID, player, false) == 5 && fresh.points() == 20 && fresh.specialAvailable(), "five tasks by decree, the trial opens");
+		expect(trade.completeAll(ID, player, true) == 1 && record.weapon().custody() == WeaponCustody.Custody.TRANSFERRED, "the trial by decree hands over the blade");
+		expect(trade.completeAll(ID, player, true) == 0, "nothing left to decree");
 		npc().behaviour().reclaimWeapon(ID);
 		npc().despawn(ID);
 		ctx.complete();

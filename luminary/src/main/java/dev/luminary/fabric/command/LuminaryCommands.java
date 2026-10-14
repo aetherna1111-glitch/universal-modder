@@ -284,6 +284,25 @@ public final class LuminaryCommands {
 												.then(CommandManager.argument("player", EntityArgumentType.player())
 														.then(CommandManager.argument("reason", com.mojang.brigadier.arguments.StringArgumentType.greedyString())
 																.executes(LuminaryCommands::weaponTransfer))))))
+						.then(CommandManager.literal("trade")
+								.requires(src -> src.hasPermissionLevel(3))
+								.then(CommandManager.argument("id", IdentifierArgumentType.identifier())
+										.then(CommandManager.literal("status")
+												.executes(ctx -> tradeStatus(ctx, ctx.getSource().getPlayerOrThrow()))
+												.then(CommandManager.argument("player", EntityArgumentType.player()).executes(ctx -> tradeStatus(ctx, EntityArgumentType.getPlayer(ctx, "player")))))
+										.then(CommandManager.literal("complete")
+												.executes(ctx -> tradeComplete(ctx, ctx.getSource().getPlayerOrThrow(), false))
+												.then(CommandManager.literal("all").executes(ctx -> tradeComplete(ctx, ctx.getSource().getPlayerOrThrow(), true)))
+												.then(CommandManager.argument("player", EntityArgumentType.player())
+														.executes(ctx -> tradeComplete(ctx, EntityArgumentType.getPlayer(ctx, "player"), false))
+														.then(CommandManager.literal("all").executes(ctx -> tradeComplete(ctx, EntityArgumentType.getPlayer(ctx, "player"), true)))))
+										.then(CommandManager.literal("reset")
+												.executes(ctx -> tradeReset(ctx, ctx.getSource().getPlayerOrThrow()))
+												.then(CommandManager.argument("player", EntityArgumentType.player()).executes(ctx -> tradeReset(ctx, EntityArgumentType.getPlayer(ctx, "player")))))
+										.then(CommandManager.literal("points")
+												.then(CommandManager.argument("player", EntityArgumentType.player())
+														.then(CommandManager.argument("amount", com.mojang.brigadier.arguments.IntegerArgumentType.integer(-100000, 100000))
+																.executes(LuminaryCommands::tradePoints))))))
 						.then(CommandManager.literal("place")
 								.requires(src -> src.hasPermissionLevel(3))
 								.then(CommandManager.argument("id", IdentifierArgumentType.identifier())
@@ -834,6 +853,58 @@ public final class LuminaryCommands {
 	private static int npcReset(CommandContext<ServerCommandSource> ctx) {
 		LuminaryId id = parseId(ctx);
 		return runtime(ctx.getSource()).map(rt -> report(ctx.getSource(), rt.npc().behaviour().reset(id, ctx.getSource().getWorld(), ctx.getSource().getPosition()), "luminary.command.reset", id)).orElse(0);
+	}
+
+	private static int tradeStatus(CommandContext<ServerCommandSource> ctx, ServerPlayerEntity player) {
+		LuminaryId id = parseId(ctx);
+		return runtime(ctx.getSource()).map(rt -> {
+			var trade = rt.npc().trade();
+			var ledger = trade.ledger(id, player);
+			ctx.getSource().sendFeedback(() -> Text.translatable("luminary.command.trade_status", player.getGameProfile().getName(), id.toString(), ledger.points(), ledger.completed().size(), ledger.purchases(), ledger.specialAvailable()), false);
+			for (var v : trade.service().views(trade.quests(id), ledger)) {
+				ctx.getSource().sendFeedback(() -> Text.literal("  " + (v.quest().special() ? "✦ " : "") + v.quest().id().path() + ": " + v.state() + " " + v.progress() + "/" + v.required()), false);
+			}
+			return 1;
+		}).orElse(0);
+	}
+
+	private static int tradeComplete(CommandContext<ServerCommandSource> ctx, ServerPlayerEntity player, boolean special) {
+		LuminaryId id = parseId(ctx);
+		return runtime(ctx.getSource()).map(rt -> {
+			if (rt.npc().dialogue().definitions().npc(id).isEmpty()) {
+				ctx.getSource().sendError(Text.translatable(NpcService.REASON_UNKNOWN_NPC));
+				return 0;
+			}
+			int n = rt.npc().trade().completeAll(id, player, special);
+			ctx.getSource().sendFeedback(() -> Text.translatable("luminary.command.trade_completed", n, id.toString(), player.getGameProfile().getName(), rt.npc().trade().ledger(id, player).points()), true);
+			return n;
+		}).orElse(0);
+	}
+
+	private static int tradeReset(CommandContext<ServerCommandSource> ctx, ServerPlayerEntity player) {
+		LuminaryId id = parseId(ctx);
+		return runtime(ctx.getSource()).map(rt -> {
+			if (rt.npc().dialogue().definitions().npc(id).isEmpty()) {
+				ctx.getSource().sendError(Text.translatable(NpcService.REASON_UNKNOWN_NPC));
+				return 0;
+			}
+			boolean changed = rt.npc().trade().reset(id, player);
+			ctx.getSource().sendFeedback(() -> Text.translatable(changed ? "luminary.command.trade_reset" : "luminary.command.trade_reset_nothing", id.toString(), player.getGameProfile().getName()), true);
+			return changed ? 1 : 0;
+		}).orElse(0);
+	}
+
+	private static int tradePoints(CommandContext<ServerCommandSource> ctx) throws CommandSyntaxException {
+		LuminaryId id = parseId(ctx);
+		ServerPlayerEntity player = EntityArgumentType.getPlayer(ctx, "player");
+		int amount = com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "amount");
+		return runtime(ctx.getSource()).map(rt -> {
+			var ledger = rt.npc().trade().ledger(id, player);
+			rt.npc().trade().service().grant(ledger, amount);
+			rt.npc().markDirty();
+			ctx.getSource().sendFeedback(() -> Text.translatable("luminary.command.trade_points", player.getGameProfile().getName(), ledger.points()), true);
+			return 1;
+		}).orElse(0);
 	}
 
 	private static int weaponReclaim(CommandContext<ServerCommandSource> ctx) {

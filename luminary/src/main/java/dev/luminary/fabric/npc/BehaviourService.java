@@ -972,8 +972,37 @@ public final class BehaviourService {
 		}
 		remember(id, MemoryKind.SIGNIFICANT_EVENT, player.getUuid(), "weapon/transfer", "I gave my blade to " + player.getGameProfile().getName() + " for good (" + reason + ")");
 		npc.body(id).ifPresent(b -> syncEquipment(b, record));
+		proclaimTransfer(id, player);
 		state.markDirty();
 		return Result.OK;
+	}
+
+	/**
+	 * The whole server hears it: Lumin's proclamation that the blade has passed to the blessed one, in the sword's
+	 * shimmering gold-white-sky lettering, framed in stars, with a chime for everyone. Chat cannot animate, so the
+	 * shimmer is the gradient along the line.
+	 */
+	void proclaimTransfer(LuminaryId id, PlayerEntity player) {
+		String who = player.getGameProfile().getName();
+		Text name = Text.translatable(nameKeyOf(id));
+		String line = Text.translatable("npc.luminary.weapon.proclaimed", who).getString();
+		Text shimmering = HolySwordItem.shimmer("✦ " + line + " ✦");
+		Text artifact = HolySwordItem.shimmer(Text.translatable("item.luminary.holy_sword_of_lumin").getString());
+		Text first = Text.empty().append(Text.literal("<").append(name).append("> ").formatted(Formatting.GOLD)).append(shimmering);
+		Text second = Text.empty().append(Text.literal("   ").append(Text.translatable("npc.luminary.weapon.proclaimed.artifact").formatted(Formatting.GRAY, Formatting.ITALIC)).append(" ").append(artifact));
+		Text third = Text.literal("   ").append(Text.translatable("npc.luminary.weapon.proclaimed.tail", who).formatted(Formatting.DARK_PURPLE, Formatting.ITALIC));
+		for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
+			p.sendMessage(Text.empty(), false);
+			p.sendMessage(first, false);
+			p.sendMessage(second, false);
+			p.sendMessage(third, false);
+			p.sendMessage(Text.empty(), false);
+			p.playSound(net.minecraft.sound.SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, net.minecraft.sound.SoundCategory.PLAYERS, 0.9f, 1.1f);
+			p.playSound(net.minecraft.sound.SoundEvents.BLOCK_BEACON_ACTIVATE, net.minecraft.sound.SoundCategory.PLAYERS, 0.6f, 1.4f);
+		}
+		if (player instanceof ServerPlayerEntity sp && !server.getPlayerManager().getPlayerList().contains(sp)) {
+			sp.sendMessage(first, false);   // a player the manager does not list (tests) still hears it
+		}
 	}
 
 	/** Admin: take the weapon back from whoever has it; copies become stale. */

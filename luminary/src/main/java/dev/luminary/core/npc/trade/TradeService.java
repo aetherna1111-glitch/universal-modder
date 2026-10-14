@@ -143,6 +143,21 @@ public final class TradeService {
 		return Result.OK;
 	}
 
+	/**
+	 * Admin: a quest completed by decree, whatever its state (a locked special quest included): accepted if needed,
+	 * every kill counted, then claimed. Returns the quest so the caller can hand out its rewards; empty if unknown or done.
+	 */
+	public Optional<Quest> forceComplete(LuminaryId questId, PlayerLedger ledger) {
+		Optional<Quest> q = quests.apply(questId);
+		if (q.isEmpty() || ledger.isCompleted(questId)) {
+			return Optional.empty();
+		}
+		PlayerLedger.Progress p = ledger.restoreActive(questId);
+		q.get().kills().forEach(p::restore);
+		ledger.complete(q.get());
+		return q;
+	}
+
 	public void grant(PlayerLedger ledger, int amount) {
 		ledger.grant(amount);
 	}

@@ -81,6 +81,21 @@ Trial of the Envoy, whose reward is his blade, with the player's name on it for 
 - **Lines** (character sheet groups, `lumin.json`): `trade_greeting`, `trade_claimable`, `trade_special`,
   `quest_accepted`, `quest_claimed`, `trade_bought`, `sword_given`.
 
+## Testing commands (op 3)
+- `/luminary npc trade lumin status [player]`: the ledger and every quest's state.
+- `/luminary npc trade lumin complete [player]`: all 13 story tasks done by decree (points and reward items as for
+  a real claim); the trial becomes available if nothing was bought. `… complete [player] all` also completes the
+  trial: the blade changes hands, the proclamation goes out.
+- `/luminary npc trade lumin reset [player]`: points, tasks and purchases wiped; a blade given to that player is
+  reclaimed (`reclaimWeapon`), so the trial can be played again from zero.
+- `/luminary npc trade lumin points <player> <amount>`: grant or take points.
+
+## The proclamation
+When the blade changes hands (`transferWeapon`, so the Trial's claim and the admin command alike), every player on the
+server reads, in the sword's shimmering lettering framed in ✦, «<Люмин> ✦ Благословенному <ник> передан артефакт ✦»,
+then the artifact's shimmering name and a purple line that it now bears the player's name, with a chime
+(`npc.luminary.weapon.proclaimed*`).
+
 ## Screenshots
 `-Dluminary.screenshot=<file>.png` on a client makes `TradeScreenShot` open the screen with a sample snapshot on the
 title screen, save that file and `<file>_shop.png`, and quit (no world, so the portrait panel stays empty there).

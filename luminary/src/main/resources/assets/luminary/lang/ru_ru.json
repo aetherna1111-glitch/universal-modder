@@ -306,5 +306,13 @@
   "item.luminary.angelic_harp.bound": "Арфа Люмина. Из его рук не выпадает и никому не достаётся.",
   "item.luminary.angelic_harp.unbound": "Свободная арфа: никому не принадлежит.",
   "item.luminary.holy_sword_of_lumin.bound_player": "Связан с %s. В чужих руках обращается в свет и возвращается к владельцу; пролежав час на земле — тоже.",
-  "npc.luminary.weapon.came_back": "Святой меч Люмина вернулся к вам."
+  "npc.luminary.weapon.came_back": "Святой меч Люмина вернулся к вам.",
+  "npc.luminary.weapon.proclaimed": "Благословенному %s передан артефакт",
+  "npc.luminary.weapon.proclaimed.artifact": "Из рук Люмина — в руки избранного:",
+  "npc.luminary.weapon.proclaimed.tail": "Отныне он носит имя %s и не вернётся к прежнему хозяину.",
+  "luminary.command.trade_status": "%s у %s: очков %s, выполнено поручений %s, покупок %s, особое открыто: %s",
+  "luminary.command.trade_completed": "Выполнено по указу: %s поручений у %s для %s; очков теперь %s.",
+  "luminary.command.trade_reset": "Счёт у %s для %s стёрт: очки, поручения и покупки с нуля; переданный меч возвращён.",
+  "luminary.command.trade_reset_nothing": "У %s нечего стирать для %s.",
+  "luminary.command.trade_points": "Очки %s: теперь %s."
 }

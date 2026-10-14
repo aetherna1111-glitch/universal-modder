@@ -191,6 +191,11 @@ public final class NpcRoster {
 			return ledgers.computeIfAbsent(player, k -> new dev.luminary.core.npc.trade.PlayerLedger());
 		}
 
+		/** Admin: the player's points, quests and purchases with this NPC start from nothing. Returns whether there was anything. */
+		public boolean resetLedger(UUID player) {
+			return ledgers.remove(player) != null;
+		}
+
 		public Map<UUID, dev.luminary.core.npc.trade.PlayerLedger> ledgers() {
 			return Collections.unmodifiableMap(ledgers);
 		}

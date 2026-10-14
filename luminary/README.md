@@ -92,6 +92,10 @@ cd luminary
 /luminary npc relations <npc>                   [2]  karma / trust / threat and standing per player
 /luminary npc revive <npc>                      [3]  end a knockout now
 /luminary npc weapon <npc> [reclaim|transfer <player> <reason>]  [2/4]  custody; the single permanent-transfer point
+/luminary npc trade <npc> status [player]             [3]  points, tasks and purchases of a player
+/luminary npc trade <npc> complete [player] [all]     [3]  every task done by decree ("all" includes the trial: the blade changes hands)
+/luminary npc trade <npc> reset [player]              [3]  the ledger wiped; a given blade reclaimed
+/luminary npc trade <npc> points <player> <amount>    [3]  grant (or take, negative) points
 /luminary npc place <npc> <study|desk|site|home|workshop> <pos> | clear <kind>  [3]  routine places
 /luminary npc routine <npc> on|off              [3]
 /luminary npc plan status|cancel <npc>          [2/3]

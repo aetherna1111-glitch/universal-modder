@@ -306,5 +306,13 @@
   "item.luminary.angelic_harp.bound": "Lumin's harp. It never leaves his hands and is nobody's loot.",
   "item.luminary.angelic_harp.unbound": "A free harp: it belongs to nobody.",
   "item.luminary.holy_sword_of_lumin.bound_player": "Bound to %s. In anyone else's hands it turns to light and returns to its owner; after an hour on the ground, too.",
-  "npc.luminary.weapon.came_back": "The Holy Sword of Lumin came back to you."
+  "npc.luminary.weapon.came_back": "The Holy Sword of Lumin came back to you.",
+  "npc.luminary.weapon.proclaimed": "To the blessed %s the artifact is given",
+  "npc.luminary.weapon.proclaimed.artifact": "From Lumin's hands into the chosen one's:",
+  "npc.luminary.weapon.proclaimed.tail": "From now on it bears the name of %s and will not return to its former keeper.",
+  "luminary.command.trade_status": "%s with %s: %s points, %s tasks done, %s purchases, special open: %s",
+  "luminary.command.trade_completed": "By decree: %s tasks of %s done for %s; points now %s.",
+  "luminary.command.trade_reset": "The ledger of %s for %s is wiped: points, tasks and purchases from zero; a given blade is reclaimed.",
+  "luminary.command.trade_reset_nothing": "%s has nothing to wipe for %s.",
+  "luminary.command.trade_points": "Points of %s: now %s."
 }
