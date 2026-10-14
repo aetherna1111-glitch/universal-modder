@@ -341,5 +341,6 @@
   "luminary.command.karma_set": "Karma of %s with %s is now %s (%s).",
   "npc.luminary.follow.yes": "I follow.",
   "npc.luminary.follow.stop": "I stop.",
-  "npc.luminary.follow.not_following": "I was not going anywhere."
+  "npc.luminary.follow.not_following": "I was not going anywhere.",
+  "npc.luminary.weapon.return_confirm": "Give the blade back to Lumin? Click him again within %s s."
 }

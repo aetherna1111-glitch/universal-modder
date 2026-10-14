@@ -258,6 +258,11 @@ public final class BehaviourGameTests implements FabricGameTest {
 		expect(b.interactDown(body, thief, ItemStack.EMPTY) == BehaviourService.DownInteraction.NOTHING, "it cannot be taken twice, and the bag is empty");
 		WeaponCustody custody = record.weapon();
 		expect(custody.custody() == WeaponCustody.Custody.STOLEN, "custody STOLEN");
+		// a click on him with the blade in hand only asks; the blade stays with the thief until a second click confirms
+		ItemStack firstClick = ItemStack.EMPTY;
+		for (int i = 0; i < thief.getInventory().size(); i++) if (thief.getInventory().getStack(i).isOf(LuminaryItems.LUMIN_BLADE)) firstClick = thief.getInventory().getStack(i);
+		expect(b.offerBladeBack(body, thief, firstClick), "the first click is taken (it asks)");
+		expect(custody.custody() == WeaponCustody.Custody.STOLEN && !firstClick.isEmpty(), "one click does not return the blade");
 		UUID stolenInstance = custody.instanceId();
 		expect(custody.state().returnAt().orElseThrow().equals(custody.state().takenAt().orElseThrow().plus(Duration.ofHours(1))), "exactly one hour");
 		int slot = -1;

@@ -662,9 +662,7 @@ public final class NpcService {
 				return Optional.of(new Intent(Optional.empty(), Optional.of(was ? "npc.luminary.follow.stop" : "npc.luminary.follow.not_following"), was ? behaviour.topicLine(npc, player, topic) : Optional.empty(), "topic"));
 			}
 			default -> {
-				if (topic.kind() == dev.luminary.core.npc.conversation.Topic.Kind.SOCIAL && modelReady.getAsBoolean()) {
-					return Optional.empty();   // the model answers small talk better, and knows the situation
-				}
+				// an authored line whenever the sheet has one (a small model answers small talk worse than the sheet does); the model gets only what no topic covers
 				return behaviour.topicLine(npc, player, topic).map(l -> new Intent(Optional.empty(), Optional.of("topic"), Optional.of(l), "topic"));
 			}
 		}

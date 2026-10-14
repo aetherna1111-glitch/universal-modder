@@ -341,5 +341,6 @@
   "luminary.command.karma_set": "Карма %s у %s теперь %s (%s).",
   "npc.luminary.follow.yes": "Иду за тобой.",
   "npc.luminary.follow.stop": "Стою.",
-  "npc.luminary.follow.not_following": "Я и так никуда не иду."
+  "npc.luminary.follow.not_following": "Я и так никуда не иду.",
+  "npc.luminary.weapon.return_confirm": "Вернуть меч Люмину? Кликни по нему ещё раз в течение %s с."
 }

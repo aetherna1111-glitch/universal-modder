@@ -1087,6 +1087,15 @@ public final class BehaviourService {
 	}
 
 	/** A player hands the blade back before the hour is up. */
+	/** Who offered the stolen blade back and when: a second click inside {@link #RETURN_CONFIRM} returns it, one click only asks. */
+	private final java.util.Map<UUID, Instant> returnOffers = new java.util.HashMap<>();
+	public static final Duration RETURN_CONFIRM = Duration.ofSeconds(6);
+
+	/**
+	 * A player holding the stolen blade right-clicks him. The first click only asks ("click again to give it back"), so a
+	 * click meant for the screen never costs the blade; a second click within {@link #RETURN_CONFIRM} returns it. True when
+	 * the click was taken by this (the screen does not open).
+	 */
 	public boolean offerBladeBack(LuminaryNpcEntity body, PlayerEntity player, ItemStack inHand) {
 		Optional<NpcRoster.NpcRecord> rec = record(body);
 		if (rec.isEmpty() || !inHand.isOf(LuminaryItems.LUMIN_BLADE)) {
@@ -1097,8 +1106,16 @@ public final class BehaviourService {
 		if (HolySwordItem.owner(inHand).filter(id::equals).isEmpty() || custody.custody() != WeaponCustody.Custody.STOLEN) {
 			return false;
 		}
+		Instant now = clock.get();
+		Instant asked = returnOffers.get(player.getUuid());
+		if (asked == null || now.isAfter(asked.plus(RETURN_CONFIRM))) {
+			returnOffers.put(player.getUuid(), now);
+			player.sendMessage(Text.translatable("npc.luminary.weapon.return_confirm", (int) RETURN_CONFIRM.toSeconds()).formatted(Formatting.GRAY, Formatting.ITALIC), true);
+			return true;
+		}
+		returnOffers.remove(player.getUuid());
 		inHand.setCount(0);
-		rec.get().relationships().apply(player.getUuid(), RelationshipEvent.RETURNED_WEAPON, clock.get(), state.roster().rules().relationship());
+		rec.get().relationships().apply(player.getUuid(), RelationshipEvent.RETURNED_WEAPON, now, state.roster().rules().relationship());
 		returnWeapon(id, rec.get(), player.getGameProfile().getName() + " gave it back");
 		return true;
 	}
