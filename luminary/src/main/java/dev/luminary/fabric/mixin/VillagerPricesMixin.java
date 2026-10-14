@@ -21,13 +21,21 @@ abstract class VillagerPricesMixin {
 	@Inject(method = "prepareOffersFor", at = @At("TAIL"))
 	private void luminary$karmaMarkup(PlayerEntity player, CallbackInfo ci) {
 		LuminaryRuntime.get().ifPresent(rt -> {
-			double markup = KarmaEffects.markup(rt.npc().behaviour().karmaOf(player.getUuid()));
+			double karma = rt.npc().behaviour().karmaOf(player.getUuid());
+			double markup = KarmaEffects.markup(karma);
+			VillagerEntity self = (VillagerEntity) (Object) this;
+			StringBuilder before = new StringBuilder();
+			for (TradeOffer offer : self.getOffers()) {
+				before.append(before.length() == 0 ? "" : ", ").append(offer.getOriginalFirstBuyItem().getCount()).append(offer.getSpecialPrice() >= 0 ? "+" : "").append(offer.getSpecialPrice());
+			}
 			if (markup <= 0) {
+				dev.luminary.fabric.Luminary.LOGGER.info("[luminary] villager prices for {}: karma {} → no markup; vanilla special prices (base+special): {}", player.getGameProfile().getName(), (int) karma, before);
 				return;
 			}
-			for (TradeOffer offer : ((VillagerEntity) (Object) this).getOffers()) {
+			for (TradeOffer offer : self.getOffers()) {
 				offer.increaseSpecialPrice(KarmaEffects.extraPrice(offer.getOriginalFirstBuyItem().getCount(), markup));
 			}
+			dev.luminary.fabric.Luminary.LOGGER.info("[luminary] villager prices for {}: karma {} → markup {}%; before: {}", player.getGameProfile().getName(), (int) karma, (int) Math.round(markup * 100), before);
 		});
 	}
 }
