@@ -271,6 +271,7 @@ public final class LuminaryCommands {
 								.then(CommandManager.argument("id", IdentifierArgumentType.identifier()).executes(LuminaryCommands::npcRevive)))
 						.then(CommandManager.literal("reset")
 								.requires(src -> src.hasPermissionLevel(3))
+								.executes(LuminaryCommands::npcResetDefault)
 								.then(CommandManager.argument("id", IdentifierArgumentType.identifier()).executes(LuminaryCommands::npcReset)))
 						.then(CommandManager.literal("weapon")
 								.then(CommandManager.argument("id", IdentifierArgumentType.identifier())
@@ -823,6 +824,13 @@ public final class LuminaryCommands {
 		return runtime(ctx.getSource()).map(rt -> report(ctx.getSource(), rt.npc().behaviour().revive(id), "luminary.command.revived", id)).orElse(0);
 	}
 
+	private static int npcResetDefault(CommandContext<ServerCommandSource> ctx) {
+		return runtime(ctx.getSource()).map(rt -> defaultNpc(rt).map(id -> report(ctx.getSource(), rt.npc().behaviour().reset(id, ctx.getSource().getWorld(), ctx.getSource().getPosition()), "luminary.command.reset", id)).orElseGet(() -> {
+			ctx.getSource().sendError(Text.translatable(NpcService.REASON_UNKNOWN_NPC));
+			return 0;
+		})).orElse(0);
+	}
+
 	private static int npcReset(CommandContext<ServerCommandSource> ctx) {
 		LuminaryId id = parseId(ctx);
 		return runtime(ctx.getSource()).map(rt -> report(ctx.getSource(), rt.npc().behaviour().reset(id, ctx.getSource().getWorld(), ctx.getSource().getPosition()), "luminary.command.reset", id)).orElse(0);
@@ -1011,8 +1019,31 @@ public final class LuminaryCommands {
 		return new LuminaryId(id.getNamespace(), id.getPath());
 	}
 
+	/**
+	 * The NPC id argument, forgiving: a bare name ("lumin", which the argument type reads as "minecraft:lumin")
+	 * resolves to the one defined NPC whose id ends with "/lumin" or whose alias matches, case-insensitively.
+	 */
 	private static LuminaryId parseId(CommandContext<ServerCommandSource> ctx) {
-		return toLuminaryId(IdentifierArgumentType.getIdentifier(ctx, "id"));
+		Identifier raw = IdentifierArgumentType.getIdentifier(ctx, "id");
+		LuminaryId id = toLuminaryId(raw);
+		Optional<LuminaryRuntime> rt = LuminaryRuntime.get();
+		if (rt.isEmpty() || rt.get().npc().dialogue().definitions().npc(id).isPresent()) {
+			return id;
+		}
+		String bare = raw.getPath().toLowerCase(java.util.Locale.ROOT);
+		for (var def : rt.get().npc().dialogue().definitions().npcs()) {
+			String path = def.id().path().toLowerCase(java.util.Locale.ROOT);
+			if (path.equals(bare) || path.endsWith("/" + bare) || def.aliases().contains(bare)) {
+				return def.id();
+			}
+		}
+		return id;
+	}
+
+	/** The one NPC that wears the vestments (Lumin), for commands given without an id. */
+	private static Optional<LuminaryId> defaultNpc(LuminaryRuntime rt) {
+		var all = rt.npc().dialogue().definitions().npcs();
+		return all.stream().filter(d -> d.vestments()).map(d -> d.id()).findFirst().or(() -> all.size() == 1 ? Optional.of(all.iterator().next().id()) : Optional.empty());
 	}
 
 	private static int report(ServerCommandSource src, Result result, String okKey, LuminaryId id) {
