@@ -220,5 +220,6 @@
   "npc.luminary.down.bag_empty": "His bag is empty. Food helps him up; sneak with an empty hand to take the sword.",
   "npc.luminary.down.no_weapon": "The sword is not on him.",
   "npc.luminary.down.hint": "Empty hand: search the bag. Food: help. Sneak + empty hand: take the sword.",
-  "luminary.command.reset": "%s was set right again."
+  "luminary.command.reset": "%s was set right again.",
+  "item.luminary.owner": "Belongs to %s"
 }

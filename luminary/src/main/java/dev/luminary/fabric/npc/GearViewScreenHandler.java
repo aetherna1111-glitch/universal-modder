@@ -106,7 +106,7 @@ public final class GearViewScreenHandler extends ScreenHandler {
 		if (sword.isEmpty() && npc.npcId().isPresent() && !npc.getWorld().isClient) {
 			var id = npc.npcId().get();
 			sword = LuminaryRuntime.get().map(rt -> rt.npc().roster().ensureRecord(id)).filter(r -> r.weapon().custody() == WeaponCustody.Custody.NPC)
-					.map(r -> HolySwordItem.bound(LuminaryItems.LUMIN_BLADE, id, r.weapon().instanceId())).orElse(ItemStack.EMPTY);
+					.map(r -> LuminaryRuntime.get().orElseThrow().npc().behaviour().blade(id, r.weapon().instanceId())).orElse(ItemStack.EMPTY);
 		}
 		mirror.setStack(SLOT_SWORD, sword);
 		mirror.setStack(SLOT_SHIELD, npc.getOffHandStack().isOf(Items.SHIELD) ? npc.getOffHandStack().copy() : new ItemStack(Items.SHIELD));

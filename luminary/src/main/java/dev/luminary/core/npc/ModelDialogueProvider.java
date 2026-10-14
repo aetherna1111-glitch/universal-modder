@@ -160,11 +160,22 @@ public final class ModelDialogueProvider implements DialogueProvider {
 
 	Optional<DialogueResponse> interpret(LlmResponse response, List<RevealableClue> allowed) {
 		Optional<JsonObject> json = response.structured();
+		String line;
 		if (json.isEmpty() || !json.get().has("line") || json.get().get("line").isJsonNull()) {
-			diagnostics.accept("model reply had no usable JSON line; scripted fallback");
-			return Optional.empty();
+			// a small model sometimes answers in plain words instead of JSON: take them as the line rather than falling back to a script
+			String raw = response.text() == null ? "" : response.text().strip().replace('\n', ' ');
+			if (raw.isEmpty() || raw.startsWith("{") || raw.startsWith("[") || raw.length() > MAX_LINE_CHARS * 2) {
+				diagnostics.accept("model reply had no usable JSON line; scripted fallback");
+				return Optional.empty();
+			}
+			if (raw.length() >= 2 && raw.startsWith("\"") && raw.endsWith("\"")) {
+				raw = raw.substring(1, raw.length() - 1);
+			}
+			diagnostics.accept("model answered in plain text; used as the line");
+			line = raw;
+		} else {
+			line = json.get().get("line").getAsString().strip().replace('\n', ' ');
 		}
-		String line = json.get().get("line").getAsString().strip().replace('\n', ' ');
 		if (line.isEmpty()) {
 			return Optional.empty();
 		}
@@ -172,7 +183,7 @@ public final class ModelDialogueProvider implements DialogueProvider {
 			line = line.substring(0, MAX_LINE_CHARS - 1) + "…";
 		}
 		Optional<LuminaryId> clue = Optional.empty();
-		if (json.get().has("clue") && !json.get().get("clue").isJsonNull()) {
+		if (json.isPresent() && json.get().has("clue") && !json.get().get("clue").isJsonNull()) {
 			String raw = json.get().get("clue").getAsString().strip();
 			try {
 				LuminaryId id = LuminaryId.parse(raw);
@@ -186,7 +197,7 @@ public final class ModelDialogueProvider implements DialogueProvider {
 			}
 		}
 		Optional<String> note = Optional.empty();
-		if (json.get().has("note") && !json.get().get("note").isJsonNull()) {
+		if (json.isPresent() && json.get().has("note") && !json.get().get("note").isJsonNull()) {
 			String n = json.get().get("note").getAsString().strip().replace('\n', ' ');
 			if (!n.isEmpty()) {
 				note = Optional.of(n.length() > MAX_NOTE_CHARS ? n.substring(0, MAX_NOTE_CHARS - 1) + "…" : n);

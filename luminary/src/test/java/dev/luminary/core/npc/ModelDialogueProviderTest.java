@@ -214,7 +214,11 @@ class ModelDialogueProviderTest {
 		failing.failure = new LlmException(LlmException.Kind.HTTP_STATUS, "500");
 		assertEquals("l.greet", await(service(model(failing)).talk(AI, ALICE, "Alice")).textKey());
 
-		FakeLlm garbage = new FakeLlm("I am not JSON at all");
+		// plain words instead of JSON are taken as the line (small models do that); a JSON object without a line still falls back
+		FakeLlm plain = new FakeLlm("I am not JSON at all");
+		NpcDialogueService.Turn pl = await(service(model(plain)).talk(AI, ALICE, "Alice"));
+		assertEquals(Optional.of("I am not JSON at all"), pl.literalText());
+		FakeLlm garbage = new FakeLlm("{\"nothing\": true}");
 		NpcDialogueService.Turn g = await(service(model(garbage)).talk(AI, ALICE, "Alice"));
 		assertEquals("l.greet", g.textKey());
 		assertTrue(g.fromProvider(), "the scripted fallback still counts as a provider line");

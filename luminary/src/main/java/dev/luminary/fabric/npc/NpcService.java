@@ -579,7 +579,10 @@ public final class NpcService {
 		List<MemoryEntry> relevant = MemoryRetriever.select(memory, new MemoryRetriever.Query(player.getUuid(), MemoryRetriever.keywords(said), 8, 800), clock.instant());
 		IntentRequest request = new IntentRequest(id, player.getUuid(), player.getGameProfile().getName(), said, def.get().persona(), relevant, candidates, record.hasActiveTask());
 		CompletableFuture<Optional<Intent>> planned;
-		try {
+		if (!dev.luminary.core.npc.intent.WorkCues.mentionsWork(said)) {
+			// no word of work in the line: it is conversation, and only the character prompt answers (one model call, no planner reply leaking through)
+			planned = CompletableFuture.completedFuture(Optional.empty());
+		} else try {
 			planned = planner.plan(request);
 		} catch (RuntimeException e) {
 			Luminary.LOGGER.warn("[luminary] intent planner {} failed: {}", planner.id(), e.toString());

@@ -56,7 +56,8 @@ public record LuminaryConfig(String dialogueProvider, String intentPlanner, LlmC
 	 *             "whisperEnabled": true, "whisperRange": 5.0, "whisperCooldownSeconds": 90, "whisperJitterSeconds": 45 }
 	 * combat:   { "attacksBeforeCombat": 3, "attackWindowSeconds": 60, "deescalateDistance": 8.0, "deescalateAfterSeconds": 20,
 	 *             "recoverySeconds": 30, "weaponDamageFraction": 0.5, "strikeReach": 3.5, "holdGroundRadius": 6.0,
-	 *             "knockoutMinutes": 5, "helpShortensBySeconds": 60, "duelConsentSeconds": 90, "shieldFirst": true }
+	 *             "knockoutMinutes": 5, "helpShortensBySeconds": 60, "duelConsentSeconds": 90, "shieldFirst": true,
+	 *             "shieldPoints": 20, "shieldRepairMinutes": 5 }
 	 * relationship: { "threatHalfLifeMinutes": 10, "karmaRecoveryPerDay": 2.0, "hostileThreat": 60, "waryThreat": 25, "friendKarma": 20, "friendTrust": 30 }
 	 * weapon:   { "theftDurationMinutes": 60, "blessings": ["minecraft:sharpness:6", "mcdw:smiting:3", ...] }  (enchantments minted onto the sword; unknown ids skipped)
 	 * routine:  { "enabled": true }
@@ -196,7 +197,9 @@ public record LuminaryConfig(String dialogueProvider, String intentPlanner, LlmC
 					c.has("holdGroundRadius") ? c.get("holdGroundRadius").getAsDouble() : x.holdGroundRadius(),
 					c.has("knockoutMinutes") ? Duration.ofMinutes(c.get("knockoutMinutes").getAsLong()) : x.knockout(),
 					seconds(c, "helpShortensBySeconds", x.helpShortensBy()), seconds(c, "duelConsentSeconds", x.duelConsentWindow()),
-					!c.has("shieldFirst") || c.get("shieldFirst").getAsBoolean());
+					!c.has("shieldFirst") || c.get("shieldFirst").getAsBoolean(),
+					c.has("shieldPoints") ? c.get("shieldPoints").getAsDouble() : x.shieldPoints(),
+					c.has("shieldRepairMinutes") ? Duration.ofMinutes(c.get("shieldRepairMinutes").getAsLong()) : x.shieldRepair());
 		}
 		RelationshipRules relationship = d.relationship();
 		if (o.has("relationship") && o.get("relationship").isJsonObject()) {
@@ -290,6 +293,8 @@ public record LuminaryConfig(String dialogueProvider, String intentPlanner, LlmC
 			combat.addProperty("helpShortensBySeconds", b.combat().helpShortensBy().toSeconds());
 			combat.addProperty("duelConsentSeconds", b.combat().duelConsentWindow().toSeconds());
 			combat.addProperty("shieldFirst", b.combat().shieldFirst());
+			combat.addProperty("shieldPoints", b.combat().shieldPoints());
+			combat.addProperty("shieldRepairMinutes", b.combat().shieldRepair().toMinutes());
 			o.add("combat", combat);
 			JsonObject relationship = new JsonObject();
 			relationship.addProperty("threatHalfLifeMinutes", b.relationship().threatHalfLife().toMinutes());

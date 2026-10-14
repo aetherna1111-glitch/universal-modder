@@ -100,6 +100,7 @@ public final class BehaviourGameTests implements FabricGameTest {
 	}
 
 	private static void hit(LuminaryNpcEntity body, PlayerEntity player, float amount) {
+		body.timeUntilRegen = 0;   // no vanilla invulnerability frames between test blows
 		body.damage(body.getDamageSources().playerAttack(player), amount);
 	}
 
@@ -162,8 +163,8 @@ public final class BehaviourGameTests implements FabricGameTest {
 		expect(body.getMainHandStack().isOf(LuminaryItems.LUMIN_BLADE), "the blade is drawn in combat");
 		expect(record.combat().opponent().orElse(null).equals(a), "the attacker is the opponent");
 		float before = attacker.getHealth();
-		await(ctx, () -> attacker.getHealth() < before, 200, () -> diagnose(body, attacker), () -> {
-			expect(attacker.getHealth() <= before - attacker.getMaxHealth() * 0.5f + 0.01f, "one blow takes half the player's health: " + before + " -> " + attacker.getHealth());
+		// the beam (a quarter) may land before the blow (a half) when he is a step too far; either way half is gone soon
+		await(ctx, () -> attacker.getHealth() <= before - attacker.getMaxHealth() * 0.5f + 0.01f, 300, () -> diagnose(body, attacker), () -> {
 			expect(body.combatAnchor().isPresent() && body.getPos().distanceTo(body.combatAnchor().get()) < 7, "holds ground near the anchor");
 			// zero health: down, not dead
 			hit(body, attacker, 1000f);
@@ -184,6 +185,27 @@ public final class BehaviourGameTests implements FabricGameTest {
 				finish(ctx, id);
 			});
 		});
+	}
+
+	@GameTest(templateName = ARENA, tickLimit = 400, batchId = "behaviour-shield")
+	public void theRaisedShieldBreaksUnderHeavyBlowsAndIsWholeAgainAfterFiveMinutes(TestContext ctx) {
+		LuminaryId id = LuminaryId.parse("luminary-gametest:npc/presence");
+		LuminaryNpcEntity body = spawn(ctx, id, new BlockPos(8, FLOOR_Y + 1, 8));
+		NpcRoster.NpcRecord record = npc().roster().ensureRecord(id);
+		PlayerEntity attacker = worldPlayer(ctx, ctx.getAbsolute(new Vec3d(8.5, FLOOR_Y + 1, 10.5)), 180f, 0f);
+		hit(body, attacker, 1f);
+		expect(record.combat().state() == CombatState.DEFENSIVE_WARNING && body.getOffHandStack().isOf(Items.SHIELD), "shield up after the first hit");
+		hit(body, attacker, 2f);    // vanilla invulnerability frames: each blow must be heavier than the last to land
+		expect(Math.abs(record.shieldPoints(20) - 18.0) < 0.01, "the blow on the raised shield took its points: " + record.shieldPoints(20));
+		hit(body, attacker, 30f);   // more than the shield has left
+		expect(record.shieldBroken(npc().now()) && body.getOffHandStack().isEmpty(), "the shield shattered and is gone");
+		hit(body, attacker, 3f);
+		expect(record.combat().state() == CombatState.COMBAT && body.getOffHandStack().isEmpty(), "in combat without a shield while it is broken");
+		npc().setClockOffset(Duration.ofMinutes(6));
+		record.combat().restore(CombatState.CALM, null, npc().now());
+		hit(body, attacker, 1f);
+		expect(!record.shieldBroken(npc().now()) && body.getOffHandStack().isOf(Items.SHIELD), "five minutes later the shield is whole and raised again");
+		finish(ctx, id);
 	}
 
 	@GameTest(templateName = ARENA, tickLimit = 600, batchId = "behaviour-weapon")

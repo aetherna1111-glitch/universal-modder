@@ -139,6 +139,25 @@ public final class HolySwordItem extends Item {
 	// ------------------------------------------------------------------ identity
 
 	public static final String NBT_PREPARED = "LuminaryPrepared";
+	/** The owner's name key (a lang key), so the tooltip can say whose it is in the viewer's language. */
+	public static final String NBT_OWNER_NAME = "LuminaryOwnerName";
+
+	public static ItemStack withOwnerName(ItemStack stack, String nameKey) {
+		if (nameKey != null && !nameKey.isEmpty()) {
+			stack.getOrCreateNbt().putString(NBT_OWNER_NAME, nameKey);
+		}
+		return stack;
+	}
+
+	public static Optional<String> ownerNameKey(ItemStack stack) {
+		NbtCompound nbt = stack.getNbt();
+		return nbt != null && nbt.contains(NBT_OWNER_NAME) ? Optional.of(nbt.getString(NBT_OWNER_NAME)) : Optional.empty();
+	}
+
+	/** "Belongs to Lumin" in gold, or nothing for a free item. */
+	public static Optional<Text> ownerLine(ItemStack stack) {
+		return ownerNameKey(stack).map(k -> Text.translatable("item.luminary.owner", Text.translatable(k)).formatted(Formatting.GOLD));
+	}
 
 	/** A stack bound to {@code npc}'s current custody instance, with its base attributes written. */
 	public static ItemStack bound(Item item, LuminaryId npc, UUID instance) {
@@ -481,6 +500,7 @@ public final class HolySwordItem extends Item {
 	public void appendTooltip(ItemStack stack, World world, List<Text> tooltip, TooltipContext context) {
 		String k = "item.luminary.holy_sword_of_lumin.";
 		tooltip.add(Text.translatable("item.luminary.rarity.godlike").styled(st -> st.withColor(GODLIKE_COLOR).withBold(true)));
+		ownerLine(stack).ifPresent(tooltip::add);
 		tooltip.add(Text.translatable(k + "lore").formatted(Formatting.GRAY, Formatting.ITALIC));
 		tooltip.add(Text.translatable(k + "lore2").formatted(Formatting.GRAY, Formatting.ITALIC));
 		tooltip.add(Text.empty());

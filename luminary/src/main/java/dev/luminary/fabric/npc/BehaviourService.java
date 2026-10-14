@@ -110,6 +110,22 @@ public final class BehaviourService {
 		return Optional.of(state.roster().ensureRecord(body.npcId().get()));
 	}
 
+	// ------------------------------------------------------------------ the NPC's own items
+
+	private String nameKeyOf(LuminaryId id) {
+		return dialogue.definitions().npc(id).map(NpcDefinition::nameKey).orElse("");
+	}
+
+	/** The sword bound to {@code id}'s instance, carrying the owner's name for the tooltip. */
+	public ItemStack blade(LuminaryId id, UUID instance) {
+		return HolySwordItem.withOwnerName(HolySwordItem.bound(LuminaryItems.LUMIN_BLADE, id, instance), nameKeyOf(id));
+	}
+
+	/** A vestment piece bound to {@code id}, carrying the owner's name for the tooltip. */
+	public ItemStack vestment(LuminArmorItem piece, LuminaryId id) {
+		return HolySwordItem.withOwnerName(LuminArmorItem.bound(piece, id), nameKeyOf(id));
+	}
+
 	// ------------------------------------------------------------------ speaking (authored lines only)
 
 	/** An authored line of the character sheet in the configured language; empty when the sheet has none. */
@@ -208,7 +224,7 @@ public final class BehaviourService {
 			}
 			ItemStack worn = body.getEquippedStack(slot);
 			if (body.age % 20 == 0 && !(worn.getItem() == piece && LuminArmorItem.owner(worn).filter(id::equals).isPresent())) {
-				body.equipStack(slot, LuminArmorItem.bound(piece, id));
+				body.equipStack(slot, vestment(piece, id));
 				body.setEquipmentDropChance(slot, 0.0f);
 				worn = body.getEquippedStack(slot);
 			}
@@ -247,7 +263,7 @@ public final class BehaviourService {
 			if (off) {
 				body.equipStack(head, ItemStack.EMPTY);
 			}
-			ItemStack shown = LuminArmorItem.bound(LuminaryItems.VESTMENT_HELMET, id);
+			ItemStack shown = vestment(LuminaryItems.VESTMENT_HELMET, id);
 			if (body.getMainHandStack().isEmpty()) {
 				body.equipStack(net.minecraft.entity.EquipmentSlot.MAINHAND, shown);
 			} else {
@@ -263,7 +279,7 @@ public final class BehaviourService {
 				}
 			}
 			if (!off) {
-				body.equipStack(head, LuminArmorItem.bound(LuminaryItems.VESTMENT_HELMET, id));
+				body.equipStack(head, vestment(LuminaryItems.VESTMENT_HELMET, id));
 			}
 			body.setHelmetOff(off);
 			body.setHelmetAnimation(0);
@@ -425,6 +441,15 @@ public final class BehaviourService {
 		boolean warned = record.combat().state() == CombatState.DEFENSIVE_WARNING || record.combat().state() == CombatState.GUARDED_DEESCALATION;
 		RelationshipEvent event = duel ? RelationshipEvent.DUEL_HIT : warned ? RelationshipEvent.ATTACKED_WHEN_WARNED : RelationshipEvent.ATTACKED;
 		record.relationships().apply(attacker.getUuid(), event, now, state.roster().rules().relationship());
+		// a raised shield takes the blow's points; at zero it shatters and is gone for the repair time
+		if (record.combat().shieldUp() && body.getOffHandStack().isOf(Items.SHIELD) && !record.shieldBroken(now)
+				&& record.damageShield(amount, combatRules().shieldPoints(), now, combatRules().shieldRepair())) {
+			body.clearActiveItem();
+			body.equipStack(net.minecraft.entity.EquipmentSlot.OFFHAND, ItemStack.EMPTY);
+			((ServerWorld) body.getWorld()).playSound(null, body.getBlockPos(), net.minecraft.sound.SoundEvents.ITEM_SHIELD_BREAK, net.minecraft.sound.SoundCategory.NEUTRAL, 1.0f, 0.9f);
+			remember(id, MemoryKind.SIGNIFICANT_EVENT, attacker.getUuid(), "shield", attacker.getGameProfile().getName() + " broke my shield");
+			Luminary.LOGGER.info("[luminary] {}'s shield broke; whole again at {}", id, record.shieldBrokenUntil().orElse(null));
+		}
 		CombatMachine.Transition tr = record.combat().onAttacked(attacker.getUuid(), now);
 		String name = attacker.getGameProfile().getName();
 		switch (tr.reaction()) {
@@ -534,7 +559,7 @@ public final class BehaviourService {
 	/** Shield in the off hand while guarded; the blade in the main hand only while fighting and still in custody. */
 	void syncEquipment(LuminaryNpcEntity body, NpcRoster.NpcRecord record) {
 		boolean down = record.knockout().isPresent();
-		boolean shield = !down && record.combat().shieldUp() && combatRules().shieldFirst();
+		boolean shield = !down && record.combat().shieldUp() && combatRules().shieldFirst() && !record.shieldBroken(clock.get());
 		ItemStack off = body.getOffHandStack();
 		if (shield && !off.isOf(Items.SHIELD)) {
 			body.equipStack(net.minecraft.entity.EquipmentSlot.OFFHAND, new ItemStack(Items.SHIELD));
@@ -549,7 +574,7 @@ public final class BehaviourService {
 		ItemStack main = body.getMainHandStack();
 		if (blade && !main.isOf(LuminaryItems.LUMIN_BLADE)) {
 			GearManager.stowTool(body);
-			body.equipStack(net.minecraft.entity.EquipmentSlot.MAINHAND, HolySwordItem.bound(LuminaryItems.LUMIN_BLADE, body.npcId().get(), record.weapon().instanceId()));
+			body.equipStack(net.minecraft.entity.EquipmentSlot.MAINHAND, blade(body.npcId().get(), record.weapon().instanceId()));
 		} else if (!blade && main.isOf(LuminaryItems.LUMIN_BLADE)) {
 			body.equipStack(net.minecraft.entity.EquipmentSlot.MAINHAND, ItemStack.EMPTY);
 		}
@@ -674,7 +699,7 @@ public final class BehaviourService {
 			if (taken.isEmpty()) {
 				return DownInteraction.NOTHING;
 			}
-			ItemStack blade = HolySwordItem.bound(LuminaryItems.LUMIN_BLADE, id, taken.get().instanceId());
+			ItemStack blade = blade(id, taken.get().instanceId());
 			if (!player.giveItemStack(blade)) {
 				player.dropItem(blade, false);
 			}
@@ -848,7 +873,7 @@ public final class BehaviourService {
 			returnWeapon(id, record, "it was about to be given away properly");
 		}
 		WeaponCustody.State s = record.weapon().transferPermanently(player.getUuid(), reason, clock.get());
-		ItemStack blade = HolySwordItem.bound(LuminaryItems.LUMIN_BLADE, id, s.instanceId());
+		ItemStack blade = blade(id, s.instanceId());
 		if (!player.giveItemStack(blade)) {
 			player.dropItem(blade, false);
 		}
@@ -1062,6 +1087,11 @@ public final class BehaviourService {
 		StringBuilder sb = new StringBuilder();
 		sb.append("combat=").append(r.combat().state());
 		r.combat().opponent().ifPresent(o -> sb.append(" vs ").append(npc.nameOf(id, o)));
+		if (r.shieldBroken(now)) {
+			sb.append("; shield broken, back in ").append(r.shieldBrokenUntil().map(t -> Duration.between(now, t).toSeconds()).orElse(0L)).append("s");
+		} else {
+			sb.append("; shield ").append((int) r.shieldPoints(combatRules().shieldPoints())).append("/").append((int) combatRules().shieldPoints());
+		}
 		r.knockout().ifPresent(k -> sb.append("; down, up in ").append(k.remaining(now).toSeconds()).append("s (helped ").append(k.timesHelped()).append(", looted ").append(k.timesLooted()).append(")"));
 		WeaponCustody.State w = r.weapon().state();
 		sb.append("; weapon=").append(w.custody());

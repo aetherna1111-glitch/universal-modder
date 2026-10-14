@@ -168,6 +168,7 @@ public final class NpcStateCodec {
 			c.addProperty("since", combat.stateSince().toString());
 			o.add("combat", c);
 		}
+		r.shieldBrokenUntil().ifPresent(t -> o.addProperty("shieldBrokenUntil", t.toString()));
 		r.knockout().ifPresent(k -> {
 			JsonObject kj = new JsonObject();
 			kj.addProperty("since", k.since().toString());
@@ -283,6 +284,9 @@ public final class NpcStateCodec {
 		if (o.has("combat")) {
 			JsonObject c = o.getAsJsonObject("combat");
 			r.combat().restore(CombatState.valueOf(c.get("state").getAsString()), c.has("opponent") ? UUID.fromString(c.get("opponent").getAsString()) : null, Instant.parse(c.get("since").getAsString()));
+		}
+		if (o.has("shieldBrokenUntil")) {
+			r.setShieldBrokenUntil(Instant.parse(o.get("shieldBrokenUntil").getAsString()));
 		}
 		if (o.has("knockout")) {
 			JsonObject k = o.getAsJsonObject("knockout");

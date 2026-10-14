@@ -59,6 +59,9 @@ public final class NpcRoster {
 		private MutterChannel mutter;
 		private CombatMachine combat;
 		private Knockout knockout;
+		/** The raised shield's remaining points (runtime) and, once broken, when it is whole again (persisted). */
+		private double shieldPoints = -1;
+		private Instant shieldBrokenUntil;
 		private WeaponCustody weapon;
 		private NpcPlan plan;
 
@@ -99,6 +102,41 @@ public final class NpcRoster {
 
 		public void setKnockout(Knockout k) {
 			this.knockout = k;
+		}
+
+		public Optional<Instant> shieldBrokenUntil() {
+			return Optional.ofNullable(shieldBrokenUntil);
+		}
+
+		public boolean shieldBroken(Instant now) {
+			return shieldBrokenUntil != null && now.isBefore(shieldBrokenUntil);
+		}
+
+		/** Takes {@code amount} off the shield; true when it just broke (then it is out for {@code repair}). */
+		public boolean damageShield(double amount, double maxPoints, Instant now, java.time.Duration repair) {
+			if (shieldBroken(now)) {
+				return false;
+			}
+			if (shieldPoints < 0 || (shieldBrokenUntil != null && !now.isBefore(shieldBrokenUntil))) {
+				shieldPoints = maxPoints;   // whole again
+				shieldBrokenUntil = null;
+			}
+			shieldPoints -= amount;
+			if (shieldPoints <= 0) {
+				shieldBrokenUntil = now.plus(repair);
+				shieldPoints = -1;
+				return true;
+			}
+			return false;
+		}
+
+		public double shieldPoints(double maxPoints) {
+			return shieldPoints < 0 ? maxPoints : shieldPoints;
+		}
+
+		public void setShieldBrokenUntil(Instant until) {
+			this.shieldBrokenUntil = until;
+			this.shieldPoints = -1;
 		}
 
 		/** The unique weapon's custody; created on first use with a fresh instance id. */

@@ -285,6 +285,7 @@ public final class LuminArmorItem extends ArmorItem {
 		String k = "item.luminary.vestments.";
 		String piece = getSlotType().getName();
 		tooltip.add(Text.translatable("item.luminary.rarity.godlike").styled(st -> st.withColor(HolySwordItem.GODLIKE_COLOR).withBold(true)));
+		HolySwordItem.ownerLine(stack).ifPresent(tooltip::add);
 		tooltip.add(Text.translatable(k + "lore").formatted(Formatting.GRAY, Formatting.ITALIC));
 		tooltip.add(Text.empty());
 		tooltip.add(Text.translatable(k + piece + ".param").formatted(Formatting.BLUE));
