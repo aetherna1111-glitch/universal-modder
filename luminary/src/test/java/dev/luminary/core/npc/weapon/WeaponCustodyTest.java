@@ -67,4 +67,22 @@ class WeaponCustodyTest {
 		WeaponCustody w = new WeaponCustody(s);
 		assertTrue(w.dueForReturn(t0.plus(Duration.ofHours(1))), "a restart inside the hour keeps the deadline");
 	}
+
+	@Test
+	void aTransferredBladeIsOwedBackToItsOwnerUntilDelivered() {
+		WeaponCustody w = new WeaponCustody(first);
+		assertFalse(w.markReturnToOwner(t0), "nothing to return while the NPC holds it");
+		w.transferPermanently(thief, "quest", t0);
+		assertTrue(w.mayBeHeldBy(first, thief), "the new owner may hold it");
+		assertFalse(w.mayBeHeldBy(first, other), "nobody else may");
+		assertFalse(w.returnToOwnerDue());
+		assertTrue(w.markReturnToOwner(t0.plusSeconds(5)));
+		assertFalse(w.markReturnToOwner(t0.plusSeconds(6)), "marked once");
+		assertTrue(w.returnToOwnerDue());
+		assertEquals(WeaponCustody.Custody.TRANSFERRED, w.custody());
+		assertTrue(w.dueForReturn(t0.plusSeconds(99999)) == false, "the NPC's one-hour return never applies to a transferred blade");
+		w.ownerReceived();
+		assertFalse(w.returnToOwnerDue());
+		assertEquals(1, w.state().returns());
+	}
 }

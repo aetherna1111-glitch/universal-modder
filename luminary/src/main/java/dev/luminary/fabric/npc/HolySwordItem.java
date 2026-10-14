@@ -169,13 +169,13 @@ public final class HolySwordItem extends Item {
 	}
 
 	/**
-	 * The permanent gift: the owner id on the item changes from the NPC's to the player's, the name line to the player's
-	 * name; the custody instance, marks, runes, blessings and attributes stay exactly as they were. Without an NPC owner
-	 * the blade is nobody's to recall: it never flies home and is never purged.
+	 * The permanent gift: the blade stays bound exactly as it was (custody record, instance, marks, runes, blessings,
+	 * attributes); only the owner changes. {@code LuminaryOwner} keeps the NPC id (that is where the custody record lives),
+	 * {@code LuminaryOwnerPlayer} names the player it now belongs to, the name line shows the player's name. It can be
+	 * dropped and picked up again by its owner; in anyone else's hands it turns to light and comes back to the owner.
 	 */
 	public static ItemStack transferTo(ItemStack stack, UUID player, String playerName) {
 		NbtCompound nbt = stack.getOrCreateNbt();
-		nbt.remove(NBT_OWNER);
 		nbt.remove(NBT_OWNER_NAME);
 		nbt.putUuid(NBT_OWNER_PLAYER, player);
 		nbt.putString(NBT_OWNER_LITERAL, playerName);
@@ -560,6 +560,11 @@ public final class HolySwordItem extends Item {
 			tooltip.add(Text.translatable(k + "rune." + nether + ".text").formatted(Formatting.DARK_GRAY));
 		}
 		tooltip.add(Text.empty());
-		tooltip.add(Text.translatable(isBound(stack) ? k + "bound" : ownerPlayer(stack).isPresent() ? k + "given" : k + "unbound").formatted(Formatting.DARK_PURPLE));
+		NbtCompound own = stack.getNbt();
+		if (isBound(stack) && own != null && own.contains(NBT_OWNER_LITERAL)) {
+			tooltip.add(Text.translatable(k + "bound_player", own.getString(NBT_OWNER_LITERAL)).formatted(Formatting.DARK_PURPLE));
+		} else {
+			tooltip.add(Text.translatable(isBound(stack) ? k + "bound" : k + "unbound").formatted(Formatting.DARK_PURPLE));
+		}
 	}
 }

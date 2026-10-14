@@ -33,10 +33,12 @@ import java.util.List;
 public final class TradeScreen extends Screen {
 	// palette (the launcher: deep navy, warm gold, parchment text)
 	static final int BG = 0xF00B1426, PANEL = 0xFF15223D, PANEL_LIGHT = 0xFF1C2D4F, GOLD = 0xFFE2B857, GOLD_DIM = 0xFF8C7340, TEXT = 0xFFEFE7D3, MUTED = 0xFF9AA6C0, GREEN = 0xFF7FD48A, RED = 0xFFE07070;
-	static final int W = 320, H = 200, LEFT_W = 92, ROW_H = 26, ROWS = 4;
+	static final int W = 320, H = 218, LEFT_W = 92, ROW_H = 28, ROWS = 4;
 
 	enum Tab { SHOP, QUESTS }
 
+	/** Developer screenshots only: an entity to draw when there is no world (see {@code TradeScreenShot}). */
+	static LivingEntity portraitOverride;
 	private Snapshot snap;
 	private Tab tab = Tab.QUESTS;
 	private int scroll;
@@ -87,7 +89,7 @@ public final class TradeScreen extends Screen {
 				break;
 			}
 			int ry = listY + i * ROW_H;
-			int bx = x0 + W - 8 - 54, by = ry + 5;
+			int bx = x0 + W - 8 - 54, by = ry + 6;
 			if (tab == Tab.SHOP) {
 				Offer o = snap.offers.get(idx);
 				boolean can = !o.owned && snap.points >= o.price;
@@ -104,6 +106,11 @@ public final class TradeScreen extends Screen {
 				}
 			}
 		}
+	}
+
+	/** Developer screenshots only. */
+	void devSwitch(Tab t) {
+		switchTab(t);
 	}
 
 	private void switchTab(Tab t) {
@@ -142,11 +149,16 @@ public final class TradeScreen extends Screen {
 		// left column: the portrait
 		c.fill(x0 + 6, y0 + 6, x0 + LEFT_W - 6, y0 + H - 30, PANEL);
 		c.fill(x0 + 6, y0 + 6, x0 + LEFT_W - 6, y0 + 7, GOLD_DIM);
-		Entity e = client.world == null ? null : client.world.getEntityById(snap.entityId);
+		Entity e = client.world == null ? portraitOverride : client.world.getEntityById(snap.entityId);
 		if (e instanceof LivingEntity living) {
 			int px = x0 + LEFT_W / 2, py = y0 + 112;
 			c.enableScissor(x0 + 7, y0 + 8, x0 + LEFT_W - 7, y0 + 118);
-			InventoryScreen.drawEntity(c, px, py, 44, (float) px - mouseX, (float) (py - 70) - mouseY, living);
+			try {
+				InventoryScreen.drawEntity(c, px, py, 44, (float) px - mouseX, (float) (py - 70) - mouseY, living);
+			} catch (RuntimeException ex) {
+				portraitOverride = null;   // a world-less portrait that cannot be drawn: leave the panel empty
+				dev.luminary.fabric.Luminary.LOGGER.warn("[luminary] portrait not drawn", ex);
+			}
 			c.disableScissor();
 		}
 		c.drawCenteredTextWithShadow(tr, snap.name.copy().styled(s -> s.withColor(GOLD).withBold(true)), x0 + LEFT_W / 2, y0 + 124, GOLD);
@@ -173,7 +185,7 @@ public final class TradeScreen extends Screen {
 				c.drawItem(o.stack, listX + 4, ry + 5);
 				c.drawItemInSlot(tr, o.stack, listX + 4, ry + 5);
 				Text name = o.stack.getName();
-				c.drawTextWithShadow(tr, trim(tr, name, listW - 130), listX + 24, ry + 4, TEXT);
+				c.drawTextWithShadow(tr, trim(tr, name, listW - 24 - 64), listX + 24, ry + 4, TEXT);
 				boolean can = !o.owned && snap.points >= o.price;
 				c.drawTextWithShadow(tr, Text.literal("✦ " + o.price), listX + 24, ry + 15, can ? GOLD : RED);
 				if (o.unique) {
@@ -197,12 +209,13 @@ public final class TradeScreen extends Screen {
 				int statusColor = q.state == 2 ? GREEN : q.state == 3 ? MUTED : q.state == 4 ? GOLD_DIM : MUTED;
 				c.drawTextWithShadow(tr, Text.literal(status), listX + 6, ry + 15, statusColor);
 				if (q.rewardPoints > 0 && q.state != 3) {
-					c.drawTextWithShadow(tr, Text.literal("+" + q.rewardPoints + " ✦"), listX + listW - 60 - 4 - tr.getWidth("+" + q.rewardPoints + " ✦"), ry + 15, GOLD);
+					String reward = "+" + q.rewardPoints + " ✦";
+					c.drawTextWithShadow(tr, Text.literal(reward), listX + listW - 64 - tr.getWidth(reward), ry + 15, GOLD);
 				}
-				if (q.state == 1 || q.state == 2) {   // progress bar
-					int bx = listX + 60, bw = listW - 60 - 70;
-					c.fill(bx, ry + 18, bx + bw, ry + 21, 0xFF0A1020);
-					c.fill(bx, ry + 18, bx + (int) (bw * Math.min(1.0, q.progress / (double) Math.max(1, q.required))), ry + 21, q.state == 2 ? GREEN : GOLD);
+				if (q.state == 1 || q.state == 2) {   // a thin progress bar on its own line
+					int bx = listX + 6, bw = listW - 64 - 6;
+					c.fill(bx, ry + 24, bx + bw, ry + 26, 0xFF0A1020);
+					c.fill(bx, ry + 24, bx + (int) (bw * Math.min(1.0, q.progress / (double) Math.max(1, q.required))), ry + 26, q.state == 2 ? GREEN : GOLD);
 				}
 				if (hover) {
 					tooltip = questTooltip(q);

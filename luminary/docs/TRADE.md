@@ -57,21 +57,33 @@ Trial of the Envoy, whose reward is his blade, with the player's name on it for 
 
 - **The Trial of the Envoy** is LOCKED until the player has completed 5 tasks **and bought nothing**. One purchase,
   ever, closes it for good (the ledger's `purchases` never goes back to zero). Claiming it calls
-  `BehaviourService.transferWeapon`: custody becomes TRANSFERRED, the player receives the live blade, and
-  `HolySwordItem.transferTo` swaps the owner id on the item from Lumin's to the player's UUID
-  (`LuminaryOwnerPlayer`, name in `LuminaryOwnerLiteral`), keeping the custody instance, marks, runes, blessings and
-  every attribute. The tooltip reads «Принадлежит: <player>» and «Дар Люмина…». Without an NPC owner the blade is
-  never recalled and never purged. `/luminary npc weapon reclaim lumin` still takes it back (admin).
-- **The Angelic Harp** (`luminary:angelic_harp`): once the blade is gone Lumin fights with the harp (unbreakable,
-  his name on it, drawn only while fighting, never loot). Within 6 blocks of his opponent he plays the Chord of
-  Light instead of the blade's beam. A player's harp from the creative tab: 6 damage, hits make the target glow,
-  right-click = Chord of Light (7 holy damage, 14 to the undead, slow and glowing in 6 blocks; allies heal 3 hearts
-  and regenerate; 10 s cooldown).
+  `BehaviourService.transferWeapon`: custody becomes TRANSFERRED and the player receives the live blade. The blade
+  stays **bound exactly as it was**, only the owner changes: `LuminaryOwner` keeps the NPC id (where the custody
+  record lives), `LuminaryOwnerPlayer` is the player's UUID, `LuminaryOwnerLiteral` the name; the custody instance,
+  marks, runes, blessings and every attribute are untouched. Tooltip: «Принадлежит: <player>» and «Связан с
+  <player>…». It can be dropped (death, Q) and picked up again by its owner; in anyone else's hands it turns to light
+  and is owed back: the owner gets it the moment they are on the server (`tickServer`, `deliverToOwner`). On the
+  ground it never despawns, cannot burn or blow up, and after an hour there it is lifted back to the owner the same
+  way. `/luminary npc weapon reclaim lumin` still takes it back (admin).
+- **The Angelic Harp** (`luminary:angelic_harp`) is the sword's equal, in the sword's dress: ✦ Богоподобие ✦, 15
+  damage at 1.7 swings a second, the Rune of Clarity and the Netherfused Rune of Embers, the same blessings
+  (`weapon.blessings`), the shimmering name, the same tooltip layout. Its own voice: **Resonance** (a note per hit,
+  up to 7, +0.5 damage each, fading at rest), **Hymn** (+0.10 chance per hit: two notes and a breath of healing),
+  **+25% holy damage to the marked** (ignores armour), **Choir of the Catalog** (held: every 2 s allies within 4
+  blocks are healed and hostiles marked), right-click **Chord of Light** (spends every note: 3 + 2 per note holy
+  damage in 6 blocks, the undead twice, slowed and glowing, allies healed; 6 s cooldown), Shift + right-click
+  **Lullaby** (3 notes: hostiles within 5 blocks drop their target, slowed and weakened 8 s; 30 s cooldown). Once the
+  blade is gone Lumin fights with his harp (named, unbreakable, drawn only while fighting, never loot) and within 6
+  blocks of his opponent plays the Chord instead of the blade's beam. A free harp sits in the creative Combat tab.
 - **Lightstone dust** (`luminary:lightstone_dust`): a glinting material only he sells.
 - **Seal of the Envoy** (`luminary:envoy_seal`): right-click = Blessing (players in 6 blocks heal 3 hearts, get
   Absorption II and Regeneration; monsters are weakened and glow; 90 s cooldown).
 - **Lines** (character sheet groups, `lumin.json`): `trade_greeting`, `trade_claimable`, `trade_special`,
   `quest_accepted`, `quest_claimed`, `trade_bought`, `sword_given`.
+
+## Screenshots
+`-Dluminary.screenshot=<file>.png` on a client makes `TradeScreenShot` open the screen with a sample snapshot on the
+title screen, save that file and `<file>_shop.png`, and quit (no world, so the portrait panel stays empty there).
 
 ## Assumptions
 - "Оформление лаунчера": the launcher's look was not available here; the screen uses the Luminary palette of the

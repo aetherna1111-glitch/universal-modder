@@ -43,7 +43,7 @@ public final class LuminaryItems {
 		ItemGroupEvents.modifyEntriesEvent(ItemGroups.TOOLS).register(entries -> entries.add(ENVOY_SEAL));
 		ItemGroupEvents.modifyEntriesEvent(ItemGroups.COMBAT).register(entries -> {
 			entries.add(HolySwordItem.unbound(LUMIN_BLADE));   // a free blade, fully prepared
-			entries.add(new net.minecraft.item.ItemStack(ANGELIC_HARP));
+			entries.add(AngelicHarpItem.unbound(ANGELIC_HARP));
 			for (LuminArmorItem piece : VESTMENTS) {
 				entries.add(LuminArmorItem.unbound(piece));
 			}

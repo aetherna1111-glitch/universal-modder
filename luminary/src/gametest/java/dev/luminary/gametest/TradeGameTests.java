@@ -110,14 +110,27 @@ public final class TradeGameTests implements FabricGameTest {
 		ItemStack blade = find(player, LuminaryItems.LUMIN_BLADE);
 		expect(!blade.isEmpty(), "the player holds the blade");
 		expect(HolySwordItem.ownerPlayer(blade).filter(player.getUuid()::equals).isPresent(), "the owner id on it is the player's");
-		expect(HolySwordItem.owner(blade).isEmpty(), "and no longer the NPC's");
+		expect(HolySwordItem.owner(blade).filter(ID::equals).isPresent() && HolySwordItem.isBound(blade), "still bound through the NPC's custody record");
 		expect(HolySwordItem.instance(blade).filter(record.weapon().instanceId()::equals).isPresent(), "the same custody instance");
 		expect(HolySwordItem.ownerLine(blade).map(t -> t.getString().contains(player.getGameProfile().getName())).orElse(false), "the tooltip names the player: " + HolySwordItem.ownerLine(blade));
 		double dmg = blade.getAttributeModifiers(net.minecraft.entity.EquipmentSlot.MAINHAND).get(EntityAttributes.GENERIC_ATTACK_DAMAGE).stream().mapToDouble(m -> m.getValue()).sum() + 1.0;
 		expect(Math.abs(dmg - HolySwordItem.BASE_DAMAGE) < 0.01, "every attribute kept: " + dmg);
 		expect(blade.getEnchantments().size() >= 3 && blade.getNbt().contains(HolySwordItem.NBT_RUNE), "runes and blessings kept");
 		npc().behaviour().reconcileHeldBlade(blade, player);
-		expect(!blade.isEmpty(), "a given blade is never purged");
+		expect(!blade.isEmpty(), "in the owner's hands it stays");
+		// a stranger picks it up: it turns to light and comes back to the owner
+		PlayerEntity stranger = ctx.createMockSurvivalPlayer();
+		expect(ctx.getWorld().spawnEntity(stranger), "stranger in the world");
+		ItemStack taken = blade.copy();
+		blade.setCount(0);
+		stranger.giveItemStack(taken);
+		npc().behaviour().reconcileHeldBlade(taken, stranger);
+		expect(taken.isEmpty(), "a stranger's copy vanishes");
+		expect(record.weapon().returnToOwnerDue(), "and it is owed back to the owner");
+		expect(find(player, LuminaryItems.LUMIN_BLADE).isEmpty(), "the owner (not in the player list) has not got it yet");
+		expect(npc().behaviour().deliverToOwner(ID, record, player), "delivered to the owner");
+		ItemStack back = find(player, LuminaryItems.LUMIN_BLADE);
+		expect(!back.isEmpty() && HolySwordItem.ownerPlayer(back).filter(player.getUuid()::equals).isPresent() && !record.weapon().returnToOwnerDue(), "the owner holds it again, in their name");
 		expect(ledger.specialClaimed() && !ledger.specialAvailable(), "the trial is claimed once");
 		// the shop: points buy, the unique seal only once, a mod item that is missing never shows
 		Result buy = trade.buy(ID, player, 0);
@@ -156,8 +169,10 @@ public final class TradeGameTests implements FabricGameTest {
 		expect(!body.getMainHandStack().isDamageable() || body.getMainHandStack().getNbt().getBoolean("Unbreakable"), "unbreakable");
 		ZombieEntity z = ctx.spawnEntity(EntityType.ZOMBIE, new BlockPos(10, FLOOR_Y + 1, 8));
 		float hp = z.getHealth();
-		int struck = dev.luminary.fabric.npc.AngelicHarpItem.chord(ctx.getWorld(), body);
-		expect(struck >= 1 && z.getHealth() < hp, "the chord hurts the zombie: struck=" + struck + " hp " + hp + " -> " + z.getHealth());
+		boolean played = dev.luminary.fabric.npc.AngelicHarpItem.chord(body.getMainHandStack(), ctx.getWorld(), body, 6f);
+		expect(played && z.getHealth() < hp, "the chord hurts the zombie: played=" + played + " hp " + hp + " -> " + z.getHealth());
+		double harpDmg = body.getMainHandStack().getAttributeModifiers(net.minecraft.entity.EquipmentSlot.MAINHAND).get(EntityAttributes.GENERIC_ATTACK_DAMAGE).stream().mapToDouble(m -> m.getValue()).sum() + 1.0;
+		expect(Math.abs(harpDmg - HolySwordItem.BASE_DAMAGE) < 0.01 && body.getMainHandStack().getEnchantments().size() >= 3, "the harp is the sword's equal: " + harpDmg);
 		expect(z.hasStatusEffect(net.minecraft.entity.effect.StatusEffects.GLOWING), "and lights it up");
 		npc().behaviour().reclaimWeapon(ID);
 		npc().behaviour().revive(ID);

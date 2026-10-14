@@ -36,7 +36,7 @@ core, server-side rules, persistence with migrations, admin commands, and an in-
 
 | Check | Result |
 |---|---|
-| `./gradlew build` (compile main/test/gametest, 153 unit tests, jar) | passed |
+| `./gradlew build` (compile main/test/gametest, 154 unit tests, jar) | passed |
 | `./gradlew runGametest` (headless 1.20.1 server, Fabric API 0.92.12, Loader 0.19.5) | "All 46 required tests passed" (44 before the trade tests, then 46) |
 | `um publish check luminary` | 0 failures (1 warning in the ignored `.gradle/` cache) |
 | Not verified | a real dedicated server with players; the integrated client, the NPC renderer, the blade item model and the lying pose; any other mod loaded alongside; a real Ollama or hosted model endpoint (only the mock server was exercised) |

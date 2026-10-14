@@ -97,6 +97,30 @@ public final class WeaponCustody {
 		return state;
 	}
 
+	/**
+	 * A transferred blade left the owner's hands (someone else picked it up, or it lay on the ground for its hour):
+	 * it is owed back to the owner. Recorded in {@code returnAt} = now, until the owner receives it. Refused unless transferred.
+	 */
+	public boolean markReturnToOwner(Instant now) {
+		if (state.custody() != Custody.TRANSFERRED || state.returnAt().isPresent()) {
+			return false;
+		}
+		state = new State(state.instanceId(), state.custody(), state.holder(), state.takenAt(), Optional.of(now), state.transferReason(), state.thefts(), state.returns() );
+		return true;
+	}
+
+	/** Is a transferred blade owed back to its owner right now? */
+	public boolean returnToOwnerDue() {
+		return state.custody() == Custody.TRANSFERRED && state.returnAt().isPresent();
+	}
+
+	/** The owner received the blade back. */
+	public void ownerReceived() {
+		if (state.custody() == Custody.TRANSFERRED) {
+			state = new State(state.instanceId(), state.custody(), state.holder(), state.takenAt(), Optional.empty(), state.transferReason(), state.thefts(), state.returns() + 1);
+		}
+	}
+
 	/** Reverts a permanent transfer (admin): the NPC gets a fresh instance, the holder's copy becomes stale. */
 	public UUID reclaim(UUID newInstance) {
 		UUID retired = state.instanceId();

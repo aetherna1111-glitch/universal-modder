@@ -532,7 +532,7 @@ public final class BehaviourService {
 		}
 		boolean armed = rec.get().weapon().custody() == WeaponCustody.Custody.NPC;
 		boolean harp = body.getMainHandStack().isOf(LuminaryItems.ANGELIC_HARP);
-		float damage = armed ? (float) (target.getMaxHealth() * combatRules().weaponDamageFraction()) : harp ? (float) AngelicHarpItem.DAMAGE : 2.0f;
+		float damage = armed ? (float) (target.getMaxHealth() * combatRules().weaponDamageFraction()) : harp ? (float) AngelicHarpItem.BASE_DAMAGE : 2.0f;
 		body.swingHand(Hand.MAIN_HAND);
 		if (target.damage(body.getDamageSources().mobAttack(body), damage)) {
 			Vec3d push = target.getPos().subtract(body.getPos()).normalize();
@@ -547,13 +547,13 @@ public final class BehaviourService {
 		if (rec.isEmpty() || !(body.getWorld() instanceof ServerWorld world)) {
 			return false;
 		}
-		if (body.getMainHandStack().isOf(LuminaryItems.ANGELIC_HARP) && body.squaredDistanceTo(target) <= AngelicHarpItem.RADIUS * AngelicHarpItem.RADIUS) {
+		if (body.getMainHandStack().isOf(LuminaryItems.ANGELIC_HARP) && body.squaredDistanceTo(target) <= AngelicHarpItem.CHORD_RADIUS * AngelicHarpItem.CHORD_RADIUS) {
 			body.swingHand(Hand.MAIN_HAND);   // the harp's chord instead of the blade's beam
-			int struck = AngelicHarpItem.chord(world, body);
-			if (struck > 0) {
+			boolean played = AngelicHarpItem.chord(body.getMainHandStack(), world, body, (float) (target.getMaxHealth() * combatRules().weaponDamageFraction() * 0.5));
+			if (played) {
 				metrics.inc(Metrics.STRIKES);
 			}
-			return struck > 0;
+			return played;
 		}
 		if (rec.get().weapon().custody() != WeaponCustody.Custody.NPC || !body.getMainHandStack().isOf(LuminaryItems.LUMIN_BLADE)) {
 			return false;
@@ -780,7 +780,46 @@ public final class BehaviourService {
 			if (record.hasWeaponRecord() && record.weapon().dueForReturn(now)) {
 				returnWeapon(id, record, "its hour was up");
 			}
+			if (record.hasWeaponRecord() && record.weapon().custody() == WeaponCustody.Custody.TRANSFERRED) {
+				if (server.getTicks() % 400 == 13) {
+					recallDroppedBlade(id, record);
+				}
+				deliverToOwner(id, record);
+			}
 		});
+	}
+
+	/** The tag a dropped transferred blade carries: the server tick it was first seen on the ground. */
+	static final String DROPPED_TAG = "luminary_dropped:";
+	static final int DROPPED_HOUR_TICKS = 20 * 60 * 60;
+
+	/**
+	 * A transferred blade on the ground never despawns and cannot burn or blow up; after its hour there it is lifted
+	 * back to its owner. Scanned every 20 s, well inside vanilla's 5-minute despawn.
+	 */
+	void recallDroppedBlade(LuminaryId id, NpcRoster.NpcRecord record) {
+		for (ServerWorld w : server.getWorlds()) {
+			List<ItemEntity> gone = new ArrayList<>();
+			for (Entity e : w.iterateEntities()) {
+				if (!(e instanceof ItemEntity item) || !isCopy(item.getStack(), id, record.weapon().instanceId())) {
+					continue;
+				}
+				long since = item.getCommandTags().stream().filter(t -> t.startsWith(DROPPED_TAG)).mapToLong(t -> Long.parseLong(t.substring(DROPPED_TAG.length()))).findFirst().orElse(-1L);
+				if (since < 0) {
+					item.setNeverDespawn();
+					item.setInvulnerable(true);
+					item.addCommandTag(DROPPED_TAG + server.getTicks());
+				} else if (server.getTicks() - since >= DROPPED_HOUR_TICKS) {
+					gone.add(item);
+				}
+			}
+			for (ItemEntity item : gone) {
+				item.discard();
+				if (record.weapon().markReturnToOwner(clock.get())) {
+					state.markDirty();
+				}
+			}
+		}
 	}
 
 	void returnWeapon(LuminaryId id, NpcRoster.NpcRecord record, String why) {
@@ -859,7 +898,38 @@ public final class BehaviourService {
 			metrics.inc(Metrics.WEAPON_PURGED_COPIES);
 			player.sendMessage(Text.translatable("npc.luminary.weapon.vanished").formatted(Formatting.LIGHT_PURPLE, Formatting.ITALIC), false);
 			player.getInventory().markDirty();
+			if (custody.custody() == WeaponCustody.Custody.TRANSFERRED && custody.isCurrent(instance.get()) && custody.markReturnToOwner(clock.get())) {
+				state.markDirty();   // a transferred blade in a stranger's hands: owed back to its owner, delivered by tickServer
+				deliverToOwner(owner.get(), record.get());
+			}
 		}
+	}
+
+	/** A transferred blade owed to its owner comes back to the owner's inventory as soon as the owner is on the server. */
+	public boolean deliverToOwner(LuminaryId id, NpcRoster.NpcRecord record) {
+		WeaponCustody custody = record.weapon();
+		if (!custody.returnToOwnerDue() || custody.state().holder().isEmpty()) {
+			return false;
+		}
+		ServerPlayerEntity owner = server.getPlayerManager().getPlayer(custody.state().holder().get());
+		return owner != null && deliverToOwner(id, record, owner);
+	}
+
+	/** Same, to a given owner (tests hand in a mock player the player manager does not list). */
+	public boolean deliverToOwner(LuminaryId id, NpcRoster.NpcRecord record, PlayerEntity owner) {
+		WeaponCustody custody = record.weapon();
+		if (!custody.returnToOwnerDue() || custody.state().holder().filter(owner.getUuid()::equals).isEmpty()) {
+			return false;
+		}
+		ItemStack blade = HolySwordItem.transferTo(blade(id, custody.instanceId()), owner.getUuid(), owner.getGameProfile().getName());
+		if (!owner.giveItemStack(blade)) {
+			owner.dropItem(blade, false);
+		}
+		custody.ownerReceived();
+		owner.sendMessage(Text.translatable("npc.luminary.weapon.came_back").formatted(Formatting.GOLD, Formatting.ITALIC), false);
+		metrics.inc(Metrics.WEAPON_RETURNS);
+		state.markDirty();
+		return true;
 	}
 
 	/** A player hands the blade back before the hour is up. */
