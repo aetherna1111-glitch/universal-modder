@@ -10,14 +10,19 @@ import java.util.Optional;
  * A planner (keyword rules or a model) chooses among these; it can never name an arbitrary coordinate. Positions
  * carry the packed form the actions need and the x/y/z the prompt and the player read.
  */
-public record IntentCandidates(List<Spot> logs, List<ContainerInfo> containers, Optional<Spot> playerPos, Map<String, Integer> held, List<Spot> furnaces) {
+public record IntentCandidates(List<Spot> logs, List<ContainerInfo> containers, Optional<Spot> playerPos, Map<String, Integer> held, List<Spot> furnaces,
+							   Optional<Spot> lookedAtContainer) {
 	public static final int MAX_LOGS = 8;
 	public static final int MAX_CONTAINERS = 6;
 	public static final int MAX_FURNACES = 4;
 	public static final int MAX_ITEMS_PER_CONTAINER = 8;
 
 	public IntentCandidates(List<Spot> logs, List<ContainerInfo> containers, Optional<Spot> playerPos, Map<String, Integer> held) {
-		this(logs, containers, playerPos, held, List.of());
+		this(logs, containers, playerPos, held, List.of(), Optional.empty());
+	}
+
+	public IntentCandidates(List<Spot> logs, List<ContainerInfo> containers, Optional<Spot> playerPos, Map<String, Integer> held, List<Spot> furnaces) {
+		this(logs, containers, playerPos, held, furnaces, Optional.empty());
 	}
 
 	/** A block position with its squared distance from the NPC. */
@@ -30,7 +35,7 @@ public record IntentCandidates(List<Spot> logs, List<ContainerInfo> containers, 
 	/** An authorized, loaded container and a bounded summary of its contents (item id → count). */
 	public record ContainerInfo(Spot spot, Map<String, Integer> contents) {}
 
-	public static final IntentCandidates NONE = new IntentCandidates(List.of(), List.of(), Optional.empty(), Map.of(), List.of());
+	public static final IntentCandidates NONE = new IntentCandidates(List.of(), List.of(), Optional.empty(), Map.of(), List.of(), Optional.empty());
 
 	public IntentCandidates {
 		logs = logs.stream().sorted(Comparator.comparingDouble(Spot::distanceSq)).limit(MAX_LOGS).toList();

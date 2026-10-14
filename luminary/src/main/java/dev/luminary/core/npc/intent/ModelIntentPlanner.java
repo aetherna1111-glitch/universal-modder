@@ -82,6 +82,8 @@ public final class ModelIntentPlanner implements IntentPlanner {
 		s.append("- withdraw: take an item that a CONTAINER actually holds (item id from its list, count 1-").append(rules.maxWithdrawCount()).append(")\n");
 		s.append("- smelt: take an item a CONTAINER holds plus fuel from it, smelt it in one of the FURNACES, return the result (item id, count 1-").append(rules.maxWithdrawCount()).append(")\n");
 		s.append("- move_to: walk to the player\n");
+		s.append("- use_container: the player hands you the container they are LOOKING AT (listed below) for depositing and withdrawing\n");
+		s.append("- forget_container: the player takes that container back\n");
 		s.append("- none: not a request for work, or impossible with what is listed (explain briefly in character)\n");
 		s.append("Rules: refer to places only by the indices below; never invent positions, items or abilities. ");
 		s.append("If the character is busy, intent is none and the reply says so. Reply in the player's language, one short sentence.\n\n");
@@ -108,6 +110,7 @@ public final class ModelIntentPlanner implements IntentPlanner {
 		for (int i = 0; i < c.furnaces().size(); i++) {
 			s.append("- ").append(i).append(": ").append(c.furnaces().get(i).coords()).append('\n');
 		}
+		s.append("\nCONTAINER THE PLAYER IS LOOKING AT: ").append(c.lookedAtContainer().map(IntentCandidates.Spot::coords).orElse("none")).append('\n');
 		s.append("\nPLAYER POSITION: ").append(c.playerPos().map(IntentCandidates.Spot::coords).orElse("unknown")).append('\n');
 		if (!request.memories().isEmpty()) {
 			s.append("\nWHAT YOU REMEMBER:\n");
@@ -115,7 +118,7 @@ public final class ModelIntentPlanner implements IntentPlanner {
 				s.append("- [").append(m.kind()).append('/').append(m.provenance()).append("] ").append(m.text()).append('\n');
 			}
 		}
-		s.append("\nRespond with one JSON object: {\"intent\": one of gather_wood|deposit|withdraw|smelt|move_to|none, ")
+		s.append("\nRespond with one JSON object: {\"intent\": one of gather_wood|deposit|withdraw|smelt|move_to|use_container|forget_container|none, ")
 				.append("\"log\": index or null, \"container\": index or null, \"furnace\": index or null, \"item\": item id or null, \"count\": integer or null, \"reply\": string}.");
 		List<LlmMessage> messages = new ArrayList<>();
 		messages.add(LlmMessage.system(s.toString()));
@@ -130,7 +133,7 @@ public final class ModelIntentPlanner implements IntentPlanner {
 		JsonObject intent = new JsonObject();
 		intent.addProperty("type", "string");
 		JsonArray values = new JsonArray();
-		for (String v : List.of("gather_wood", "deposit", "withdraw", "smelt", "move_to", "none")) values.add(v);
+		for (String v : List.of("gather_wood", "deposit", "withdraw", "smelt", "move_to", "use_container", "forget_container", "none")) values.add(v);
 		intent.add("enum", values);
 		props.add("intent", intent);
 		JsonArray intOrNull = new JsonArray();
@@ -176,6 +179,13 @@ public final class ModelIntentPlanner implements IntentPlanner {
 		IntentCandidates c = request.candidates();
 		Optional<NpcAction> action = Optional.empty();
 		switch (intent) {
+			case "use_container", "forget_container" -> {
+				if (c.lookedAtContainer().isEmpty()) {
+					return Optional.of(new Intent(Optional.empty(), Optional.of(Intent.REPLY_LOOK_AT_CONTAINER), Optional.empty(), ID));
+				}
+				Intent g = Intent.grant(c.lookedAtContainer().get().pos(), intent.equals("use_container"), ID);
+				return Optional.of(literal.isPresent() ? new Intent(Optional.empty(), Optional.empty(), literal, ID, g.grant()) : g);
+			}
 			case "none" -> {
 				return literal.isPresent() ? Optional.of(new Intent(Optional.empty(), Optional.empty(), literal, ID)) : Optional.empty();
 			}

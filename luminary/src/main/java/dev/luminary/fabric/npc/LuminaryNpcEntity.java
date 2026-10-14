@@ -47,8 +47,9 @@ public class LuminaryNpcEntity extends PathAwareEntity {
 		goalSelector.add(0, new SwimGoal(this));
 		goalSelector.add(1, new TaskGoal(this));
 		goalSelector.add(2, new FollowPlayerGoal(this));
+		goalSelector.add(3, new AttendPlayerGoal(this));
 		goalSelector.add(5, new LookAtEntityGoal(this, PlayerEntity.class, 8.0f));
-		goalSelector.add(6, new WanderAroundGoal(this, 0.6));
+		goalSelector.add(6, new WanderAroundGoal(this, 0.6, 240));   // a short stroll every ~12 s on average, not constant pacing
 		goalSelector.add(7, new LookAroundGoal(this));
 	}
 

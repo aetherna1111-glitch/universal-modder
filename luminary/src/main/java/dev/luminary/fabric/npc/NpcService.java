@@ -62,6 +62,10 @@ public final class NpcService {
 	private final CandidateScanner scanner;
 	private IntentPlanner planner = IntentPlanner.none();
 	private AutonomyPlanner autonomy = new AutonomyPlanner(AutonomyRules.DEFAULTS, TaskRules.DEFAULTS);
+	/** Operator level a player needs to hand the NPC a container by chat (0: anyone). */
+	private int containerGrantPermission = 0;
+	/** Shown at once when a model answer is on its way, so the player knows the NPC heard them. */
+	private boolean thinkingLine = true;
 	/** Server-wide feature flag (config {@code autonomy.enabled}); each NPC also has its own switch. */
 	private boolean autonomyEnabled;
 
@@ -88,6 +92,11 @@ public final class NpcService {
 
 	public boolean autonomyEnabled() {
 		return autonomyEnabled;
+	}
+
+	public void configureConversation(int containerGrantPermission, boolean thinkingLine) {
+		this.containerGrantPermission = containerGrantPermission;
+		this.thinkingLine = thinkingLine;
 	}
 
 	public void configureAutonomy(boolean enabled, AutonomyRules rules) {
@@ -485,6 +494,9 @@ public final class NpcService {
 			Luminary.LOGGER.warn("[luminary] intent planner {} failed: {}", planner.id(), e.toString());
 			planned = CompletableFuture.completedFuture(Optional.empty());
 		}
+		if (thinkingLine && !planned.isDone()) {
+			sayThinking(npc, player);
+		}
 		CompletableFuture<ChatOutcome> result = new CompletableFuture<>();
 		planned.whenComplete((intent, error) -> {
 			Optional<Intent> safe = error == null && intent != null ? intent : Optional.empty();
@@ -515,6 +527,22 @@ public final class NpcService {
 		Optional<Result> assignment = Optional.empty();
 		if (intent.action().isPresent()) {
 			assignment = Optional.of(assign(id, intent.action().get(), player.getUuid()));
+		}
+		if (intent.grant().isPresent()) {
+			Intent.Grant g = intent.grant().get();
+			if (!player.hasPermissionLevel(containerGrantPermission)) {
+				assignment = Optional.of(Result.fail("luminary.intent.grant_not_allowed"));
+			} else if (g.allow()) {
+				authorizeContainer(id, g.containerPos());
+				memory.add(MemoryEntry.of(MemoryKind.RELATIONSHIP, player.getUuid(), "container/" + g.containerPos(),
+						name + " gave me the container at " + BlockPos.fromLong(g.containerPos()).toShortString(), now, Provenance.OBSERVED_IN_WORLD), now);
+				assignment = Optional.of(Result.OK);
+			} else {
+				revokeContainer(id, g.containerPos());
+				memory.add(MemoryEntry.of(MemoryKind.RELATIONSHIP, player.getUuid(), "container/" + g.containerPos(),
+						name + " took back the container at " + BlockPos.fromLong(g.containerPos()).toShortString(), now, Provenance.OBSERVED_IN_WORLD), now);
+				assignment = Optional.of(Result.OK);
+			}
 		}
 		Text npcName = npc.getCustomName() != null ? npc.getCustomName() : Text.literal(id.toString());
 		Text line;
@@ -548,7 +576,11 @@ public final class NpcService {
 		}
 		LuminaryId id = npc.npcId().get();
 		Text name = npc.getCustomName() != null ? npc.getCustomName() : Text.literal(id.toString());
-		return dialogue.talk(id, player.getUuid(), player.getGameProfile().getName(), utterance).thenApply(turn -> {
+		CompletableFuture<Optional<NpcDialogueService.Turn>> pending = dialogue.talk(id, player.getUuid(), player.getGameProfile().getName(), utterance);
+		if (thinkingLine && !pending.isDone()) {
+			sayThinking(npc, player);
+		}
+		return pending.thenApply(turn -> {
 			Text line = turn.flatMap(NpcDialogueService.Turn::literalText).map(t -> (Text) Text.literal(t))
 					.orElseGet(() -> Text.translatable(turn.map(NpcDialogueService.Turn::textKey).orElse(NpcDialogueService.FALLBACK_TEXT_KEY)));
 			player.sendMessage(Text.empty().append(Text.literal("<").append(name).append("> ").formatted(Formatting.GOLD)).append(line), false);
@@ -558,6 +590,12 @@ public final class NpcService {
 			state.markDirty();
 			return turn;
 		});
+	}
+
+	private static void sayThinking(LuminaryNpcEntity npc, PlayerEntity player) {
+		Text name = npc.getCustomName() != null ? npc.getCustomName() : Text.literal(npc.npcId().map(Object::toString).orElse("npc"));
+		player.sendMessage(Text.empty().append(Text.literal("<").append(name).append("> ").formatted(Formatting.GOLD))
+				.append(Text.translatable("npc.luminary.thinking").formatted(Formatting.GRAY, Formatting.ITALIC)), false);
 	}
 
 	private static String dimension(ServerWorld world) {

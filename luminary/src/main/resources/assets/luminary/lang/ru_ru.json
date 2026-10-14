@@ -138,5 +138,10 @@
   "luminary.task.furnace_busy": "В печи лежит что-то другое",
   "luminary.task.fail.furnace_invalid": "печи больше нет",
   "luminary.task.fail.smelt_stalled": "печь перестала работать",
-  "npc.luminary.intent.no_furnace": "Рядом со мной нет печи."
+  "npc.luminary.intent.no_furnace": "Рядом со мной нет печи.",
+  "npc.luminary.thinking": "…",
+  "npc.luminary.intent.container_granted": "Понял. Буду пользоваться этим сундуком.",
+  "npc.luminary.intent.container_revoked": "Понял. Этот сундук больше не трогаю.",
+  "npc.luminary.intent.look_at_container": "Какой именно? Посмотри на нужный сундук и скажи ещё раз.",
+  "luminary.intent.grant_not_allowed": "тебе нельзя выдавать мне сундуки"
 }

@@ -32,11 +32,14 @@ import java.util.Set;
  * intentPlanner: keyword (default) | none | model (falls back to keyword)
  * autonomy: { "enabled": false, "thinkIntervalTicks": 100, "maxDecisionsPerHour": 12, "failureCooldownSeconds": 600 }
  *   (server-wide switch, off by default; each NPC additionally needs /luminary npc autonomy <npc> on)
+ * conversation: { "containerGrantPermission": 0, "thinkingLine": true }
+ *   (operator level needed to hand the NPC a chest by chat, 0 = anyone; show "…" at once while a model answers)
+ * llm.keepAliveSeconds (default 3600) keeps the Ollama model loaded between turns; llm.contextTokens (default 4096)
  * </pre>
  */
 public record LuminaryConfig(String dialogueProvider, String intentPlanner, LlmConfig llm, boolean llmLogContent, Duration dialogueTimeout,
-							 boolean autonomyEnabled, AutonomyRules autonomy) {
-	public static final LuminaryConfig DEFAULTS = new LuminaryConfig("scripted", "keyword", LlmConfig.DISABLED, false, Duration.ofSeconds(8), false, AutonomyRules.DEFAULTS);
+							 boolean autonomyEnabled, AutonomyRules autonomy, int containerGrantPermission, boolean thinkingLine) {
+	public static final LuminaryConfig DEFAULTS = new LuminaryConfig("scripted", "keyword", LlmConfig.DISABLED, false, Duration.ofSeconds(8), false, AutonomyRules.DEFAULTS, 0, true);
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
 	public static LuminaryConfig load(Path file) {
@@ -48,7 +51,7 @@ public record LuminaryConfig(String dialogueProvider, String intentPlanner, LlmC
 		Optional<String> key = Optional.ofNullable(apiKeyFromEnv).map(String::trim).filter(s -> !s.isEmpty());
 		if (!Files.exists(file)) {
 			write(file, DEFAULTS);
-			return new LuminaryConfig(DEFAULTS.dialogueProvider(), DEFAULTS.intentPlanner(), DEFAULTS.llm().withApiKey(key), false, DEFAULTS.dialogueTimeout(), false, AutonomyRules.DEFAULTS);
+			return new LuminaryConfig(DEFAULTS.dialogueProvider(), DEFAULTS.intentPlanner(), DEFAULTS.llm().withApiKey(key), false, DEFAULTS.dialogueTimeout(), false, AutonomyRules.DEFAULTS, 0, true);
 		}
 		try {
 			JsonObject o = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8)).getAsJsonObject();
@@ -77,7 +80,8 @@ public record LuminaryConfig(String dialogueProvider, String intentPlanner, LlmC
 						l.has("maxResponseBytes") ? l.get("maxResponseBytes").getAsInt() : LlmConfig.DISABLED.maxResponseBytes(),
 						l.has("maxConcurrent") ? l.get("maxConcurrent").getAsInt() : LlmConfig.DISABLED.maxConcurrent(),
 						hosts, Optional.empty(),
-						Duration.ofSeconds(l.has("keepAliveSeconds") ? l.get("keepAliveSeconds").getAsLong() : 300));
+						Duration.ofSeconds(l.has("keepAliveSeconds") ? l.get("keepAliveSeconds").getAsLong() : 3600),
+						l.has("contextTokens") ? l.get("contextTokens").getAsInt() : LlmConfig.DISABLED.contextTokens());
 				logContent = l.has("logContent") && l.get("logContent").getAsBoolean();
 				if (l.has("dialogueTimeoutSeconds")) {
 					dialogueTimeout = Duration.ofSeconds(l.get("dialogueTimeoutSeconds").getAsLong());
@@ -94,10 +98,17 @@ public record LuminaryConfig(String dialogueProvider, String intentPlanner, LlmC
 						Duration.ofHours(1),
 						Duration.ofSeconds(a.has("failureCooldownSeconds") ? a.get("failureCooldownSeconds").getAsLong() : AutonomyRules.DEFAULTS.failureCooldown().toSeconds()));
 			}
-			return new LuminaryConfig(provider, planner, llm.withApiKey(key), logContent, dialogueTimeout, autonomyEnabled, autonomy);
+			int grant = 0;
+			boolean thinking = true;
+			if (o.has("conversation") && o.get("conversation").isJsonObject()) {
+				JsonObject c = o.getAsJsonObject("conversation");
+				grant = c.has("containerGrantPermission") ? c.get("containerGrantPermission").getAsInt() : 0;
+				thinking = !c.has("thinkingLine") || c.get("thinkingLine").getAsBoolean();
+			}
+			return new LuminaryConfig(provider, planner, llm.withApiKey(key), logContent, dialogueTimeout, autonomyEnabled, autonomy, grant, thinking);
 		} catch (IOException | RuntimeException e) {
 			Luminary.LOGGER.error("[luminary] cannot read {}; using defaults ({})", file, e.getMessage());
-			return new LuminaryConfig(DEFAULTS.dialogueProvider(), DEFAULTS.intentPlanner(), DEFAULTS.llm().withApiKey(key), false, DEFAULTS.dialogueTimeout(), false, AutonomyRules.DEFAULTS);
+			return new LuminaryConfig(DEFAULTS.dialogueProvider(), DEFAULTS.intentPlanner(), DEFAULTS.llm().withApiKey(key), false, DEFAULTS.dialogueTimeout(), false, AutonomyRules.DEFAULTS, 0, true);
 		}
 	}
 
@@ -115,6 +126,8 @@ public record LuminaryConfig(String dialogueProvider, String intentPlanner, LlmC
 			llm.addProperty("requestTimeoutSeconds", config.llm().requestTimeout().toSeconds());
 			llm.addProperty("dialogueTimeoutSeconds", config.dialogueTimeout().toSeconds());
 			llm.addProperty("maxConcurrent", config.llm().maxConcurrent());
+			llm.addProperty("keepAliveSeconds", config.llm().keepAlive().toSeconds());
+			llm.addProperty("contextTokens", config.llm().contextTokens());
 			llm.add("allowedHosts", new JsonArray());
 			llm.addProperty("logContent", config.llmLogContent());
 			o.add("llm", llm);
@@ -124,6 +137,10 @@ public record LuminaryConfig(String dialogueProvider, String intentPlanner, LlmC
 			autonomy.addProperty("maxDecisionsPerHour", config.autonomy().maxDecisionsPerWindow());
 			autonomy.addProperty("failureCooldownSeconds", config.autonomy().failureCooldown().toSeconds());
 			o.add("autonomy", autonomy);
+			JsonObject conversation = new JsonObject();
+			conversation.addProperty("containerGrantPermission", config.containerGrantPermission());
+			conversation.addProperty("thinkingLine", config.thinkingLine());
+			o.add("conversation", conversation);
 			Files.writeString(tmp, GSON.toJson(o) + "\n", StandardCharsets.UTF_8);
 			Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
 		} catch (IOException e) {

@@ -28,6 +28,12 @@ public final class KeywordIntentPlanner implements IntentPlanner {
 			"сложи", "положи", "разгруз", "убери", "выгруз", "в сундук");
 	private static final List<String> WITHDRAW = List.of("bring me", "fetch", "get me", "take out", "withdraw", "grab", "hand me", "give me",
 			"принеси", "достань", "возьми", "дай", "вытащи");
+	private static final List<String> GRANT = List.of("use this chest", "use this container", "this chest is yours", "take this chest", "your chest",
+			"put things here", "put it here", "store here", "this is your chest", "you may use this",
+			"этот сундук", "вот сундук", "вот твой сундук", "используй сундук", "складывай сюда", "сюда складывай", "пользуйся сундуком",
+			"пользуйся этим", "твой сундук", "этот ящик", "вот ящик");
+	private static final List<String> REVOKE = List.of("don't use", "do not use", "stop using", "not your", "forget this chest", "forget this container",
+			"не трогай", "не используй", "не пользуйся", "забудь этот", "больше не твой", "не твой сундук", "не твой ящик");
 	private static final List<String> SMELT = List.of("smelt", "cook", "melt", "furnace", "roast", "bake",
 			"переплав", "расплав", "выплав", "обожг", "обжар", "печ", "сплав");
 	private static final Pattern NUMBER = Pattern.compile("\\b(\\d{1,3})\\b");
@@ -52,6 +58,11 @@ public final class KeywordIntentPlanner implements IntentPlanner {
 	public Optional<Intent> planNow(IntentRequest request) {
 		String text = " " + request.utterance().toLowerCase(Locale.ROOT).strip() + " ";
 		IntentCandidates c = request.candidates();
+		if (any(text, GRANT) || any(text, REVOKE)) {
+			boolean allow = !any(text, REVOKE);
+			if (c.lookedAtContainer().isEmpty()) return Optional.of(Intent.decline(Intent.REPLY_LOOK_AT_CONTAINER, ID));
+			return Optional.of(Intent.grant(c.lookedAtContainer().get().pos(), allow, ID));
+		}
 		if (any(text, COME)) {
 			if (request.busy()) return Optional.of(Intent.decline(Intent.REPLY_BUSY, ID));
 			return Optional.of(c.playerPos().map(p -> Intent.act(new NpcAction.MoveTo(p.pos()), Intent.REPLY_WILL_DO, ID))

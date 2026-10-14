@@ -13,6 +13,8 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.util.hit.BlockHitResult;
+import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 
@@ -33,6 +35,8 @@ public final class CandidateScanner {
 	/** Horizontal half-size of the scan box; vertical half-size is smaller because trunks stand on the ground. */
 	public static final int SCAN_XZ = 16;
 	public static final int SCAN_Y = 6;
+	/** How far "this chest" may be from the player's eyes. */
+	public static final double LOOK_REACH = 6.0;
 
 	private final TaskRules rules;
 
@@ -92,11 +96,26 @@ public final class CandidateScanner {
 			}
 		}
 		Optional<IntentCandidates.Spot> playerPos = Optional.empty();
+		Optional<IntentCandidates.Spot> lookedAt = Optional.empty();
 		if (player != null && player.getWorld() == world) {
 			BlockPos p = player.getBlockPos();
 			playerPos = Optional.of(new IntentCandidates.Spot(p.asLong(), p.getX(), p.getY(), p.getZ(), npc.squaredDistanceTo(player)));
+			lookedAt = lookedAtContainer(world, player, npc);
 		}
-		return new IntentCandidates(logs, containers, playerPos, summarize(npc.heldItems()), furnaces);
+		return new IntentCandidates(logs, containers, playerPos, summarize(npc.heldItems()), furnaces, lookedAt);
+	}
+
+	/** The inventory block the player is looking at within reach, if any (the thing "this chest" refers to). */
+	public static Optional<IntentCandidates.Spot> lookedAtContainer(ServerWorld world, PlayerEntity player, LuminaryNpcEntity npc) {
+		HitResult hit = player.raycast(LOOK_REACH, 1.0f, false);
+		if (!(hit instanceof BlockHitResult bh) || hit.getType() != HitResult.Type.BLOCK) {
+			return Optional.empty();
+		}
+		BlockPos pos = bh.getBlockPos();
+		if (!(world.getBlockEntity(pos) instanceof Inventory)) {
+			return Optional.empty();
+		}
+		return Optional.of(new IntentCandidates.Spot(pos.asLong(), pos.getX(), pos.getY(), pos.getZ(), npc.squaredDistanceTo(Vec3d.ofCenter(pos))));
 	}
 
 	/** item id → count, the most numerous first, bounded. */

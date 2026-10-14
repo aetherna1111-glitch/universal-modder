@@ -41,6 +41,23 @@ public final class LlmService {
 		this.journal = new LlmJournal(journalFile, 4L << 20, 3, logContent, Clock.systemUTC(), msg -> Luminary.LOGGER.warn("[luminary] {}", msg));
 		Luminary.LOGGER.info("[luminary] llm provider '{}' model '{}' endpoint {} (api key {})", provider.id(), provider.model(),
 				config.endpoint(), config.apiKey().isPresent() ? "set" : "not set");
+		if (!LlmConfig.PROVIDER_NONE.equals(provider.id())) {
+			warmUp();
+		}
+	}
+
+	/** Loads the model into memory before the first player talks (an Ollama cold start is the slowest reply of all). */
+	public void warmUp() {
+		LlmRequest request = LlmRequest.text(java.util.List.of(
+				dev.luminary.core.npc.llm.LlmMessage.system("Reply with the single word: ready"),
+				dev.luminary.core.npc.llm.LlmMessage.user("warm up")), 4, 0.0);
+		ask(request, "warmup", (response, error) -> {
+			if (response != null) {
+				Luminary.LOGGER.info("[luminary] model warm: {} ms", response.latencyMillis());
+			} else {
+				Luminary.LOGGER.warn("[luminary] model warm-up failed ({}): {}", error.kind(), error.getMessage());
+			}
+		});
 	}
 
 	public LlmProvider provider() {

@@ -30,6 +30,7 @@ public final class OllamaProvider extends HttpLlmProvider {
 		JsonObject options = new JsonObject();
 		options.addProperty("temperature", request.temperature());
 		options.addProperty("num_predict", request.maxOutputTokens());
+		options.addProperty("num_ctx", config.contextTokens());
 		body.add("options", options);
 		return HttpRequest.newBuilder(resolve("/api/chat")).POST(HttpRequest.BodyPublishers.ofString(body.toString()));
 	}

@@ -33,6 +33,21 @@ class KeywordIntentPlannerTest {
 	}
 
 	@Test
+	void handingOverAContainerNeedsTheLookedAtChest() {
+		IntentCandidates.Spot looked = new IntentCandidates.Spot(77L, 9, 2, 9, 2.0);
+		IntentCandidates withLook = new IntentCandidates(List.of(), List.of(), Optional.of(PLAYER), Map.of(), List.of(), Optional.of(looked));
+		Intent g = planner.planNow(req("Lumin, use this chest", withLook, false)).orElseThrow();
+		assertEquals(new Intent.Grant(77L, true), g.grant().orElseThrow());
+		assertEquals(Optional.of(Intent.REPLY_CONTAINER_GRANTED), g.replyKey());
+		assertTrue(g.action().isEmpty());
+		Intent r = planner.planNow(req("этот сундук больше не твой", withLook, false)).orElseThrow();
+		assertEquals(new Intent.Grant(77L, false), r.grant().orElseThrow());
+		assertEquals(Optional.of(Intent.REPLY_LOOK_AT_CONTAINER), planner.planNow(req("вот твой сундук", full(), false)).orElseThrow().replyKey());
+		// busy or not, a handover is never a task
+		assertTrue(planner.planNow(req("складывай сюда", withLook, true)).orElseThrow().grant().isPresent());
+	}
+
+	@Test
 	void smeltUsesTheNearestFurnaceAndAnItemAContainerHolds() {
 		assertEquals(new NpcAction.Smelt(40L, 20L, "minecraft:cobblestone", 5), plan("smelt 5 cobblestone please").action().orElseThrow());
 		assertEquals(new NpcAction.Smelt(40L, 20L, "minecraft:cobblestone", KeywordIntentPlanner.DEFAULT_SMELT), plan("переплавь cobblestone").action().orElseThrow());

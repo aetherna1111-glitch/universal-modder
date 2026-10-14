@@ -104,6 +104,16 @@ public final class IntentGameTests implements FabricGameTest {
 		ctx.waitAndRun(5, () -> await(ctx, done, budgetTicks - 5, then));
 	}
 
+	/** Moves and turns a mock player; a real client syncs the head yaw itself, the mock needs it set for the gaze vector. */
+	private static void face(PlayerEntity player, Vec3d at, float yaw, float pitch) {
+		player.refreshPositionAndAngles(at.x, at.y, at.z, yaw, pitch);
+		player.setHeadYaw(yaw);
+		player.setBodyYaw(yaw);
+		player.prevHeadYaw = yaw;
+		player.prevPitch = pitch;
+		player.prevYaw = yaw;
+	}
+
 	private static void expect(boolean condition, String message) {
 		if (!condition) {
 			throw new GameTestException(message);
@@ -281,6 +291,56 @@ public final class IntentGameTests implements FabricGameTest {
 			BlockEntity be = ctx.getWorld().getBlockEntity(furnace);
 			expect(be instanceof Inventory f && f.getStack(0).isEmpty() && f.getStack(2).isEmpty(), "furnace input and output must be empty");
 			a.npc().despawn(a.npcId());
+			ctx.complete();
+		});
+	}
+
+	/** Slice 13: a chest handed over by chat while looking at it, and the NPC stopping for a player who looks at it. */
+	@GameTest(templateName = ARENA, tickLimit = 400)
+	public void chestHandedOverByChatWhileLookingAtItAndNpcAttendsAWatchingPlayer(TestContext ctx) {
+		LuminaryRuntime rt = LuminaryRuntime.get().orElseThrow();
+		rt.setIntentPlanner(new KeywordIntentPlanner(TaskRules.DEFAULTS));
+		NpcService npc = rt.npc();
+		LuminaryId id = LuminaryId.parse("luminary-gametest:npc/intent_grant");
+		ctx.setBlockState(CHEST, Blocks.CHEST.getDefaultState());
+		BlockPos chest = ctx.getAbsolutePos(CHEST);
+		Vec3d spawn = Vec3d.ofBottomCenter(ctx.getAbsolutePos(NPC_SPAWN));
+		expect(npc.spawn(id, ctx.getWorld(), spawn).ok(), "spawn failed");
+		LuminaryNpcEntity body = npc.body(id).orElseThrow();
+		PlayerEntity player = ctx.createMockSurvivalPlayer();
+		// stand two blocks west of the chest, look at it
+		Vec3d stand = Vec3d.ofBottomCenter(chest.west(2));
+		face(player, stand, -90.0f, 20.0f);   // yaw -90 faces +x (east)
+		expect(!npc.roster().ensureRecord(id).authorizedContainers().contains(chest.asLong()), "fixture: chest not yet authorized");
+		net.minecraft.util.hit.HitResult hit = player.raycast(6.0, 1.0f, false);
+		NpcService.ChatOutcome out = npc.onPlayerChat(player, "Lumin, use this chest").join();
+		expect(out.intent().isPresent() && out.intent().get().grant().isPresent(), "a handover intent is expected: " + out
+				+ " | player at " + player.getPos() + " eye " + player.getEyePos() + " yaw " + player.getYaw() + " pitch " + player.getPitch()
+				+ " rot " + player.getRotationVec(1.0f) + " hit " + hit.getType() + " " + hit.getPos() + " chest " + chest);
+		expect(out.assignment().map(Result::ok).orElse(false), "the grant must be accepted: " + out);
+		expect(npc.roster().ensureRecord(id).authorizedContainers().contains(chest.asLong()), "the looked-at chest must be authorized");
+		expect(npc.dialogue().memory(id).all().stream().anyMatch(m -> m.text().contains("gave me the container")), "the handover must be remembered");
+		// looking away: nothing to hand over
+		face(player, stand, 90.0f, 0.0f);   // facing west, away from the chest
+		NpcService.ChatOutcome away = npc.onPlayerChat(player, "use this chest").join();
+		expect(away.intent().isPresent() && away.intent().get().grant().isEmpty() && away.intent().get().replyKey().equals(Optional.of(dev.luminary.core.npc.intent.Intent.REPLY_LOOK_AT_CONTAINER)),
+				"without a chest in view the NPC asks which one: " + away);
+		// take it back
+		face(player, stand, -90.0f, 20.0f);
+		NpcService.ChatOutcome back = npc.onPlayerChat(player, "forget this chest").join();
+		expect(back.assignment().map(Result::ok).orElse(false) && !npc.roster().ensureRecord(id).authorizedContainers().contains(chest.asLong()), "the chest must be revoked: " + back);
+		// attending: the player faces the NPC from 3 blocks → the NPC should be stopped within a second
+		Vec3d npcPos = body.getPos();
+		Vec3d p2 = new Vec3d(npcPos.x + 3, npcPos.y, npcPos.z);
+		face(player, p2, 90.0f, 0.0f);   // yaw 90 faces -x, towards the NPC
+		expect(dev.luminary.fabric.npc.AttendPlayerGoalAccess.isLookingAt(player, body), "the gaze test must see the NPC");
+		face(player, p2, -90.0f, 0.0f);
+		expect(!dev.luminary.fabric.npc.AttendPlayerGoalAccess.isLookingAt(player, body), "facing away is not looking");
+		face(player, p2, 90.0f, 0.0f);
+		ctx.waitAndRun(30, () -> {
+			expect(body.getNavigation().isIdle(), "an attended NPC must not be walking");
+			expect(body.squaredDistanceTo(npcPos) < 1.5, "an attended NPC must stay where it was, moved " + Math.sqrt(body.squaredDistanceTo(npcPos)));
+			npc.despawn(id);
 			ctx.complete();
 		});
 	}

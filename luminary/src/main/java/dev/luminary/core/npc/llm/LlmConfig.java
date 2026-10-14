@@ -13,7 +13,12 @@ import java.util.Set;
  */
 public record LlmConfig(String provider, URI endpoint, String model, Duration connectTimeout, Duration requestTimeout,
 						int maxResponseBytes, int maxConcurrent, Set<String> allowedHosts, Optional<String> apiKey,
-						Duration keepAlive) {
+						Duration keepAlive, int contextTokens) {
+	/** Pre-slice-13 shape. */
+	public LlmConfig(String provider, URI endpoint, String model, Duration connectTimeout, Duration requestTimeout, int maxResponseBytes,
+					 int maxConcurrent, Set<String> allowedHosts, Optional<String> apiKey, Duration keepAlive) {
+		this(provider, endpoint, model, connectTimeout, requestTimeout, maxResponseBytes, maxConcurrent, allowedHosts, apiKey, keepAlive, 4096);
+	}
 	public static final String PROVIDER_NONE = "none";
 	public static final String PROVIDER_OLLAMA = "ollama";
 	public static final String PROVIDER_OPENAI = "openai";
@@ -51,23 +56,23 @@ public record LlmConfig(String provider, URI endpoint, String model, Duration co
 	}
 
 	public LlmConfig withProvider(String p) {
-		return new LlmConfig(p, endpoint, model, connectTimeout, requestTimeout, maxResponseBytes, maxConcurrent, allowedHosts, apiKey, keepAlive);
+		return new LlmConfig(p, endpoint, model, connectTimeout, requestTimeout, maxResponseBytes, maxConcurrent, allowedHosts, apiKey, keepAlive, contextTokens);
 	}
 
 	public LlmConfig withEndpoint(URI e) {
-		return new LlmConfig(provider, e, model, connectTimeout, requestTimeout, maxResponseBytes, maxConcurrent, allowedHosts, apiKey, keepAlive);
+		return new LlmConfig(provider, e, model, connectTimeout, requestTimeout, maxResponseBytes, maxConcurrent, allowedHosts, apiKey, keepAlive, contextTokens);
 	}
 
 	public LlmConfig withRequestTimeout(Duration t) {
-		return new LlmConfig(provider, endpoint, model, connectTimeout, t, maxResponseBytes, maxConcurrent, allowedHosts, apiKey, keepAlive);
+		return new LlmConfig(provider, endpoint, model, connectTimeout, t, maxResponseBytes, maxConcurrent, allowedHosts, apiKey, keepAlive, contextTokens);
 	}
 
 	public LlmConfig withMaxResponseBytes(int b) {
-		return new LlmConfig(provider, endpoint, model, connectTimeout, requestTimeout, b, maxConcurrent, allowedHosts, apiKey, keepAlive);
+		return new LlmConfig(provider, endpoint, model, connectTimeout, requestTimeout, b, maxConcurrent, allowedHosts, apiKey, keepAlive, contextTokens);
 	}
 
 	public LlmConfig withMaxConcurrent(int c) {
-		return new LlmConfig(provider, endpoint, model, connectTimeout, requestTimeout, maxResponseBytes, c, allowedHosts, apiKey, keepAlive);
+		return new LlmConfig(provider, endpoint, model, connectTimeout, requestTimeout, maxResponseBytes, c, allowedHosts, apiKey, keepAlive, contextTokens);
 	}
 
 	public LlmConfig withApiKey(Optional<String> key) {

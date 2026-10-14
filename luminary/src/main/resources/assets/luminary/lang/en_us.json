@@ -138,5 +138,10 @@
   "luminary.task.furnace_busy": "The furnace input slot is holding something else",
   "luminary.task.fail.furnace_invalid": "the furnace is gone",
   "luminary.task.fail.smelt_stalled": "the furnace stopped making progress",
-  "npc.luminary.intent.no_furnace": "There is no furnace near me."
+  "npc.luminary.intent.no_furnace": "There is no furnace near me.",
+  "npc.luminary.thinking": "…",
+  "npc.luminary.intent.container_granted": "Understood. I will use this container.",
+  "npc.luminary.intent.container_revoked": "Understood. I will leave that container alone.",
+  "npc.luminary.intent.look_at_container": "Which one? Look at the chest you mean and tell me again.",
+  "luminary.intent.grant_not_allowed": "you are not allowed to hand me containers"
 }

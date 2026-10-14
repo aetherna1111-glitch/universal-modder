@@ -98,6 +98,19 @@ class ModelIntentPlannerTest {
 	}
 
 	@Test
+	void useContainerIsGroundedInTheLookedAtChest() throws Exception {
+		IntentCandidates looking = new IntentCandidates(CANDIDATES.logs(), CANDIDATES.containers(), CANDIDATES.playerPos(), Map.of(), CANDIDATES.furnaces(),
+				Optional.of(new IntentCandidates.Spot(77L, 9, 2, 9, 2.0)));
+		IntentRequest r = new IntentRequest(AI, ALICE, "Alice", "this chest is yours", List.of(), List.of(), looking, false);
+		Intent g = await(planner(new FakeLlm("{\"intent\":\"use_container\",\"reply\":\"Thank you, I will keep it tidy.\"}")).plan(r)).orElseThrow();
+		assertEquals(new Intent.Grant(77L, true), g.grant().orElseThrow());
+		assertEquals(Optional.of("Thank you, I will keep it tidy."), g.literalReply());
+		Intent none = await(planner(new FakeLlm("{\"intent\":\"use_container\",\"reply\":\"Sure.\"}")).plan(req("this chest is yours", false))).orElseThrow();
+		assertTrue(none.grant().isEmpty());
+		assertEquals(Optional.of(Intent.REPLY_LOOK_AT_CONTAINER), none.replyKey());
+	}
+
+	@Test
 	void ungroundedChoicesAreDroppedButTheReplyStays() throws Exception {
 		Intent badIndex = await(planner(new FakeLlm("{\"intent\":\"gather_wood\",\"log\":7,\"container\":3,\"count\":2,\"reply\":\"Sure.\"}")).plan(req("x", false))).orElseThrow();
 		// out-of-range indices fall back to the nearest candidates rather than inventing positions

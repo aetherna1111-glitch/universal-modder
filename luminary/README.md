@@ -30,12 +30,12 @@ slice**; design and research live in `../docs/research/luminary-2026-10-11/` (st
 Nothing here grants items, unlocks recipes or changes gameplay yet. The slice proves the architecture: a Minecraft-free
 core, server-side rules, persistence with migrations, admin commands, and an in-world test harness.
 
-## Last recorded verification (2026-10-13, slice 12, JDK 21 runtime, `release 17`)
+## Last recorded verification (2026-10-14, slice 13, JDK 21 runtime, `release 17`)
 
 | Check | Result |
 |---|---|
-| `./gradlew build` (compile main/test/gametest, 104 unit tests, jar) | passed |
-| `./gradlew runGametest` (headless 1.20.1 server, Fabric API 0.92.12, Loader 0.19.5) | "All 28 required tests passed" |
+| `./gradlew build` (compile main/test/gametest, 106 unit tests, jar) | passed |
+| `./gradlew runGametest` (headless 1.20.1 server, Fabric API 0.92.12, Loader 0.19.5) | "All 29 required tests passed" (3 consecutive runs) |
 | `um publish check luminary` | 0 failures (1 warning in the ignored `.gradle/` cache) |
 | Not verified | a real dedicated server with players; the integrated client and the NPC renderer; any other mod loaded alongside; a real Ollama or hosted model endpoint (only the mock server was exercised) |
 
@@ -97,6 +97,7 @@ cd luminary
 /luminary npc task deposit <npc> <container pos> [3]  put everything carried into an authorized container
 /luminary npc task withdraw <npc> <container pos> <item id> [count]  [3]  take items out of an authorized container
 /luminary npc task smelt <npc> <furnace pos> <container pos> <item id> [count]  [3]  smelt items from an authorized container in a furnace
+(chat) "use this chest" while looking at it     [conversation.containerGrantPermission]  hand the NPC a container; "forget this chest" takes it back
 /luminary npc task status <npc>                 [2]  state, failure reason, ledger (broken / collected / deposited / withdrawn), requester
 /luminary npc task cancel <npc>                 [3]  marks the task FAILED(cancelled); carried items stay with the NPC
 /luminary npc memory <npc> [player]             [2]  what the NPC remembers (newest 30), optionally about one player
@@ -366,6 +367,20 @@ dialogue:
 GameTest `spokenRequestBecomesAValidatedTaskExecutedAndRemembered` runs the whole chain with no model: a mock player
 says "could you chop 2 logs for me?", two real oak logs end up in the authorized chest, the promise is superseded by
 the completed event.
+
+## Presence and handover (slice 13)
+
+- **Attending.** When a player within 8 blocks looks at the NPC (their gaze ray crosses its box, line of sight
+  clear), it stops walking and faces them, and keeps doing so for two seconds after they look away
+  (`AttendPlayerGoal`, below tasks and follow orders). Idle strolling is rarer (one wander roll in 240 ticks).
+- **Chest handover by chat.** "use this chest" / "этот сундук твой" / "складывай сюда" while looking at a chest
+  (up to 6 blocks) authorizes it for the NPC; "forget this chest" / "не трогай этот сундук" revokes. The keyword and
+  the model planner both produce a `Grant`, never a task; `conversation.containerGrantPermission` (default 0, anyone)
+  is the operator level required. Without a chest in view the NPC asks which one. The handover is remembered.
+- **Latency.** The model is warmed at server start (`purpose: warmup`), kept loaded (`llm.keepAliveSeconds`,
+  default 3600), given a bounded context (`llm.contextTokens`, default 4096), and the player sees "…" from the NPC at
+  once while a model answer is pending (`conversation.thinkingLine`). A work request costs one model call; small talk
+  that the planner answers costs one as well.
 
 ## Thaumcraft bridge (slice 12)
 
