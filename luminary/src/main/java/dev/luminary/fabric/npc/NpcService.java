@@ -71,6 +71,12 @@ public final class NpcService {
 	private int containerGrantPermission = 0;
 	/** Shown at once when a model answer is on its way, so the player knows the NPC heard them. */
 	private boolean thinkingLine = true;
+	private java.util.function.BooleanSupplier modelReady = () -> false;
+
+	/** Whether a language model is configured and healthy: small talk then goes to it instead of the authored lines. */
+	public void setModelReady(java.util.function.BooleanSupplier ready) {
+		this.modelReady = ready;
+	}
 	/** Server-wide feature flag (config {@code autonomy.enabled}); each NPC also has its own switch. */
 	private boolean autonomyEnabled;
 
@@ -583,6 +589,15 @@ public final class NpcService {
 		MemoryStore memory = dialogue.memory(id);
 		// the words without "Lumin," in front: a small model otherwise answers the character instead of the player
 		String said = def.get().stripAddress(text);
+		// what the line is about, read without a model: actions are carried out, facts answered from the ledgers, small talk goes to the model when one is ready
+		Optional<dev.luminary.core.npc.conversation.Topic> topic = dev.luminary.core.npc.conversation.TopicMatcher.match(said);
+		boolean work = dev.luminary.core.npc.intent.WorkCues.mentionsWork(said);
+		if (topic.isPresent() && (topic.get().kind() == dev.luminary.core.npc.conversation.Topic.Kind.ACTION || !work)) {
+			Optional<Intent> answered = answerTopic(npc, id, player, topic.get());
+			if (answered.isPresent()) {
+				return CompletableFuture.completedFuture(carryOut(npc, id, player, text, answered.get()));
+			}
+		}
 		List<MemoryEntry> relevant = MemoryRetriever.select(memory, new MemoryRetriever.Query(player.getUuid(), MemoryRetriever.keywords(said), 8, 800), clock.instant());
 		IntentRequest request = new IntentRequest(id, player.getUuid(), player.getGameProfile().getName(), said, def.get().persona(), relevant, candidates, record.hasActiveTask());
 		CompletableFuture<Optional<Intent>> planned;
@@ -595,6 +610,7 @@ public final class NpcService {
 			Luminary.LOGGER.warn("[luminary] intent planner {} failed: {}", planner.id(), e.toString());
 			planned = CompletableFuture.completedFuture(Optional.empty());
 		}
+		List<String> situation = behaviour.situation(npc, player);
 		boolean saidThinking = thinkingLine && !planned.isDone();
 		if (saidThinking) {
 			sayThinking(npc, player);
@@ -611,7 +627,7 @@ public final class NpcService {
 			server.execute(() -> {
 				try {
 					if (decided.isEmpty()) {
-						talk(npc, player, Optional.of(said), !saidThinking).whenComplete((turn, e2) ->
+						talk(npc, player, Optional.of(said), !saidThinking, situation).whenComplete((turn, e2) ->
 								result.complete(new ChatOutcome(Optional.empty(), Optional.empty(), e2 == null && turn != null ? turn : Optional.empty())));
 						return;
 					}
@@ -623,6 +639,35 @@ public final class NpcService {
 			});
 		});
 		return result;
+	}
+
+	/**
+	 * A topic the NPC answers without the planner: "follow me" and "stop" are done; facts (shop, tasks, points, karma,
+	 * gear) come from the authored lines with the numbers filled in; small talk is left to the model when one is ready,
+	 * else answered from the lines too. Empty means: let the usual path (planner, dialogue) have it.
+	 */
+	private Optional<Intent> answerTopic(LuminaryNpcEntity npc, LuminaryId id, PlayerEntity player, dev.luminary.core.npc.conversation.Topic topic) {
+		switch (topic) {
+			case FOLLOW_ME -> {
+				if (behaviour.standing(id, player.getUuid()) == dev.luminary.core.npc.relationship.Relationship.Standing.HOSTILE) {
+					return Optional.of(new Intent(Optional.empty(), Optional.of("luminary.intent.hostile"), Optional.empty(), "topic"));
+				}
+				npc.setFollowTarget(player.getUuid());
+				return Optional.of(new Intent(Optional.empty(), Optional.of("npc.luminary.follow.yes"), behaviour.topicLine(npc, player, topic), "topic"));
+			}
+			case STOP -> {
+				boolean was = npc.followTarget() != null;
+				npc.setFollowTarget(null);
+				cancelTask(id);
+				return Optional.of(new Intent(Optional.empty(), Optional.of(was ? "npc.luminary.follow.stop" : "npc.luminary.follow.not_following"), was ? behaviour.topicLine(npc, player, topic) : Optional.empty(), "topic"));
+			}
+			default -> {
+				if (topic.kind() == dev.luminary.core.npc.conversation.Topic.Kind.SOCIAL && modelReady.getAsBoolean()) {
+					return Optional.empty();   // the model answers small talk better, and knows the situation
+				}
+				return behaviour.topicLine(npc, player, topic).map(l -> new Intent(Optional.empty(), Optional.of("topic"), Optional.of(l), "topic"));
+			}
+		}
 	}
 
 	/** Server thread: remember the words, assign if there is an action, answer. */
@@ -693,13 +738,17 @@ public final class NpcService {
 
 	/** @param mayThink whether the "…" line may be shown (false when the caller already showed it for this chat line) */
 	public java.util.concurrent.CompletableFuture<Optional<NpcDialogueService.Turn>> talk(LuminaryNpcEntity npc, PlayerEntity player, Optional<String> utterance, boolean mayThink) {
+		return talk(npc, player, utterance, mayThink, npc.npcId().isPresent() ? behaviour.situation(npc, player) : List.of());
+	}
+
+	public java.util.concurrent.CompletableFuture<Optional<NpcDialogueService.Turn>> talk(LuminaryNpcEntity npc, PlayerEntity player, Optional<String> utterance, boolean mayThink, List<String> situation) {
 		if (npc.npcId().isEmpty()) {
 			return java.util.concurrent.CompletableFuture.completedFuture(Optional.empty());
 		}
 		LuminaryId id = npc.npcId().get();
 		Text name = npc.getCustomName() != null ? npc.getCustomName() : Text.literal(id.toString());
 		Optional<String> said = utterance.map(u -> dialogue.definitions().npc(id).map(d -> d.stripAddress(u)).orElse(u));
-		CompletableFuture<Optional<NpcDialogueService.Turn>> pending = dialogue.talk(id, player.getUuid(), player.getGameProfile().getName(), said);
+		CompletableFuture<Optional<NpcDialogueService.Turn>> pending = dialogue.talk(id, player.getUuid(), player.getGameProfile().getName(), said, situation);
 		if (mayThink && thinkingLine && !pending.isDone()) {
 			sayThinking(npc, player);
 		}

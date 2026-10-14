@@ -420,6 +420,125 @@ public final class BehaviourService {
 		return state.roster().ensureRecord(id).relationships().get(player, clock.get(), state.roster().rules().relationship());
 	}
 
+	// ------------------------------------------------------------------ what he knows right now
+
+	/** One word from the sheet for a state ({@code word.<key>} line group), else the key itself. */
+	String word(LuminaryId id, String key) {
+		return line(id, "word." + key, 0).orElse(key);
+	}
+
+	static String daypart(long timeOfDay) {
+		long t = timeOfDay % 24000;
+		return t < 1000 ? "dawn" : t < 6000 ? "morning" : t < 12000 ? "day" : t < 13500 ? "evening" : "night";
+	}
+
+	/** Values for the {@code {name}} placeholders of authored topic lines, in the NPC's language. */
+	public java.util.Map<String, String> placeholders(LuminaryNpcEntity body, PlayerEntity player) {
+		java.util.Map<String, String> v = new java.util.LinkedHashMap<>();
+		LuminaryId id = body.npcId().orElse(null);
+		if (id == null) {
+			return v;
+		}
+		v.put("player", player.getGameProfile().getName());
+		TradeManager trade = npc.trade();
+		var ledger = trade.ledger(id, player);
+		var views = trade.service().views(trade.quests(id), ledger);
+		long open = views.stream().filter(q -> q.state() == dev.luminary.core.npc.trade.TradeService.QuestState.AVAILABLE).count();
+		long claimable = views.stream().filter(q -> q.state() == dev.luminary.core.npc.trade.TradeService.QuestState.CLAIMABLE).count();
+		long active = views.stream().filter(q -> q.state() == dev.luminary.core.npc.trade.TradeService.QuestState.ACTIVE).count();
+		v.put("points", Integer.toString(ledger.points()));
+		v.put("quests_done", Integer.toString(ledger.completed().size()));
+		v.put("quests_total", Integer.toString(views.size()));
+		v.put("quests_open", Long.toString(open));
+		v.put("quests_active", Long.toString(active));
+		v.put("quests_claimable", Long.toString(claimable));
+		v.put("shop_count", Integer.toString(trade.offers(id).size()));
+		v.put("purchases", Integer.toString(ledger.purchases()));
+		double karma = karmaOf(player.getUuid());
+		v.put("karma", (karma > 0 ? "+" : "") + (int) Math.round(karma));
+		v.put("standing", word(id, "standing." + standing(id, player.getUuid()).name().toLowerCase(Locale.ROOT)));
+		v.put("worthy", word(id, worthy(id, player.getUuid()) ? "worthy" : "unworthy"));
+		NpcRoster.NpcRecord record = state.roster().ensureRecord(id);
+		String sword = switch (record.weapon().custody()) {
+			case NPC -> "sword.mine";
+			case STOLEN -> "sword.stolen";
+			case TRANSFERRED -> "sword.given";
+		};
+		String holder = record.weapon().state().holder().map(h -> npc.nameOf(id, h)).orElse("");
+		v.put("sword_holder", holder);
+		v.put("sword", word(id, sword).replace("{sword_holder}", holder));
+		v.put("daypart", word(id, "daypart." + daypart(body.getWorld().getTimeOfDay())));
+		v.put("weather", word(id, body.getWorld().isThundering() ? "weather.storm" : body.getWorld().isRaining() ? "weather.rain" : "weather.clear"));
+		v.put("activity", word(id, "activity." + body.activity().name().toLowerCase(Locale.ROOT)));
+		v.put("helmet", word(id, body.helmetOff() ? "helmet.off" : "helmet.on"));
+		v.put("alms_emeralds", Integer.toString(dev.luminary.core.npc.relationship.KarmaEffects.DONATION_EMERALDS));
+		v.put("alms_karma", Integer.toString(dev.luminary.core.npc.relationship.KarmaEffects.DONATION_KARMA));
+		v.put("met", record.player(player.getUuid()).map(m -> Integer.toString(m.interactions())).orElse("0"));
+		return v;
+	}
+
+	/** Facts for the model, in English, one per line: what he sees and knows at this moment. */
+	public List<String> situation(LuminaryNpcEntity body, PlayerEntity player) {
+		List<String> f = new ArrayList<>();
+		LuminaryId id = body.npcId().orElse(null);
+		if (id == null || !(body.getWorld() instanceof ServerWorld world)) {
+			return f;
+		}
+		NpcRoster.NpcRecord record = state.roster().ensureRecord(id);
+		long t = world.getTimeOfDay() % 24000;
+		f.add("Time: " + daypart(t) + " (day " + (world.getTimeOfDay() / 24000 + 1) + "); weather: " + (world.isThundering() ? "thunderstorm" : world.isRaining() ? "rain" : "clear"));
+		String dim = world.getRegistryKey().getValue().getPath();
+		f.add("Place: the " + dim.replace('_', ' ') + " at " + body.getBlockPos().toShortString() + ", " + (int) Math.sqrt(player.squaredDistanceTo(body)) + " blocks from " + player.getGameProfile().getName()
+				+ "; " + world.getEntitiesByClass(PlayerEntity.class, body.getBoundingBox().expand(24), p -> p != player).size() + " other players within 24 blocks");
+		f.add("You are " + body.activity().name().toLowerCase(Locale.ROOT) + (record.combat().state() == CombatState.CALM ? "" : ", combat state " + record.combat().state())
+				+ "; health " + (int) body.getHealth() + "/" + (int) body.getMaxHealth() + (body.helmetOff() ? "; your helmet is off" : ""));
+		String sword = switch (record.weapon().custody()) {
+			case NPC -> "the Holy Sword of Lumin is yours and in your custody (drawn only when you fight)";
+			case STOLEN -> "your Holy Sword was taken by " + record.weapon().state().holder().map(h -> npc.nameOf(id, h)).orElse("someone") + " and returns to you within the hour";
+			case TRANSFERRED -> "you gave the Holy Sword for good to " + record.weapon().state().holder().map(h -> npc.nameOf(id, h)).orElse("a player") + "; you fight with the Angelic Harp now";
+		};
+		f.add("Your weapon: " + sword + (record.shieldBroken(clock.get()) ? "; your shield is broken and mends in a few minutes" : ""));
+		if (dialogue.definitions().npc(id).map(NpcDefinition::vestments).orElse(false)) {
+			f.add("You wear the Vestments of the Envoy (saint's mask, halo, wings): bound to you, unbreakable, nobody can take them");
+		}
+		TradeManager trade = npc.trade();
+		if (trade.trades(id)) {
+			var ledger = trade.ledger(id, player);
+			var views = trade.service().views(trade.quests(id), ledger);
+			StringBuilder q = new StringBuilder();
+			for (var v : views) {
+				if (v.quest().special() && v.state() == dev.luminary.core.npc.trade.TradeService.QuestState.LOCKED) {
+					continue;   // the trial is a secret until it opens
+				}
+				q.append(q.length() == 0 ? "" : "; ").append(v.quest().id().path().substring(v.quest().id().path().lastIndexOf('/') + 1)).append(' ').append(v.state().name().toLowerCase(Locale.ROOT))
+						.append(v.state() == dev.luminary.core.npc.trade.TradeService.QuestState.ACTIVE ? " " + v.progress() + "/" + v.required() : "")
+						.append(v.quest().rewardPoints() > 0 ? " (+" + v.quest().rewardPoints() + ")" : "");
+			}
+			f.add("Your tasks for " + player.getGameProfile().getName() + " (kill the bosses of the main story; your own points as pay): " + (q.length() == 0 ? "none" : q));
+			StringBuilder shop = new StringBuilder();
+			for (var o : trade.offers(id)) {
+				shop.append(shop.length() == 0 ? "" : "; ").append(o.count()).append("x ").append(o.itemId().substring(o.itemId().indexOf(':') + 1).replace('_', ' ')).append(" for ").append(o.price()).append(o.unique() ? " (one of a kind)" : "");
+			}
+			f.add("Your shop (prices in your points): " + (shop.length() == 0 ? "nothing today" : shop));
+			double karma = karmaOf(player.getUuid());
+			f.add("This player: " + ledger.points() + " of your points, " + ledger.completed().size() + " tasks done, " + ledger.purchases() + " purchases; karma " + (int) karma
+					+ ", your attitude " + standing(id, player.getUuid()) + (worthy(id, player.getUuid()) ? "" : "; NOT worthy of your blade while karma is below zero or you are wary of them"));
+			f.add("Alms: " + dev.luminary.core.npc.relationship.KarmaEffects.DONATION_EMERALDS + " emeralds given to you are +" + dev.luminary.core.npc.relationship.KarmaEffects.DONATION_KARMA + " karma; bad karma costs luck and raises traders' prices");
+			f.add("How to deal with you: right-click you opens your screen (tasks, trade, gear, alms); sneak + right-click or chat talks; 'follow me' and 'stop' work; work you do: chopping wood, fetching, storing in a chest you were given, smelting");
+		}
+		return f;
+	}
+
+	/** An authored answer to a topic, with the facts filled in; empty when the sheet has no such group. */
+	public Optional<String> topicLine(LuminaryNpcEntity body, PlayerEntity player, dev.luminary.core.npc.conversation.Topic topic) {
+		LuminaryId id = body.npcId().orElse(null);
+		if (id == null) {
+			return Optional.empty();
+		}
+		return line(id, topic.lineGroup(), clock.get().getEpochSecond() / 7 + player.getUuid().hashCode())
+				.map(l -> dev.luminary.core.npc.conversation.TopicMatcher.fill(l, placeholders(body, player)));
+	}
+
 	/** The player's karma with every NPC, summed and clamped to -100..100: what luck and the traders go by. */
 	public double karmaOf(UUID player) {
 		Instant now = clock.get();

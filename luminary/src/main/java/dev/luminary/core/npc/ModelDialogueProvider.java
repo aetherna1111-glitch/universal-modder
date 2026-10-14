@@ -99,6 +99,15 @@ public final class ModelDialogueProvider implements DialogueProvider {
 		}
 		request.standing().ifPresent(st -> system.append("\nYOUR ATTITUDE TOWARDS THIS PLAYER: ").append(st)
 				.append(" (FRIEND: warm and open; NEUTRAL: polite; WARY: short, careful, no favours; HOSTILE: cold, keep distance, refuse work).\n"));
+		if (!request.situation().isEmpty()) {
+			system.append("\nYOUR SITUATION RIGHT NOW (true facts; when the player asks about any of them, answer with these exact facts and numbers):\n");
+			for (String f : request.situation()) {
+				system.append("- ").append(f).append('\n');
+			}
+		}
+		system.append("\nHOW TO ANSWER: understand what the player means even with typos, slang or a half sentence; a greeting gets a greeting, a question gets a direct answer first, ")
+				.append("a thank-you a short acknowledgement, an insult a calm one-liner, a joke request one dry joke in character. Use the player's name sometimes, not every line. ")
+				.append("Never answer with a question only. Do not repeat what you said in the previous turns. Do not list your facts unasked.\n");
 		PublicContext ctx = gate.publicContext();
 		system.append("\nPUBLIC CONTEXT:\n");
 		ctx.era().ifPresent(e -> system.append("- current era: ").append(e).append('\n'));

@@ -127,6 +127,11 @@ public final class NpcDialogueService {
 	 *         unknown. The future never completes exceptionally: provider failures become the fallback line.
 	 */
 	public CompletableFuture<Optional<Turn>> talk(LuminaryId npcId, UUID player, String playerName, Optional<String> utterance) {
+		return talk(npcId, player, playerName, utterance, List.of());
+	}
+
+	/** @param situation what the NPC knows right now, one fact per line, for the model (see {@link DialogueRequest#situation()}) */
+	public CompletableFuture<Optional<Turn>> talk(LuminaryId npcId, UUID player, String playerName, Optional<String> utterance, List<String> situation) {
 		Optional<NpcDefinition> def = definitions.npc(npcId);
 		if (def.isEmpty()) {
 			return CompletableFuture.completedFuture(Optional.empty());
@@ -145,7 +150,7 @@ public final class NpcDialogueService {
 		List<ConversationContext.Turn> recent = record.conversation(player).turns(now);
 		String standing = record.relationships().standing(player, now, roster.rules().relationship()).name();
 		DialogueRequest request = new DialogueRequest(npcId, script.get(), player, playerName,
-				Optional.of(record).flatMap(r -> r.player(player)), said, relevant, def.get().persona(), def.get().character().promptLines(), recent, Optional.of(standing));
+				Optional.of(record).flatMap(r -> r.player(player)), said, relevant, def.get().persona(), def.get().character().promptLines(), recent, Optional.of(standing), situation);
 		CompletableFuture<Optional<DialogueResponse>> answer;
 		try {
 			answer = provider.respondAsync(request, gate);

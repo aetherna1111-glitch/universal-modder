@@ -12,12 +12,12 @@ import java.util.Locale;
 public final class WorkCues {
 	private static final List<String> CUES = List.of(
 			// gathering
-			"chop", "cut", "log", "wood", "tree", "gather", "руб", "дерев", "брев", "дров", "лес", "собер", "собра",
+			"chop", "cut", "log", "wood", "tree", "gather", "руб", "дерев", "брев", "дров", "лес", "собер", "собра", "напил", "насобир", "заготов",
 			// fetching and storing
-			"bring", "fetch", "take", "get me", "give me", "grab", "принес", "возьм", "достан", "дай ", "подай", "сходи", "забер",
+			"bring", "fetch", "take", "get me", "give me", "grab", "carry", "принес", "возьм", "достан", "дай ", "подай", "сходи", "забер", "захвати", "притащ", "отнес", "перенес",
 			"put", "store", "deposit", "unload", "chest", "container", "слож", "полож", "выгруз", "сундук", "ящик", "убери",
 			// smelting
-			"smelt", "melt", "cook", "furnace", "ore", "плав", "печ", "руд", "обожг", "пережг",
+			"smelt", "melt", "cook", "furnace", "ore", "плав", "печ", "руд", "обожг", "пережг", "запеч", "выплав",
 			// coming over
 			"come", "here", "follow", "подойд", "иди", "сюда", "ко мне", "пошли", "пойдём", "пойдем");
 

@@ -2,22 +2,84 @@
   "id": "luminary-gametest:npc/trade",
   "name": "gametest.npc.test",
   "dialogue": "luminary-gametest:dialogue/test",
-  "aliases": ["Trader"],
+  "aliases": [
+    "Trader"
+  ],
   "shop": [
-    {"item": "luminary:lightstone_dust", "count": 8, "price": 10},
-    {"item": "luminary:envoy_seal", "count": 1, "price": 15, "unique": true},
-    {"item": "nosuchmod:nothing", "count": 1, "price": 1}
+    {
+      "item": "luminary:lightstone_dust",
+      "count": 8,
+      "price": 10
+    },
+    {
+      "item": "luminary:envoy_seal",
+      "count": 1,
+      "price": 15,
+      "unique": true
+    },
+    {
+      "item": "nosuchmod:nothing",
+      "count": 1,
+      "price": 1
+    }
   ],
   "character": {
     "version": 1,
     "origin": "A test trader.",
-    "principles": ["Says little."],
+    "principles": [
+      "Says little."
+    ],
     "lines": {
-      "trade_greeting": {"en": ["TRADE_GREETING"]},
-      "trade_special": {"en": ["TRADE_SPECIAL"]},
-      "quest_accepted": {"en": ["ACCEPTED_LINE"]},
-      "quest_claimed": {"en": ["CLAIMED_LINE"]},
-      "sword_given": {"en": ["SWORD_GIVEN_LINE"]}
+      "trade_greeting": {
+        "en": [
+          "TRADE_GREETING"
+        ]
+      },
+      "trade_special": {
+        "en": [
+          "TRADE_SPECIAL"
+        ]
+      },
+      "quest_accepted": {
+        "en": [
+          "ACCEPTED_LINE"
+        ]
+      },
+      "quest_claimed": {
+        "en": [
+          "CLAIMED_LINE"
+        ]
+      },
+      "sword_given": {
+        "en": [
+          "SWORD_GIVEN_LINE"
+        ]
+      },
+      "topic.points": {
+        "en": [
+          "POINTS {points}"
+        ]
+      },
+      "topic.quests": {
+        "en": [
+          "QUESTS {quests_open}/{quests_total}"
+        ]
+      },
+      "topic.greeting": {
+        "en": [
+          "HELLO {player}"
+        ]
+      },
+      "topic.follow_me": {
+        "en": [
+          "FOLLOW"
+        ]
+      },
+      "topic.stop": {
+        "en": [
+          "STOP"
+        ]
+      }
     }
   }
 }

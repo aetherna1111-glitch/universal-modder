@@ -87,6 +87,7 @@ public final class LuminaryRuntime {
 		this.npc.configureConversation(config.containerGrantPermission(), config.thinkingLine());
 		this.npc.configureChat(config.requireName(), config.chatRange());
 		this.npc.behaviour().configure(config.behaviour());
+		this.npc.setModelReady(() -> dev.luminary.core.npc.ModelDialogueProvider.ID.equals(dialogueProvider.id()) && llm.provider().healthy());
 		this.npc.setPlanner(plannerFor(intentPlannerId).orElseGet(() -> {
 			Luminary.LOGGER.warn("[luminary] unknown intentPlanner '{}' in config; planning disabled", intentPlannerId);
 			return IntentPlanner.none();

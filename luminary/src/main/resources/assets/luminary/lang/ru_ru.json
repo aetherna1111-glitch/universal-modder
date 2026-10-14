@@ -338,5 +338,8 @@
   "screen.luminary.title.subtitle": "✦ Каталог Неизвестного ✦",
   "luminary.command.karma_reset": "Отношение %s к %s обнулено: карма, доверие и угроза с нуля.",
   "luminary.command.karma_reset_nothing": "%s ещё не знаком с %s: обнулять нечего.",
-  "luminary.command.karma_set": "Карма %s у %s теперь %s (%s)."
+  "luminary.command.karma_set": "Карма %s у %s теперь %s (%s).",
+  "npc.luminary.follow.yes": "Иду за тобой.",
+  "npc.luminary.follow.stop": "Стою.",
+  "npc.luminary.follow.not_following": "Я и так никуда не иду."
 }

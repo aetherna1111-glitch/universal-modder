@@ -234,4 +234,28 @@ public final class TradeGameTests implements FabricGameTest {
 		npc().despawn(ID);
 		ctx.complete();
 	}
+
+	@GameTest(templateName = ARENA, tickLimit = 400, batchId = "trade-chat")
+	public void chatTopicsAreAnsweredFromTheLedgersAndFollowMeWorks(TestContext ctx) {
+		expect(npc().spawn(ID, ctx.getWorld(), Vec3d.ofBottomCenter(ctx.getAbsolutePos(new BlockPos(8, FLOOR_Y + 1, 8)))).ok(), "spawn");
+		LuminaryNpcEntity body = npc().body(ID).orElseThrow();
+		PlayerEntity player = ctx.createMockSurvivalPlayer();
+		player.refreshPositionAndAngles(ctx.getAbsolute(new Vec3d(8.5, FLOOR_Y + 1, 10.5)).x, player.getY(), ctx.getAbsolute(new Vec3d(8.5, FLOOR_Y + 1, 10.5)).z, 180f, 0f);
+		expect(ctx.getWorld().spawnEntity(player), "player in the world");
+		npc().trade().service().grant(npc().trade().ledger(ID, player), 7);
+		var points = npc().request(body, player, "Trader, сколько у меня очков?").join();
+		expect(points.intent().isPresent() && points.intent().get().literalReply().map(l -> l.contains("7")).orElse(false), "the points line carries the number: " + points.intent());
+		var quests = npc().request(body, player, "есть задания?").join();
+		expect(quests.intent().flatMap(i -> i.literalReply()).map(l -> l.contains("6") || l.contains("5")).orElse(false), "the quests line carries the counts: " + quests.intent());
+		var follow = npc().request(body, player, "иди за мной").join();
+		expect(follow.intent().isPresent() && body.getNavigation() != null, "follow answered");
+		expect(npc().request(body, player, "стой").join().intent().flatMap(i -> i.replyKey()).filter("npc.luminary.follow.stop"::equals).isPresent(), "stop after following");
+		expect(npc().request(body, player, "стой").join().intent().flatMap(i -> i.replyKey()).filter("npc.luminary.follow.not_following"::equals).isPresent(), "stop when not following");
+		var hello = npc().request(body, player, "привет!").join();
+		expect(hello.intent().flatMap(i -> i.literalReply()).isPresent(), "with no model, a greeting is answered from the sheet: " + hello.intent());
+		var work = npc().request(body, player, "принеси мне меч").join();
+		expect(work.intent().map(i -> !"topic".equals(i.plannerId())).orElse(true), "a line with a work cue is never a topic answer: " + work.intent());
+		npc().despawn(ID);
+		ctx.complete();
+	}
 }

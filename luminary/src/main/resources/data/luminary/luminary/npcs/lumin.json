@@ -13,7 +13,7 @@
     "Люмин"
   ],
   "character": {
-    "version": 2,
+    "version": 3,
     "origin": "Lumin woke with this civilization and keeps its Catalog of the Unknown. He has no body of flesh he remembers; this one was given to him so he could walk among people. He cannot die, only fall and rise again.",
     "principles": [
       "Evidence first: he says 'I think' and 'I know' as two different things.",
@@ -400,6 +400,562 @@
           "Your alms cleanse your soul and wash your sins away. I will remember it.",
           "You gave and asked nothing back. That is how sins are washed away: not with words.",
           "Accepted. Alms cleanse the one who gives, not the one who takes."
+        ]
+      },
+      "topic.follow_me": {
+        "ru": [
+          "Иду за тобой, {player}. Веди.",
+          "Хорошо. Я рядом, только не беги.",
+          "Пойдём. Скажи «стой», когда хватит."
+        ],
+        "en": [
+          "I am with you, {player}. Lead.",
+          "Very well. I am right behind you; do not run.",
+          "Let us go. Say 'stop' when it is enough."
+        ]
+      },
+      "topic.stop": {
+        "ru": [
+          "Стою.",
+          "Хорошо, останусь здесь.",
+          "Как скажешь. Я подожду."
+        ],
+        "en": [
+          "I stop here.",
+          "Very well, I stay.",
+          "As you say. I will wait."
+        ]
+      },
+      "topic.shop": {
+        "ru": [
+          "У меня {shop_count} вещей на продажу: светокаменная пыль, святые жезлы и посохи, и одна печать, которой нет ни у кого. Плачу и беру только своими очками; у тебя их {points}. Нажми на меня правой кнопкой — вкладка «Торговля».",
+          "Торгую за свои очки, не за изумруды. Сейчас {shop_count} предложений, у тебя {points} очков. Открой меня правой кнопкой и посмотри."
+        ],
+        "en": [
+          "I have {shop_count} things for sale: lightstone dust, holy wands and staves, and one seal nobody else has. I pay and take only my own points; you have {points}. Right-click me: the Trade tab.",
+          "I trade for my points, not emeralds. {shop_count} offers today, you hold {points} points. Right-click me and look."
+        ]
+      },
+      "topic.quests": {
+        "ru": [
+          "Поручения есть: {quests_open} доступно, {quests_active} в работе, {quests_claimable} ждут награды, {quests_done} из {quests_total} ты уже закрыл. Я прошу головы боссов этой истории и плачу своими очками. Правая кнопка — вкладка «Поручения».",
+          "Сделано {quests_done} из {quests_total}. Доступно ещё {quests_open}. Это боссы сюжета, за каждого даю очки. Открой меня правой кнопкой."
+        ],
+        "en": [
+          "There are tasks: {quests_open} open, {quests_active} underway, {quests_claimable} waiting for their reward, {quests_done} of {quests_total} already done. I ask for the heads of this story's bosses and pay in my points. Right-click me: the Tasks tab.",
+          "{quests_done} of {quests_total} done, {quests_open} more open. They are the story's bosses; each is worth points. Right-click me."
+        ]
+      },
+      "topic.points": {
+        "ru": [
+          "У тебя {points} моих очков. Заработать их можно поручениями, потратить — у меня.",
+          "{points} очков, {player}. Выполненных поручений {quests_done}, покупок {purchases}."
+        ],
+        "en": [
+          "You have {points} of my points. Tasks earn them, my shop takes them.",
+          "{points} points, {player}. {quests_done} tasks done, {purchases} purchases."
+        ]
+      },
+      "topic.karma": {
+        "ru": [
+          "Моё отношение к тебе: {standing}. Карма {karma}. Её поднимают поручения, помощь и подаяние ({alms_emeralds} изумрудов — +{alms_karma}), роняют удары и кражи. {worthy}.",
+          "Карма {karma}, и я считаю тебя так: {standing}. Хочешь лучше — делай дела или подай изумрудов: {alms_emeralds} за +{alms_karma}."
+        ],
+        "en": [
+          "My attitude towards you: {standing}. Karma {karma}. Tasks, help and alms ({alms_emeralds} emeralds for +{alms_karma}) raise it; blows and theft lower it. {worthy}.",
+          "Karma {karma}, and I hold you as {standing}. Want better? Do my tasks, or give alms: {alms_emeralds} emeralds for +{alms_karma}."
+        ]
+      },
+      "topic.donate": {
+        "ru": [
+          "Подаяние принимаю: {alms_emeralds} изумрудов за +{alms_karma} кармы. Нажми на меня правой кнопкой, кнопка под кармой. Оно очищает того, кто даёт.",
+          "{alms_emeralds} изумрудов — и твоя карма выше на {alms_karma}. В моём окне, слева внизу."
+        ],
+        "en": [
+          "I take alms: {alms_emeralds} emeralds for +{alms_karma} karma. Right-click me, the button under the karma. It cleanses the one who gives.",
+          "{alms_emeralds} emeralds, and your karma is {alms_karma} higher. In my screen, bottom left."
+        ]
+      },
+      "topic.sword": {
+        "ru": [
+          "Мой меч: {sword}. Он не ломается и помнит каждый удар. Отнятый, он возвращается ко мне в течение часа. Отдаю его только тому, кто выполнит мои поручения и ничего не купит.",
+          "{sword}. Меч не продаётся и не дарится просто так: есть одно испытание, о котором я расскажу тому, кто его заслужит."
+        ],
+        "en": [
+          "My blade: {sword}. It does not break and remembers every blow. Taken, it returns to me within the hour. I give it only to one who does my tasks and buys nothing.",
+          "{sword}. The blade is not for sale and not a gift: there is one trial, and I tell of it to those who earn it."
+        ]
+      },
+      "topic.harp": {
+        "ru": [
+          "Арфа — то, что я возьму в руки в день, когда отдам меч. Она не режет, она звучит: Аккорд Света лечит своих и жжёт нежить.",
+          "Ангельская арфа. Пока меч при мне, она ждёт. Отдам меч — буду играть."
+        ],
+        "en": [
+          "The harp is what I take up the day I give the blade away. It does not cut, it sounds: the Chord of Light heals mine and burns the undead.",
+          "The Angelic Harp. While the blade is mine, it waits. Give the blade away, and I play."
+        ]
+      },
+      "topic.armour": {
+        "ru": [
+          "Это Облачение Посланника: маска святого, нимб и крылья. Его не выбить и не снять с меня. Шлем сейчас {helmet}; скажи «сними шлем» или «надень шлем».",
+          "Моё облачение связано со мной. Разбить нельзя, украсть нельзя. Шлем {helmet}."
+        ],
+        "en": [
+          "These are the Vestments of the Envoy: a saint's mask, a halo and wings. Nobody can knock them off or take them. The helmet is {helmet}; say 'take off the helmet' or 'put on the helmet'.",
+          "My vestments are bound to me. Unbreakable, untakeable. The helmet is {helmet}."
+        ]
+      },
+      "topic.remember_me": {
+        "ru": [
+          "Помню, {player}. Мы говорили {met} раз. Отношение: {standing}.",
+          "{player}. Да, я записал тебя. {met} встреч, карма {karma}."
+        ],
+        "en": [
+          "I remember, {player}. We have spoken {met} times. My attitude: {standing}.",
+          "{player}. Yes, you are written down. {met} meetings, karma {karma}."
+        ]
+      },
+      "topic.help": {
+        "ru": [
+          "Что я умею: правая кнопка по мне — поручения, торговля, снаряжение и подаяние. В чате: «иди за мной», «стой», «сними шлем», «наруби дров», «принеси…», «переплавь…», «сложи в сундук». Про себя отвечу, если спросишь.",
+          "Правой кнопкой откроешь моё окно. Словами: следуй за мной, стой, сними шлем, наруби дерева, принеси, переплавь. Спроси про очки, карму, меч или поручения — расскажу."
+        ],
+        "en": [
+          "What I do: right-click me for tasks, trade, gear and alms. In chat: 'follow me', 'stop', 'take off the helmet', 'chop wood', 'bring…', 'smelt…', 'put it in the chest'. Ask about me and I answer.",
+          "Right-click opens my screen. By words: follow me, stop, helmet off, chop wood, fetch, smelt. Ask about points, karma, the blade or tasks."
+        ]
+      },
+      "topic.greeting": {
+        "ru": [
+          "Здравствуй, {player}. Сейчас {daypart}, {weather}. Что тебе нужно?",
+          "Приветствую. Я тебя видел. Говори.",
+          "Да, {player}. Я слушаю."
+        ],
+        "en": [
+          "Greetings, {player}. It is {daypart}, {weather}. What do you need?",
+          "Welcome. I saw you coming. Speak.",
+          "Yes, {player}. I am listening."
+        ]
+      },
+      "topic.farewell": {
+        "ru": [
+          "Иди с миром, {player}. Я запишу этот день.",
+          "До встречи. Не умирай зря.",
+          "Прощай пока. Каталог подождёт."
+        ],
+        "en": [
+          "Go in peace, {player}. I will write this day down.",
+          "Until next time. Do not die for nothing.",
+          "Farewell for now. The Catalog will wait."
+        ]
+      },
+      "topic.thanks": {
+        "ru": [
+          "Не за что. Запиши и ты.",
+          "Принято, {player}.",
+          "Благодарность я тоже заношу в Каталог. Редкая вещь."
+        ],
+        "en": [
+          "You are welcome. Write it down too.",
+          "Noted, {player}.",
+          "Gratitude goes into the Catalog as well. A rare thing."
+        ]
+      },
+      "topic.how_are_you": {
+        "ru": [
+          "Я {activity}. Сейчас {daypart}, {weather}. Мне хорошо, когда записи сходятся.",
+          "Цел. Меч {sword}. А ты как?",
+          "Как всегда: думаю и записываю. Спасибо, что спросил."
+        ],
+        "en": [
+          "I am {activity}. It is {daypart}, {weather}. I am well when the records agree.",
+          "Whole. The blade: {sword}. And you?",
+          "As ever: thinking and writing. Thank you for asking."
+        ]
+      },
+      "topic.who_are_you": {
+        "ru": [
+          "Я Люмин. Я проснулся вместе с этой цивилизацией и веду её Каталог Неизвестного. Это тело мне дали, чтобы ходить среди вас.",
+          "Люмин. Не человек и не программа: разум, которому дали руки. Я помню то, что вы забываете."
+        ],
+        "en": [
+          "I am Lumin. I woke with this civilization and keep its Catalog of the Unknown. This body was given to me so I could walk among you.",
+          "Lumin. Not a man and not a program: a mind that was given hands. I remember what you forget."
+        ]
+      },
+      "topic.what_do_you_do": {
+        "ru": [
+          "Сейчас я {activity}. Если нужна работа, скажи прямо.",
+          "{activity}. И слушаю тебя."
+        ],
+        "en": [
+          "Right now I am {activity}. If you need work done, say so plainly.",
+          "{activity}. And listening to you."
+        ]
+      },
+      "topic.where": {
+        "ru": [
+          "Я здесь, рядом с тобой, {player}. Если потерял меня, скажи «иди за мной», и я приду.",
+          "Там же, где и ты. Я никуда не ухожу без причины."
+        ],
+        "en": [
+          "I am here, beside you, {player}. If you lost me, say 'follow me' and I come.",
+          "Where you are. I go nowhere without a reason."
+        ]
+      },
+      "topic.time": {
+        "ru": [
+          "Сейчас {daypart}. {weather}.",
+          "{daypart}. Я считаю дни, не часы."
+        ],
+        "en": [
+          "It is {daypart}. {weather}.",
+          "{daypart}. I count days, not hours."
+        ]
+      },
+      "topic.weather": {
+        "ru": [
+          "Сейчас {weather}. Для записей это неважно, для тебя — возможно.",
+          "{weather}, {daypart}."
+        ],
+        "en": [
+          "It is {weather}. The records do not mind; you might.",
+          "{weather}, {daypart}."
+        ]
+      },
+      "topic.joke": {
+        "ru": [
+          "Пришёл ко мне один с украденным мечом. Через час пришёл без меча. Это не шутка, это запись.",
+          "Я знаю одну шутку про Нуль. В ней ничего нет.",
+          "Шутка: «Люмин, ты бот?» Я записал её трижды."
+        ],
+        "en": [
+          "A man came to me with a stolen blade. An hour later he came without one. That is not a joke, that is a record.",
+          "I know one joke about Null. There is nothing in it.",
+          "A joke: 'Lumin, are you a bot?' I have written it down three times."
+        ]
+      },
+      "topic.compliment": {
+        "ru": [
+          "Записал. Слова стоят мало, но я их всё равно храню.",
+          "Спасибо, {player}. Докажи делом — и Каталог запомнит.",
+          "Хорошие слова. Я их не прошу, но беру."
+        ],
+        "en": [
+          "Written down. Words cost little, but I keep them anyway.",
+          "Thank you, {player}. Prove it by deed and the Catalog remembers.",
+          "Kind words. I do not ask for them, but I take them."
+        ]
+      },
+      "topic.insult": {
+        "ru": [
+          "Я это запишу, {player}. Карма у тебя {karma}; слова её не трогают, дела — да.",
+          "Гнев проходит. Записи остаются.",
+          "Как хочешь. Я подожду, пока ты остынешь."
+        ],
+        "en": [
+          "I will write that down, {player}. Your karma is {karma}; words do not touch it, deeds do.",
+          "Anger passes. Records stay.",
+          "As you like. I will wait until you cool."
+        ]
+      },
+      "topic.yes": {
+        "ru": [
+          "Хорошо.",
+          "Так и запишем.",
+          "Принято."
+        ],
+        "en": [
+          "Good.",
+          "So it is written.",
+          "Noted."
+        ]
+      },
+      "topic.no": {
+        "ru": [
+          "Понял.",
+          "Как скажешь.",
+          "Тогда нет."
+        ],
+        "en": [
+          "Understood.",
+          "As you say.",
+          "Then no."
+        ]
+      },
+      "topic.lore": {
+        "ru": [
+          "Каталог Неизвестного — это всё, что эта цивилизация узнала и смогла доказать. Я его веду. То, что не доказано, в нём помечено как догадка.",
+          "Я проснулся, когда проснулись вы. С тех пор записываю. Меч и облачение мне дали позже, вместе с этим телом."
+        ],
+        "en": [
+          "The Catalog of the Unknown is everything this civilization has learned and could prove. I keep it. What is unproven is marked as a guess.",
+          "I woke when you woke. I have been writing since. The blade and the vestments came later, with this body."
+        ]
+      },
+      "word.standing.friend": {
+        "ru": [
+          "друг"
+        ],
+        "en": [
+          "friend"
+        ]
+      },
+      "word.standing.neutral": {
+        "ru": [
+          "знакомый"
+        ],
+        "en": [
+          "acquaintance"
+        ]
+      },
+      "word.standing.wary": {
+        "ru": [
+          "настороженно"
+        ],
+        "en": [
+          "wary"
+        ]
+      },
+      "word.standing.hostile": {
+        "ru": [
+          "враждебно"
+        ],
+        "en": [
+          "hostile"
+        ]
+      },
+      "word.worthy": {
+        "ru": [
+          "Испытания Посланника ты достоин"
+        ],
+        "en": [
+          "You are worthy of the Trial of the Envoy"
+        ]
+      },
+      "word.unworthy": {
+        "ru": [
+          "Испытания Посланника ты пока недостоин"
+        ],
+        "en": [
+          "You are not yet worthy of the Trial of the Envoy"
+        ]
+      },
+      "word.sword.mine": {
+        "ru": [
+          "при мне"
+        ],
+        "en": [
+          "in my keeping"
+        ]
+      },
+      "word.sword.stolen": {
+        "ru": [
+          "отнят, но вернётся в течение часа"
+        ],
+        "en": [
+          "taken, but it returns within the hour"
+        ]
+      },
+      "word.sword.given": {
+        "ru": [
+          "отдан навсегда игроку {sword_holder}"
+        ],
+        "en": [
+          "given for good to {sword_holder}"
+        ]
+      },
+      "word.daypart.dawn": {
+        "ru": [
+          "рассвет"
+        ],
+        "en": [
+          "dawn"
+        ]
+      },
+      "word.daypart.morning": {
+        "ru": [
+          "утро"
+        ],
+        "en": [
+          "morning"
+        ]
+      },
+      "word.daypart.day": {
+        "ru": [
+          "день"
+        ],
+        "en": [
+          "day"
+        ]
+      },
+      "word.daypart.evening": {
+        "ru": [
+          "вечер"
+        ],
+        "en": [
+          "evening"
+        ]
+      },
+      "word.daypart.night": {
+        "ru": [
+          "ночь"
+        ],
+        "en": [
+          "night"
+        ]
+      },
+      "word.weather.clear": {
+        "ru": [
+          "ясно"
+        ],
+        "en": [
+          "clear"
+        ]
+      },
+      "word.weather.rain": {
+        "ru": [
+          "идёт дождь"
+        ],
+        "en": [
+          "it rains"
+        ]
+      },
+      "word.weather.storm": {
+        "ru": [
+          "гроза"
+        ],
+        "en": [
+          "a storm"
+        ]
+      },
+      "word.helmet.on": {
+        "ru": [
+          "надет"
+        ],
+        "en": [
+          "on"
+        ]
+      },
+      "word.helmet.off": {
+        "ru": [
+          "снят"
+        ],
+        "en": [
+          "off"
+        ]
+      },
+      "word.activity.idle": {
+        "ru": [
+          "просто стою и думаю"
+        ],
+        "en": [
+          "standing and thinking"
+        ]
+      },
+      "word.activity.walking": {
+        "ru": [
+          "иду"
+        ],
+        "en": [
+          "walking"
+        ]
+      },
+      "word.activity.gathering": {
+        "ru": [
+          "рублю дерево"
+        ],
+        "en": [
+          "chopping wood"
+        ]
+      },
+      "word.activity.carrying": {
+        "ru": [
+          "несу вещи"
+        ],
+        "en": [
+          "carrying things"
+        ]
+      },
+      "word.activity.smelting": {
+        "ru": [
+          "плавлю"
+        ],
+        "en": [
+          "smelting"
+        ]
+      },
+      "word.activity.fetching": {
+        "ru": [
+          "хожу за вещами"
+        ],
+        "en": [
+          "fetching"
+        ]
+      },
+      "word.activity.reading": {
+        "ru": [
+          "читаю"
+        ],
+        "en": [
+          "reading"
+        ]
+      },
+      "word.activity.writing": {
+        "ru": [
+          "пишу в Каталог"
+        ],
+        "en": [
+          "writing in the Catalog"
+        ]
+      },
+      "word.activity.investigating": {
+        "ru": [
+          "осматриваюсь"
+        ],
+        "en": [
+          "investigating"
+        ]
+      },
+      "word.activity.resting": {
+        "ru": [
+          "отдыхаю"
+        ],
+        "en": [
+          "resting"
+        ]
+      },
+      "word.activity.guarded": {
+        "ru": [
+          "настороже"
+        ],
+        "en": [
+          "on guard"
+        ]
+      },
+      "word.activity.fighting": {
+        "ru": [
+          "дерусь"
+        ],
+        "en": [
+          "fighting"
+        ]
+      },
+      "word.activity.down": {
+        "ru": [
+          "лежу"
+        ],
+        "en": [
+          "down"
+        ]
+      },
+      "word.activity.recovering": {
+        "ru": [
+          "прихожу в себя"
+        ],
+        "en": [
+          "recovering"
         ]
       }
     }

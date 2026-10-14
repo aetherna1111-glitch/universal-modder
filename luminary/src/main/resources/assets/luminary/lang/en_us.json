@@ -338,5 +338,8 @@
   "screen.luminary.title.subtitle": "✦ The Catalog of the Unknown ✦",
   "luminary.command.karma_reset": "%s's standing with %s is reset: karma, trust and threat from zero.",
   "luminary.command.karma_reset_nothing": "%s does not know %s yet: nothing to reset.",
-  "luminary.command.karma_set": "Karma of %s with %s is now %s (%s)."
+  "luminary.command.karma_set": "Karma of %s with %s is now %s (%s).",
+  "npc.luminary.follow.yes": "I follow.",
+  "npc.luminary.follow.stop": "I stop.",
+  "npc.luminary.follow.not_following": "I was not going anywhere."
 }

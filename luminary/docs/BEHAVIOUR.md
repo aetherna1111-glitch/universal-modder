@@ -111,3 +111,21 @@ stayed full). `LuminaryNpcEntity.damage` now reports every blow that landed on t
 `onAttacked`; the answer to the attacker stays vanilla's (a blocked blow does no knockback and triggers no weapon
 effects). Covered by `blowsTheRaisedShieldBlocksStillWearItDownAndItStaysBrokenAcrossLaterBlows` (blows seconds
 apart on the armoured body).
+
+## Understanding more of what is said (2026-10-14)
+Three layers read a chat line, in order:
+1. **Behaviour phrases** (as before): helmet off/on, an apology, a duel.
+2. **Topics** (`core/npc/conversation/TopicMatcher`, no model): Russian and English stems on a normalised line (lower
+   case, ё→е, punctuation gone, repeated letters collapsed, so «приииивет!!!» is a greeting). Actions are done at once
+   («иди за мной» / `follow me` → he follows; «стой» / `stop` → he stays and drops his task). Facts are answered from the
+   authored lines of `lumin.json` (`topic.<name>`) with the real numbers filled in (`{points}`, `{karma}`,
+   `{standing}`, `{quests_open}`, `{quests_done}`, `{shop_count}`, `{sword}`, `{daypart}`, `{weather}`, `{activity}`,
+   `{helmet}`, `{met}`…): shop, tasks, points, karma, alms, the blade, the harp, the vestments, "do you remember me",
+   "what can you do". Small talk (greeting, farewell, thanks, how are you, who are you, where, time, weather, a joke,
+   a compliment, an insult, yes/no, lore) goes to the model when one is configured and healthy, else to the lines.
+   A line carrying a cue of work («принеси мне меч») is never a topic: the planner reads it.
+3. **The planner and the dialogue** (as before), now with the **situation**: the model's prompt carries what he sees
+   and knows right now (time of day and weather, place and distance, what he is doing, health, the blade's custody,
+   the vestments, this player's points, tasks, purchases, karma and worthiness, today's shop, how to deal with him),
+   and explicit answering rules (a greeting gets a greeting, a question a direct answer, no questions-only replies,
+   no repeating earlier turns). Work cues were widened (напили, насобирай, захвати, притащи, отнеси, выплави…).
