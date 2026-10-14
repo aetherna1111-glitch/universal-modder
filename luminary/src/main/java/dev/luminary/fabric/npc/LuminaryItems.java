@@ -26,6 +26,7 @@ public final class LuminaryItems {
 
 	public static void register() {
 		Registry.register(Registries.ITEM, BLADE_ID, LUMIN_BLADE);
+		Registry.register(Registries.SCREEN_HANDLER, new Identifier(Luminary.MOD_ID, "gear_view"), GearViewScreenHandler.TYPE);
 		Registry.register(Registries.ITEM, new Identifier(Luminary.MOD_ID, "vestment_helmet"), VESTMENT_HELMET);
 		Registry.register(Registries.ITEM, new Identifier(Luminary.MOD_ID, "vestment_chestplate"), VESTMENT_CHESTPLATE);
 		Registry.register(Registries.ITEM, new Identifier(Luminary.MOD_ID, "vestment_leggings"), VESTMENT_LEGGINGS);

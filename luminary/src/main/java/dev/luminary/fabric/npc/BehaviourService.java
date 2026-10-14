@@ -876,6 +876,45 @@ public final class BehaviourService {
 		return Result.OK;
 	}
 
+	// ------------------------------------------------------------------ reset
+
+	/**
+	 * Operator reset: the body is removed and spawned again where it stood (or at {@code fallback}), the knockout,
+	 * the fight, the helmet state, the plan and the task are cleared, a stolen or stale sword is reclaimed, the
+	 * vestments come back fresh. Memory, relationships and places are kept.
+	 */
+	public Result reset(LuminaryId id, net.minecraft.server.world.ServerWorld fallbackWorld, Vec3d fallback) {
+		if (dialogue.definitions().npc(id).isEmpty()) {
+			return Result.fail(NpcService.REASON_UNKNOWN_NPC);
+		}
+		NpcRoster.NpcRecord record = state.roster().ensureRecord(id);
+		Optional<LuminaryNpcEntity> body = npc.body(id);
+		net.minecraft.server.world.ServerWorld world = body.map(b -> (net.minecraft.server.world.ServerWorld) b.getWorld()).orElse(fallbackWorld);
+		Vec3d pos = body.map(Entity::getPos).orElse(fallback);
+		if (world == null || pos == null) {
+			return Result.fail(NpcService.REASON_NOT_PRESENT);
+		}
+		if (record.hasActiveTask()) {
+			npc.cancelTask(id);
+		}
+		record.plan().ifPresent(NpcPlan::cancel);
+		record.setKnockout(null);
+		record.combat().restore(CombatState.CALM, null, clock.get());
+		if (record.weapon().custody() != WeaponCustody.Custody.TRANSFERRED) {
+			reclaimWeapon(id);
+		}
+		body.ifPresent(b -> npc.despawn(id));
+		Result spawned = npc.spawn(id, world, pos);
+		npc.body(id).ifPresent(b -> {
+			b.setHelmetOff(false);
+			b.setHelmetAnimation(0);
+			syncEquipment(b, record);
+		});
+		remember(id, MemoryKind.SIGNIFICANT_EVENT, null, "reset", "An administrator set me right again");
+		state.markDirty();
+		return spawned;
+	}
+
 	// ------------------------------------------------------------------ routine
 
 	/** The slot the NPC should be living right now and where, if the routine is on and the place is known. */

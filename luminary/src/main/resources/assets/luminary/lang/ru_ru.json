@@ -216,5 +216,9 @@
   "npc.luminary.helmet.off": "Как скажешь.",
   "npc.luminary.helmet.on": "Хорошо.",
   "npc.luminary.helmet.already": "Уже.",
-  "npc.luminary.helmet.busy": "Не сейчас."
+  "npc.luminary.helmet.busy": "Не сейчас.",
+  "npc.luminary.down.bag_empty": "Сумка пуста. Еда поможет ему встать; присядь с пустой рукой, чтобы забрать меч.",
+  "npc.luminary.down.no_weapon": "Меча при нём нет.",
+  "npc.luminary.down.hint": "Пустая рука: обыскать сумку. Еда: помочь. Присесть + пустая рука: забрать меч.",
+  "luminary.command.reset": "%s приведён в порядок."
 }

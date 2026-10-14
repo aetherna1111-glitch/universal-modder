@@ -82,6 +82,7 @@ import java.util.UUID;
  * /luminary npc behaviour &lt;npc&gt;                        (op 2)  combat state, knockout, weapon custody, routine, plan
  * /luminary npc relations &lt;npc&gt;                        (op 2)  karma / trust / threat per player
  * /luminary npc revive &lt;npc&gt;                           (op 3)  end a knockout now
+ * /luminary npc reset &lt;npc&gt;                            (op 3)  respawn the body in place with a clean state (fight, knockout, helmet, task, plan, sword); memory kept
  * /luminary npc weapon &lt;npc&gt; [reclaim | transfer &lt;player&gt; &lt;reason&gt;]   (op 2 / op 4)  the single permanent-transfer point
  * /luminary npc place &lt;npc&gt; &lt;study|desk|site|home|workshop&gt; &lt;pos&gt; | clear &lt;kind&gt;   (op 3)  routine places
  * /luminary npc routine &lt;npc&gt; on|off                   (op 3)
@@ -268,6 +269,9 @@ public final class LuminaryCommands {
 						.then(CommandManager.literal("revive")
 								.requires(src -> src.hasPermissionLevel(3))
 								.then(CommandManager.argument("id", IdentifierArgumentType.identifier()).executes(LuminaryCommands::npcRevive)))
+						.then(CommandManager.literal("reset")
+								.requires(src -> src.hasPermissionLevel(3))
+								.then(CommandManager.argument("id", IdentifierArgumentType.identifier()).executes(LuminaryCommands::npcReset)))
 						.then(CommandManager.literal("weapon")
 								.then(CommandManager.argument("id", IdentifierArgumentType.identifier())
 										.executes(LuminaryCommands::npcBehaviour)
@@ -817,6 +821,11 @@ public final class LuminaryCommands {
 	private static int npcRevive(CommandContext<ServerCommandSource> ctx) {
 		LuminaryId id = parseId(ctx);
 		return runtime(ctx.getSource()).map(rt -> report(ctx.getSource(), rt.npc().behaviour().revive(id), "luminary.command.revived", id)).orElse(0);
+	}
+
+	private static int npcReset(CommandContext<ServerCommandSource> ctx) {
+		LuminaryId id = parseId(ctx);
+		return runtime(ctx.getSource()).map(rt -> report(ctx.getSource(), rt.npc().behaviour().reset(id, ctx.getSource().getWorld(), ctx.getSource().getPosition()), "luminary.command.reset", id)).orElse(0);
 	}
 
 	private static int weaponReclaim(CommandContext<ServerCommandSource> ctx) {

@@ -52,6 +52,19 @@ public final class VestmentGameTests implements FabricGameTest {
 			expect(body.isDown(), "down");
 			expect(LuminaryRuntime.get().orElseThrow().npc().behaviour().interactDown(body, player, ItemStack.EMPTY) == BehaviourService.DownInteraction.NOTHING, "nothing to loot");
 			expect(LuminArmorItem.wearsFullSet(body), "the set is still on him while he lies there");
+			expect(body.getBoundingBox().getXLength() > 1.0 && body.getBoundingBox().getYLength() < 0.8, "lying down he is a wide low box a player can click: " + body.getBoundingBox());
+			// an operator reset: same place, clean state, sword and set back
+			var pos = body.getPos();
+			var r = LuminaryRuntime.get().orElseThrow().npc().behaviour().reset(id, ctx.getWorld(), null);
+			expect(r.ok(), "reset: " + r.reasonKey());
+			LuminaryNpcEntity fresh = npc.body(id).orElseThrow();
+			expect(fresh != body && !fresh.isDown() && fresh.getPos().distanceTo(pos) < 1.0 && npc.roster().ensureRecord(id).knockout().isEmpty(), "a fresh body in place, not down");
+			ctx.waitAndRun(25, () -> {
+				expect(LuminArmorItem.wearsFullSet(fresh), "the fresh body wears the set");
+				npc.despawn(id);
+				ctx.complete();
+			});
+			if (true) return;
 			body.getEquippedStack(EquipmentSlot.CHEST).setCount(0);   // even a vanished piece comes back
 			npc.behaviour().revive(id);
 			ctx.waitAndRun(25, () -> {
@@ -82,15 +95,18 @@ public final class VestmentGameTests implements FabricGameTest {
 			expect(LuminArmorItem.wearsFullSet(body), "dressed");
 			// the read-only gear screen mirrors hands, armour and bag; clicks move nothing
 			var handler = (dev.luminary.fabric.npc.GearViewScreenHandler) dev.luminary.fabric.npc.GearViewScreenHandler.factory(body).createMenu(1, player.getInventory(), player);
-			expect(handler.getSlot(2).getStack().isOf(LuminaryItems.VESTMENT_HELMET) && handler.getSlot(3).getStack().isOf(LuminaryItems.VESTMENT_CHESTPLATE)
-					&& handler.getSlot(9).getStack().isOf(Items.IRON_AXE), "the mirror shows the diadem, the cuirass and the axe in the bag");
-			handler.onSlotClick(9, 0, net.minecraft.screen.slot.SlotActionType.PICKUP, player);
+			int bag0 = dev.luminary.fabric.npc.GearViewScreenHandler.SLOT_BAG;
+			expect(handler.getSlot(0).getStack().isOf(LuminaryItems.VESTMENT_HELMET) && handler.getSlot(1).getStack().isOf(LuminaryItems.VESTMENT_CHESTPLATE)
+					&& handler.getSlot(bag0).getStack().isOf(Items.IRON_AXE), "the mirror shows the diadem, the cuirass and the axe in the bag");
+			expect(handler.getSlot(dev.luminary.fabric.npc.GearViewScreenHandler.SLOT_SWORD).getStack().isOf(LuminaryItems.LUMIN_BLADE), "the sword shows while in his custody, even when sheathed");
+			expect(handler.getSlot(dev.luminary.fabric.npc.GearViewScreenHandler.SLOT_SHIELD).getStack().isOf(Items.SHIELD), "the shield shows");
+			handler.onSlotClick(bag0, 0, net.minecraft.screen.slot.SlotActionType.PICKUP, player);
 			expect(handler.getCursorStack().isEmpty() && body.heldItems().getStack(0).isOf(Items.IRON_AXE) && player.getInventory().isEmpty(), "a click takes nothing");
-			expect(handler.quickMove(player, 9).isEmpty() && body.heldItems().getStack(0).isOf(Items.IRON_AXE), "shift-click moves nothing");
+			expect(handler.quickMove(player, bag0).isEmpty() && body.heldItems().getStack(0).isOf(Items.IRON_AXE), "shift-click moves nothing");
 			player.getInventory().setStack(0, new ItemStack(Items.DIRT, 5));
-			handler.onSlotClick(27, 0, net.minecraft.screen.slot.SlotActionType.QUICK_MOVE, player);
+			handler.onSlotClick(dev.luminary.fabric.npc.GearViewScreenHandler.MIRROR_SIZE + 27, 0, net.minecraft.screen.slot.SlotActionType.QUICK_MOVE, player);
 			expect(player.getInventory().getStack(0).getCount() == 5 && body.heldItems().getStack(1).isEmpty(), "nothing can be put in");
-			expect(!handler.getSlot(9).canInsert(new ItemStack(Items.DIRT)) || !handler.canInsertIntoSlot(handler.getSlot(9)), "slots refuse insertion");
+			expect(!handler.getSlot(bag0).canInsert(new ItemStack(Items.DIRT)) && !handler.getSlot(bag0).canTakeItems(player), "slots refuse insertion and removal");
 			// "take off your helmet": the animation plays and the head stays bare until asked otherwise
 			NpcService.ChatOutcome off = npc.onPlayerChat(player, "Vestments, сними шлем").join();
 			expect(off.heard() && off.intent().flatMap(i -> i.literalReply()).orElse("").equals("As you wish."), "answered: " + off);

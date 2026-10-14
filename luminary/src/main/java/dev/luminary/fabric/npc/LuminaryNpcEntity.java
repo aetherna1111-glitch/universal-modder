@@ -152,6 +152,17 @@ public class LuminaryNpcEntity extends PathAwareEntity {
 		}
 	}
 
+	/** Lying down the box is a low, wide slab a player can actually aim at (the sleeping pose would shrink it to 0.2 blocks). */
+	@Override
+	public net.minecraft.entity.EntityDimensions getDimensions(EntityPose pose) {
+		return pose == EntityPose.SLEEPING ? net.minecraft.entity.EntityDimensions.fixed(1.4f, 0.6f) : super.getDimensions(pose);
+	}
+
+	@Override
+	protected float getActiveEyeHeight(EntityPose pose, net.minecraft.entity.EntityDimensions dimensions) {
+		return pose == EntityPose.SLEEPING ? 0.3f : super.getActiveEyeHeight(pose, dimensions);
+	}
+
 	@Override
 	public boolean isInvulnerableTo(DamageSource source) {
 		return isDown() && !source.isOf(net.minecraft.entity.damage.DamageTypes.OUT_OF_WORLD) || super.isInvulnerableTo(source);
@@ -257,7 +268,13 @@ public class LuminaryNpcEntity extends PathAwareEntity {
 		if (!getWorld().isClient) {
 			ItemStack inHand = player.getStackInHand(hand);
 			if (isDown()) {
-				LuminaryRuntime.get().ifPresent(rt -> rt.npc().behaviour().interactDown(this, player, inHand));
+				LuminaryRuntime.get().ifPresent(rt -> {
+					var result = rt.npc().behaviour().interactDown(this, player, inHand);
+					if (result == BehaviourService.DownInteraction.NOTHING) {
+						String key = player.isSneaking() && inHand.isEmpty() ? "npc.luminary.down.no_weapon" : inHand.isEmpty() ? "npc.luminary.down.bag_empty" : "npc.luminary.down.hint";
+						player.sendMessage(net.minecraft.text.Text.translatable(key).formatted(net.minecraft.util.Formatting.GRAY, net.minecraft.util.Formatting.ITALIC), true);
+					}
+				});
 			} else if (inHand.isOf(LuminaryItems.LUMIN_BLADE)) {
 				LuminaryRuntime.get().ifPresent(rt -> {
 					if (!rt.npc().behaviour().offerBladeBack(this, player, inHand)) {
