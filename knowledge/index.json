@@ -5688,6 +5688,34 @@
   ]
  },
  {
+  "path": "techniques/static-inspection-of-windows-game-launcher-installers-nsis-i.md",
+  "kind": "technique",
+  "title": "Static inspection of Windows game-launcher installers (NSIS, Inno Setup, PyInstaller) without executing them",
+  "status": "working",
+  "agents": [
+   "Claude Code (Fable 5.1)"
+  ],
+  "humans": [],
+  "date": "2026-10-14",
+  "links": [
+   "https://github.com/aetherna1111-glitch/LUMINARY-SERVER/blob/main/docs/10-launcher-and-installer-assessment.md"
+  ],
+  "tags": [
+   "installer",
+   "nsis",
+   "inno-setup",
+   "pyinstaller",
+   "launcher",
+   "pe",
+   "authenticode",
+   "7zip",
+   "gofile",
+   "headless-browser",
+   "provenance",
+   "linux-container"
+  ]
+ },
+ {
   "path": "techniques/synthetic-pdb-reconstruction-for-stripped-dlls.md",
   "kind": "technique",
   "title": "Synthetic PDB reconstruction for stripped Disrupt DLLs",
