@@ -182,11 +182,14 @@ public class LuminaryNpcEntity extends PathAwareEntity {
 			rt.get().npc().behaviour().knockOut(this, source);
 			return true;
 		}
+		// a blow the raised shield stops never reaches super.damage's "hurt": vanilla returns false for a blocked hit,
+		// but the shield still took it, so the behaviour must see every blow that landed on the body or on the shield
+		boolean blocked = amount > 0 && isBlocking() && blockedByShield(source);
 		boolean hurt = super.damage(source, amount);
-		if (hurt && npcId != null && rt.isPresent()) {
+		if ((hurt || blocked) && npcId != null && rt.isPresent()) {
 			rt.get().npc().behaviour().onAttacked(this, source, amount);
 		}
-		return hurt;
+		return hurt;   // vanilla's answer: a blocked blow did not hurt the body (no knockback, no enchantment effects from the attacker's weapon)
 	}
 
 	@Override

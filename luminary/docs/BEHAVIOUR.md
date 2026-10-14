@@ -103,3 +103,11 @@ ledger; two attempts per step; impossible preconditions skip the step; the reque
 - Routine props are vanilla items held in hand plus pose changes; there is no custom animation model yet.
 - Whisper and gaze lines are authored text, not model text, by design.
 - The duel/apology detection is keyword-based (English and Russian).
+
+## The shield under blocked blows (fix, 2026-10-14)
+Vanilla's `LivingEntity.damage` answers `false` for a blow the raised shield blocks, so the behaviour never saw those
+blows and the shield never lost points (it broke only from a blow that got past the block, and the ledger of points
+stayed full). `LuminaryNpcEntity.damage` now reports every blow that landed on the body **or on the shield** to
+`onAttacked`; the answer to the attacker stays vanilla's (a blocked blow does no knockback and triggers no weapon
+effects). Covered by `blowsTheRaisedShieldBlocksStillWearItDownAndItStaysBrokenAcrossLaterBlows` (blows seconds
+apart on the armoured body).

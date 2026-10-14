@@ -208,6 +208,41 @@ public final class BehaviourGameTests implements FabricGameTest {
 		finish(ctx, id);
 	}
 
+	/** The real thing: blows seconds apart on a body whose raised shield vanilla counts as "blocked" (damage() false). */
+	@GameTest(templateName = ARENA, tickLimit = 400, batchId = "behaviour-shield-blocked")
+	public void blowsTheRaisedShieldBlocksStillWearItDownAndItStaysBrokenAcrossLaterBlows(TestContext ctx) {
+		ctx.getWorld().getServer().setDifficulty(net.minecraft.world.Difficulty.NORMAL, true);
+		LuminaryId id = LuminaryId.parse("luminary-gametest:npc/vestments");
+		LuminaryNpcEntity body = spawn(ctx, id, new BlockPos(8, FLOOR_Y + 1, 8));
+		NpcRoster.NpcRecord record = npc().roster().ensureRecord(id);
+		PlayerEntity attacker = worldPlayer(ctx, ctx.getAbsolute(new Vec3d(8.5, FLOOR_Y + 1, 10.5)), 180f, 0f);
+		ctx.runAtTick(30, () -> {
+			hit(body, attacker, 9f);
+			expect(body.getOffHandStack().isOf(Items.SHIELD), "shield up after the first blow");
+		});
+		ctx.runAtTick(45, () -> {   // the shield has been raised for 15 ticks: vanilla blocks this one
+			expect(body.isBlocking(), "vanilla counts the raised shield as blocking");
+			expect(!body.damage(body.getDamageSources().playerAttack(attacker), 9f), "vanilla's answer stays: the blocked blow did not hurt the body");
+			expect(Math.abs(record.shieldPoints(20) - 11.0) < 0.01, "the blocked blow took the shield's points: " + record.shieldPoints(20));
+		});
+		ctx.runAtTick(60, () -> {
+			body.timeUntilRegen = 0;
+			body.damage(body.getDamageSources().playerAttack(attacker), 12f);
+			expect(record.shieldBroken(npc().now()) && body.getOffHandStack().isEmpty(), "the shield shattered on the third blow and is gone");
+		});
+		ctx.runAtTick(80, () -> {
+			body.timeUntilRegen = 0;
+			body.damage(body.getDamageSources().playerAttack(attacker), 5f);
+			expect(body.getOffHandStack().isEmpty() && record.shieldBroken(npc().now()), "a blow a second later does not bring the shield back: " + body.getOffHandStack());
+		});
+		ctx.runAtTick(120, () -> {
+			body.timeUntilRegen = 0;
+			body.damage(body.getDamageSources().playerAttack(attacker), 5f);
+			expect(body.getOffHandStack().isEmpty(), "nor one three seconds later, whatever the combat state (" + record.combat().state() + ")");
+			finish(ctx, id);
+		});
+	}
+
 	@GameTest(templateName = ARENA, tickLimit = 600, batchId = "behaviour-weapon")
 	public void theStolenBladeReturnsAfterExactlyItsHourAndEveryStaleCopyVanishes(TestContext ctx) {
 		LuminaryId id = LuminaryId.parse("luminary-gametest:npc/weapon");
