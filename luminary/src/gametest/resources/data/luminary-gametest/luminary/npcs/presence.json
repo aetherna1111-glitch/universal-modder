@@ -1,0 +1,27 @@
+{
+  "id": "luminary-gametest:npc/presence",
+  "name": "gametest.npc.test",
+  "dialogue": "luminary-gametest:dialogue/test",
+  "aliases": ["Presence"],
+  "character": {
+    "version": 3,
+    "origin": "A test character.",
+    "principles": ["Says little."],
+    "lines": {
+      "gaze": {"en": ["GAZE_LINE_A", "GAZE_LINE_B"]},
+      "gaze_hostile": {"en": ["GAZE_HOSTILE"]},
+      "mutter.idle": {"en": ["MUTTER_IDLE"]},
+      "mutter.walking": {"en": ["MUTTER_WALKING"]},
+      "warning": {"en": ["WARNING_LINE"]},
+      "fight": {"en": ["FIGHT_LINE"]},
+      "deescalate": {"en": ["DEESCALATE_LINE"]},
+      "apology_accepted": {"en": ["APOLOGY_LINE"]},
+      "knocked_out": {"en": ["KO_LINE"]},
+      "recovered": {"en": ["RECOVERED_LINE"]},
+      "weapon_taken": {"en": ["TAKEN_LINE"]},
+      "weapon_returned": {"en": ["RETURNED_LINE"]},
+      "helped": {"en": ["HELPED_LINE"]},
+      "duel_accepted": {"en": ["DUEL_LINE"]}
+    }
+  }
+}

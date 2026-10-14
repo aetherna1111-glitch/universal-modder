@@ -4,6 +4,7 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.LongArgumentType;
 import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import dev.luminary.core.catalog.Attribution;
 import dev.luminary.core.catalog.CatalogService;
 import dev.luminary.core.catalog.DiscoveryRecord;
@@ -78,6 +79,15 @@ import java.util.UUID;
  * /luminary npc task status &lt;npc&gt; | cancel &lt;npc&gt;        (op 2 / op 3)
  * /luminary npc memory &lt;npc&gt; [player]                 (op 2)  what the NPC remembers (optionally about one player)
  * /luminary npc memory note &lt;npc&gt; &lt;text...&gt;            (op 3)  an authored stable fact the NPC knows (teaching role)
+ * /luminary npc behaviour &lt;npc&gt;                        (op 2)  combat state, knockout, weapon custody, routine, plan
+ * /luminary npc relations &lt;npc&gt;                        (op 2)  karma / trust / threat per player
+ * /luminary npc revive &lt;npc&gt;                           (op 3)  end a knockout now
+ * /luminary npc weapon &lt;npc&gt; [reclaim | transfer &lt;player&gt; &lt;reason&gt;]   (op 2 / op 4)  the single permanent-transfer point
+ * /luminary npc place &lt;npc&gt; &lt;study|desk|site|home|workshop&gt; &lt;pos&gt; | clear &lt;kind&gt;   (op 3)  routine places
+ * /luminary npc routine &lt;npc&gt; on|off                   (op 3)
+ * /luminary npc plan status|cancel &lt;npc&gt;              (op 2 / op 3)
+ * /luminary npc plan stock &lt;npc&gt; &lt;tree&gt; &lt;container&gt; &lt;logs&gt; | smelt &lt;npc&gt; &lt;container&gt; &lt;furnace&gt; &lt;item&gt; &lt;count&gt;   (op 3)
+ * /luminary metrics                                    (op 2)  counters and latencies
  * /luminary llm status                                 (op 2)  provider, model, health, counters
  * /luminary llm ping                                   (op 4)  one tiny request to the configured model; answer arrives asynchronously
  * </pre>
@@ -250,7 +260,60 @@ public final class LuminaryCommands {
 														.then(CommandManager.argument("container", BlockPosArgumentType.blockPos())
 																.executes(ctx -> taskGather(ctx, 4))
 																.then(CommandManager.argument("maxLogs", IntegerArgumentType.integer(1))
-																		.executes(ctx -> taskGather(ctx, IntegerArgumentType.getInteger(ctx, "maxLogs"))))))))))
+																		.executes(ctx -> taskGather(ctx, IntegerArgumentType.getInteger(ctx, "maxLogs")))))))))
+						.then(CommandManager.literal("behaviour")
+								.then(CommandManager.argument("id", IdentifierArgumentType.identifier()).executes(LuminaryCommands::npcBehaviour)))
+						.then(CommandManager.literal("relations")
+								.then(CommandManager.argument("id", IdentifierArgumentType.identifier()).executes(LuminaryCommands::npcRelations)))
+						.then(CommandManager.literal("revive")
+								.requires(src -> src.hasPermissionLevel(3))
+								.then(CommandManager.argument("id", IdentifierArgumentType.identifier()).executes(LuminaryCommands::npcRevive)))
+						.then(CommandManager.literal("weapon")
+								.then(CommandManager.argument("id", IdentifierArgumentType.identifier())
+										.executes(LuminaryCommands::npcBehaviour)
+										.then(CommandManager.literal("reclaim")
+												.requires(src -> src.hasPermissionLevel(4))
+												.executes(LuminaryCommands::weaponReclaim))
+										.then(CommandManager.literal("transfer")
+												.requires(src -> src.hasPermissionLevel(4))
+												.then(CommandManager.argument("player", EntityArgumentType.player())
+														.then(CommandManager.argument("reason", com.mojang.brigadier.arguments.StringArgumentType.greedyString())
+																.executes(LuminaryCommands::weaponTransfer))))))
+						.then(CommandManager.literal("place")
+								.requires(src -> src.hasPermissionLevel(3))
+								.then(CommandManager.argument("id", IdentifierArgumentType.identifier())
+										.then(CommandManager.literal("clear")
+												.then(CommandManager.argument("kind", com.mojang.brigadier.arguments.StringArgumentType.word())
+														.executes(LuminaryCommands::placeClear)))
+										.then(CommandManager.argument("kind", com.mojang.brigadier.arguments.StringArgumentType.word())
+												.then(CommandManager.argument("pos", BlockPosArgumentType.blockPos()).executes(LuminaryCommands::placeSet)))))
+						.then(CommandManager.literal("routine")
+								.requires(src -> src.hasPermissionLevel(3))
+								.then(CommandManager.argument("id", IdentifierArgumentType.identifier())
+										.then(CommandManager.literal("on").executes(ctx -> routine(ctx, true)))
+										.then(CommandManager.literal("off").executes(ctx -> routine(ctx, false)))))
+						.then(CommandManager.literal("plan")
+								.then(CommandManager.literal("status")
+										.then(CommandManager.argument("id", IdentifierArgumentType.identifier()).executes(LuminaryCommands::npcBehaviour)))
+								.then(CommandManager.literal("cancel")
+										.requires(src -> src.hasPermissionLevel(3))
+										.then(CommandManager.argument("id", IdentifierArgumentType.identifier()).executes(LuminaryCommands::planCancel)))
+								.then(CommandManager.literal("stock")
+										.requires(src -> src.hasPermissionLevel(3))
+										.then(CommandManager.argument("id", IdentifierArgumentType.identifier())
+												.then(CommandManager.argument("target", BlockPosArgumentType.blockPos())
+														.then(CommandManager.argument("container", BlockPosArgumentType.blockPos())
+																.then(CommandManager.argument("logs", IntegerArgumentType.integer(1))
+																		.executes(LuminaryCommands::planStock))))))
+								.then(CommandManager.literal("smelt")
+										.requires(src -> src.hasPermissionLevel(3))
+										.then(CommandManager.argument("id", IdentifierArgumentType.identifier())
+												.then(CommandManager.argument("container", BlockPosArgumentType.blockPos())
+														.then(CommandManager.argument("furnace", BlockPosArgumentType.blockPos())
+																.then(CommandManager.argument("item", IdentifierArgumentType.identifier())
+																		.then(CommandManager.argument("count", IntegerArgumentType.integer(1))
+																				.executes(LuminaryCommands::planSmelt)))))))))
+				.then(CommandManager.literal("metrics").executes(LuminaryCommands::metrics))
 				.then(CommandManager.literal("llm")
 						.then(CommandManager.literal("status").executes(LuminaryCommands::llmStatus))
 						.then(CommandManager.literal("ping")
@@ -717,6 +780,145 @@ public final class LuminaryCommands {
 		}
 		java.util.Collections.sort(parts);
 		return String.join(", ", parts);
+	}
+
+
+	// ------------------------------------------------------------------ slice 15: behaviour, relations, weapon, routine, plans
+
+	private static int npcBehaviour(CommandContext<ServerCommandSource> ctx) {
+		return runtime(ctx.getSource()).map(rt -> {
+			LuminaryId id = parseId(ctx);
+			if (rt.npc().dialogue().definitions().npc(id).isEmpty()) {
+				ctx.getSource().sendError(Text.translatable(NpcService.REASON_UNKNOWN_NPC));
+				return 0;
+			}
+			ctx.getSource().sendFeedback(() -> Text.literal(id + ": " + rt.npc().behaviour().describe(id)), false);
+			return 1;
+		}).orElse(0);
+	}
+
+	private static int npcRelations(CommandContext<ServerCommandSource> ctx) {
+		return runtime(ctx.getSource()).map(rt -> {
+			LuminaryId id = parseId(ctx);
+			var record = rt.npc().roster().ensureRecord(id);
+			var rules = rt.npc().roster().rules().relationship();
+			Instant now = rt.npc().now();
+			ctx.getSource().sendFeedback(() -> Text.literal(id + ": " + record.relationships().all().size() + " players known"), false);
+			record.relationships().all().forEach((player, r) -> {
+				var d = r.decayed(now, rules);
+				String name = record.player(player).map(NpcRoster.PlayerMemory::nameAtLastMeeting).orElse(player.toString());
+				ctx.getSource().sendFeedback(() -> Text.literal(String.format(" - %s: %s karma %.0f trust %.0f threat %.0f%s", name, d.standing(rules), d.karma(), d.trust(), d.threat(),
+						d.lastEvent().map(e -> " last " + e).orElse(""))), false);
+			});
+			return 1;
+		}).orElse(0);
+	}
+
+	private static int npcRevive(CommandContext<ServerCommandSource> ctx) {
+		LuminaryId id = parseId(ctx);
+		return runtime(ctx.getSource()).map(rt -> report(ctx.getSource(), rt.npc().behaviour().revive(id), "luminary.command.revived", id)).orElse(0);
+	}
+
+	private static int weaponReclaim(CommandContext<ServerCommandSource> ctx) {
+		LuminaryId id = parseId(ctx);
+		return runtime(ctx.getSource()).map(rt -> report(ctx.getSource(), rt.npc().behaviour().reclaimWeapon(id), "luminary.command.weapon_reclaimed", id)).orElse(0);
+	}
+
+	private static int weaponTransfer(CommandContext<ServerCommandSource> ctx) throws CommandSyntaxException {
+		LuminaryId id = parseId(ctx);
+		ServerPlayerEntity player = EntityArgumentType.getPlayer(ctx, "player");
+		String reason = com.mojang.brigadier.arguments.StringArgumentType.getString(ctx, "reason");
+		return runtime(ctx.getSource()).map(rt -> {
+			Result r = rt.npc().behaviour().transferWeapon(id, player, "command:" + ctx.getSource().getName() + ": " + reason);
+			if (!r.ok()) {
+				ctx.getSource().sendError(Text.translatable(r.reasonKey()));
+				return 0;
+			}
+			ctx.getSource().sendFeedback(() -> Text.translatable("luminary.command.weapon_transferred", id.toString(), player.getGameProfile().getName(), reason), true);
+			return 1;
+		}).orElse(0);
+	}
+
+	private static Optional<dev.luminary.core.npc.routine.PlaceKind> placeKind(CommandContext<ServerCommandSource> ctx) {
+		String kind = com.mojang.brigadier.arguments.StringArgumentType.getString(ctx, "kind").toUpperCase(java.util.Locale.ROOT);
+		try {
+			return Optional.of(dev.luminary.core.npc.routine.PlaceKind.valueOf(kind));
+		} catch (IllegalArgumentException e) {
+			ctx.getSource().sendError(Text.literal("unknown place kind " + kind + "; one of " + java.util.Arrays.toString(dev.luminary.core.npc.routine.PlaceKind.values())));
+			return Optional.empty();
+		}
+	}
+
+	private static int placeSet(CommandContext<ServerCommandSource> ctx) throws CommandSyntaxException {
+		LuminaryId id = parseId(ctx);
+		BlockPos pos = BlockPosArgumentType.getLoadedBlockPos(ctx, "pos");
+		return runtime(ctx.getSource()).map(rt -> placeKind(ctx).map(kind -> {
+			rt.npc().roster().ensureRecord(id).routine().setPlace(kind, pos.asLong());
+			rt.npc().markDirty();
+			ctx.getSource().sendFeedback(() -> Text.translatable("luminary.command.place_set", id.toString(), kind.name(), pos.toShortString()), true);
+			return 1;
+		}).orElse(0)).orElse(0);
+	}
+
+	private static int placeClear(CommandContext<ServerCommandSource> ctx) {
+		LuminaryId id = parseId(ctx);
+		return runtime(ctx.getSource()).map(rt -> placeKind(ctx).map(kind -> {
+			rt.npc().roster().ensureRecord(id).routine().clearPlace(kind);
+			rt.npc().markDirty();
+			ctx.getSource().sendFeedback(() -> Text.translatable("luminary.command.place_cleared", id.toString(), kind.name()), true);
+			return 1;
+		}).orElse(0)).orElse(0);
+	}
+
+	private static int routine(CommandContext<ServerCommandSource> ctx, boolean on) {
+		LuminaryId id = parseId(ctx);
+		return runtime(ctx.getSource()).map(rt -> {
+			rt.npc().roster().ensureRecord(id).routine().setEnabled(on);
+			rt.npc().markDirty();
+			ctx.getSource().sendFeedback(() -> Text.translatable(on ? "luminary.command.routine_on" : "luminary.command.routine_off", id.toString()), true);
+			return 1;
+		}).orElse(0);
+	}
+
+	private static int planCancel(CommandContext<ServerCommandSource> ctx) {
+		LuminaryId id = parseId(ctx);
+		return runtime(ctx.getSource()).map(rt -> report(ctx.getSource(), rt.npc().behaviour().cancelPlan(id), "luminary.command.plan_cancelled", id)).orElse(0);
+	}
+
+	private static int planStock(CommandContext<ServerCommandSource> ctx) throws CommandSyntaxException {
+		LuminaryId id = parseId(ctx);
+		BlockPos target = BlockPosArgumentType.getLoadedBlockPos(ctx, "target");
+		BlockPos container = BlockPosArgumentType.getLoadedBlockPos(ctx, "container");
+		int logs = IntegerArgumentType.getInteger(ctx, "logs");
+		return runtime(ctx.getSource()).map(rt -> report(ctx.getSource(), rt.npc().behaviour().startPlan(id,
+				dev.luminary.core.npc.plan.PlanTemplates.stockWood(target.asLong(), container.asLong(), logs, rt.npc().now(), ctx.getSource().getPlayer() != null ? ctx.getSource().getPlayer().getUuid() : null)),
+				"luminary.command.plan_started", id)).orElse(0);
+	}
+
+	private static int planSmelt(CommandContext<ServerCommandSource> ctx) throws CommandSyntaxException {
+		LuminaryId id = parseId(ctx);
+		BlockPos container = BlockPosArgumentType.getLoadedBlockPos(ctx, "container");
+		BlockPos furnace = BlockPosArgumentType.getLoadedBlockPos(ctx, "furnace");
+		String item = IdentifierArgumentType.getIdentifier(ctx, "item").toString();
+		int count = IntegerArgumentType.getInteger(ctx, "count");
+		return runtime(ctx.getSource()).map(rt -> report(ctx.getSource(), rt.npc().behaviour().startPlan(id,
+				dev.luminary.core.npc.plan.PlanTemplates.smeltFromStock(container.asLong(), furnace.asLong(), item, count, rt.npc().now(), ctx.getSource().getPlayer() != null ? ctx.getSource().getPlayer().getUuid() : null)),
+				"luminary.command.plan_started", id)).orElse(0);
+	}
+
+	private static int metrics(CommandContext<ServerCommandSource> ctx) {
+		return runtime(ctx.getSource()).map(rt -> {
+			var m = rt.npc().behaviour().metrics();
+			ctx.getSource().sendFeedback(() -> Text.literal("luminary metrics: " + m.counters().size() + " counters, " + m.latencies().size() + " latencies"), false);
+			m.counters().forEach((k, v) -> ctx.getSource().sendFeedback(() -> Text.literal(" - " + k + " = " + v), false));
+			m.latencies().forEach((k, v) -> ctx.getSource().sendFeedback(() -> Text.literal(" - " + k + ": n=" + v.count() + " mean=" + v.meanMillis() + "ms max=" + v.maxMillis() + "ms"), false));
+			rt.npc().roster().all().forEach((id, r) -> {
+				if (!r.capabilities().refused().isEmpty()) {
+					ctx.getSource().sendFeedback(() -> Text.literal(" - " + id + " model intents refused: " + r.capabilities().refused()), false);
+				}
+			});
+			return 1;
+		}).orElse(0);
 	}
 
 	private static Optional<LuminaryRuntime> runtime(ServerCommandSource src) {

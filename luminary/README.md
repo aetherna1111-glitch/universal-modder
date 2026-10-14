@@ -24,20 +24,22 @@ slice**; design and research live in `../docs/research/luminary-2026-10-11/` (st
 | Fabric layer: task executor — real block breaking (`ServerWorld.breakBlock`, loot tables), item-entity collection into the NPC's own inventory, insertion into the authorized container's `Inventory`, per-step re-validation, resume after reload; `/luminary npc task` and `/luminary npc container` commands | **implemented**; covered by 8 GameTests incl. item accounting |
 | Fabric layer: chat intake — the nearest NPC within 8 blocks hears a player's chat message; the planner looks for work first (candidates scanned around the body), an action is assigned like a command and the result spoken back, otherwise the line is a dialogue turn; the requester is told when the task ends; `/luminary npc intent`, `/luminary npc planner`, `/luminary npc task move|deposit|withdraw|smelt`; `/luminary npc memory` commands | **implemented**; covered by 8 GameTests (chat → task → chest → memory with no model; a standing order stocking a chest with no command; a real furnace run with full item accounting) |
 | Fabric layer: integrations — `thaumcraft-observer` entrypoint applying `ThaumcraftBridge` translations on the server thread | **implemented**; 1 GameTest drives the entrypoint directly |
+| Pure-Java core: living presence — versioned character sheet, gaze reactions and spatial whispers with cooldowns, bounded multi-turn conversation context, karma/trust/threat relationships with forgiveness, self-defence state machine (shield first, 3..5 hits, hold ground, no pursuit), real-time knockout, unique-weapon custody with exactly-one-hour theft and retired instances, daily routine, persistent multi-step plans, capability allowlist, metrics; NPC state schema v2 | **implemented, unit-tested** (144 tests in total) |
+| Fabric layer: `BehaviourService`, `CombatGoal`, `RoutineGoal`, `LuminBladeItem` (`luminary:lumin_blade`), knockout pose synced to clients, `/luminary npc behaviour|relations|revive|weapon|place|routine|plan`, `/luminary metrics` | **implemented**; covered by 6 GameTests on an injected clock (knockout, the one-hour return) |
 | Gameplay enforcement of capabilities (recipe/item gates), City (facilities), further NPC tasks (milking, crafting, planting) and standing orders, model-proposed orders, GeckoLib model, mod integrations | **designed, not implemented** — see the research set |
 | Thaumcraft 4 port bridge — Luminary declares the Fabric entrypoint `thaumcraft-observer` (`Consumer<Map<String,Object>>`, no shared classes); research completions, scans and aspect discoveries become progression signals (`signal/thaumcraft/...`) and NPC observations; the port-side patch is in `docs/integration/` | **both sides implemented and tested** (port branch `claude/dreamy-knuth-rizfww` on top of the port's working branch, 330/330 GameTests there; server start verified with Create and the Taumechanics addon) |
 
 Nothing here grants items, unlocks recipes or changes gameplay yet. The slice proves the architecture: a Minecraft-free
 core, server-side rules, persistence with migrations, admin commands, and an in-world test harness.
 
-## Last recorded verification (2026-10-14, slice 14, JDK 21 runtime, `release 17`)
+## Last recorded verification (2026-10-14, slice 15, JDK 21 runtime, `release 17`)
 
 | Check | Result |
 |---|---|
-| `./gradlew build` (compile main/test/gametest, 108 unit tests, jar) | passed |
-| `./gradlew runGametest` (headless 1.20.1 server, Fabric API 0.92.12, Loader 0.19.5) | "All 31 required tests passed" (3 consecutive runs) |
+| `./gradlew build` (compile main/test/gametest, 144 unit tests, jar) | passed |
+| `./gradlew runGametest` (headless 1.20.1 server, Fabric API 0.92.12, Loader 0.19.5) | "All 37 required tests passed" (3 consecutive runs) |
 | `um publish check luminary` | 0 failures (1 warning in the ignored `.gradle/` cache) |
-| Not verified | a real dedicated server with players; the integrated client and the NPC renderer; any other mod loaded alongside; a real Ollama or hosted model endpoint (only the mock server was exercised) |
+| Not verified | a real dedicated server with players; the integrated client, the NPC renderer, the blade item model and the lying pose; any other mod loaded alongside; a real Ollama or hosted model endpoint (only the mock server was exercised) |
 
 ## Setup
 
@@ -86,6 +88,15 @@ cd luminary
 /luminary npc talk <npc>                        [2]  talk without clicking (player executor, body must be present)
 /luminary npc provider <scripted|disabled|model> [4]  swap the dialogue provider until restart
 /luminary npc gear <npc>                        [2]  hand, armour and bag with durability
+/luminary npc behaviour <npc>                   [2]  combat state, knockout deadline, weapon custody, routine, plan
+/luminary npc relations <npc>                   [2]  karma / trust / threat and standing per player
+/luminary npc revive <npc>                      [3]  end a knockout now
+/luminary npc weapon <npc> [reclaim|transfer <player> <reason>]  [2/4]  custody; the single permanent-transfer point
+/luminary npc place <npc> <study|desk|site|home|workshop> <pos> | clear <kind>  [3]  routine places
+/luminary npc routine <npc> on|off              [3]
+/luminary npc plan status|cancel <npc>          [2/3]
+/luminary npc plan stock <npc> <tree> <chest> <logs> | smelt <npc> <chest> <furnace> <item> <count>  [3]
+/luminary metrics                               [2]  counters and latencies
 /luminary npc planner <none|keyword|model>       [4]  swap the intent planner until /reload or restart
 /luminary npc autonomy server on|off             [4]  server-wide autonomy switch until /reload or restart
 /luminary npc autonomy <npc> [on|off]            [3]  per-NPC switch; without on/off: status, budget, orders
@@ -368,6 +379,76 @@ dialogue:
 GameTest `spokenRequestBecomesAValidatedTaskExecutedAndRemembered` runs the whole chain with no model: a mock player
 says "could you chop 2 logs for me?", two real oak logs end up in the authorized chest, the promise is superseded by
 the completed event.
+
+## Living there: presence, relationships, self-defence, the blade, a day's routine, plans (slice 15)
+
+Everything below is deterministic and lives in `dev.luminary.core.npc.{character,presence,conversation,relationship,
+combat,weapon,routine,plan,capability,metrics}`; the Fabric layer (`BehaviourService`, `CombatGoal`, `RoutineGoal`,
+`LuminBladeItem`) only observes the world and performs the machines' reactions. No model call is ever made for a
+glance, a whisper, a warning, a fight or a return.
+
+- **Character sheet.** The NPC definition's `character` object (`version`, `origin`, `principles`, `speechStyle`,
+  `boundaries`, `loreFacts`, `lines`) is the versioned identity. Its `promptLines()` follow the persona in every model
+  prompt; its `lines` groups (`gaze`, `gaze_friend`, `gaze_hostile`, `mutter.<activity>`, `warning`, `fight`,
+  `deescalate`, `apology_accepted`, `duel_accepted`, `knocked_out`, `recovered`, `weapon_taken`, `weapon_returned`,
+  `helped`), authored per language (`en`, `ru`; `presence.language` picks, English is the fallback) feed every
+  deterministic channel. Lumin's sheet is `data/luminary/luminary/npcs/lumin.json`. The code never invents lore.
+- **Gaze.** A player who looks at the NPC for `gazeMinimumMillis` (600) gets one authored line, then nothing for
+  `gazeCooldownSeconds` (45) from that player and `gazeGlobalCooldownSeconds` (10) from anyone; FRIEND and
+  WARY/HOSTILE standings use their own line groups. Talking to the NPC counts as acknowledged.
+- **Whispers.** Players within `whisperRange` (5 blocks) occasionally hear a gray italic aside derived from what the
+  NPC is actually doing (`Activity`: gathering, carrying, smelting, reading, writing, investigating, resting,
+  guarded...), at most once per `whisperCooldownSeconds` (90) plus deterministic jitter; silent with nobody near and
+  for 30 s after any conversation.
+- **Multi-turn context.** The last 8 exchanges with a player (expiring after 10 idle minutes) are sent to the model
+  as prior user/assistant messages; persisted with the roster (schema v2).
+- **Relationships.** Per player: karma (−100..100, the moral ledger, drifts to zero by `karmaRecoveryPerDay`),
+  trust (0..100, never recovers by itself), threat (0..100, halves every `threatHalfLifeMinutes`). Events are
+  captured only from authoritative observations: conversation, requested work, gift, attacked / attacked after a
+  warning / duel hit (no karma loss), apology, weapon theft (its own heavy event), weapon returned, helped or looted
+  while down. Standing FRIEND/NEUTRAL/WARY/HOSTILE goes into prompts and gaze lines; a HOSTILE player is refused
+  work. `/luminary npc relations <npc>`.
+- **Self-defence.** `CALM → DEFENSIVE_WARNING` on the first hit (shield up in the off hand, a warning line, no
+  strike) → `COMBAT` at `attacksBeforeCombat` (3; configure 3..5) hits inside `attackWindowSeconds` (60): the blade
+  is drawn and the opponent is struck for `weaponDamageFraction` (0.5) of *their* maximum health when within
+  `strikeReach` (3.5); the NPC steps no farther than `holdGroundRadius` (6) from where the fight started and never
+  pursues. An opponent farther than `deescalateDistance` (8) for `deescalateAfterSeconds` (20), or one who says
+  sorry, ends it (`GUARDED_DEESCALATION → RECOVERY → CALM` after `recoverySeconds`). A player who proposes a duel
+  ("let's duel", "дуэль") gets `duelConsentSeconds` (90) in which hits start a fight without warnings and without
+  karma loss. No revenge: a finished fight leaves no target.
+- **Knockout, never death.** Damage that would reach zero puts the body down instead (lying pose, AI off,
+  invulnerable, same entity, no respawn) for `knockoutMinutes` (5) of real UTC time, persisted, so logouts, unloaded
+  chunks and restarts do not pause it. Right-click with food shortens the wait by `helpShortensBySeconds` (60); an
+  empty hand takes one item from its bag (looting, remembered); sneaking with an empty hand takes the blade.
+  `/luminary npc revive <npc>` ends it early.
+- **The blade.** `luminary:lumin_blade`: indestructible, bound to its NPC and to a *custody instance id*. The server's
+  `WeaponCustody` knows the one valid instance. Taking it from the downed NPC starts a theft of exactly
+  `weapon.theftDurationMinutes` (60); at the deadline the weapon returns: the instance is retired, a new one minted,
+  every reachable copy (online inventories, dropped items in loaded chunks) removed at once, and any stale copy that
+  surfaces later (a chest, an offline inventory) vanishes the moment a player carries it. Only the thief may hold it
+  during the hour; a copy in anyone else's hands vanishes. Handing it back early (right-click the NPC with it) counts
+  as returning it. Permanent transfer exists exactly once, for a quest the game has not written yet:
+  `BehaviourService.transferWeapon(npc, player, reason)` / `/luminary npc weapon <npc> transfer <player> <reason>`
+  (op 4); `reclaim` undoes it.
+- **Routine.** A fixed day (`DailyRoutine.DEFAULT`: read at the STUDY until 4000, write at the DESK until 7000,
+  investigate the SITE until 11500, read again, rest at HOME from 13000) over places set with
+  `/luminary npc place <npc> <study|desk|site|home|workshop> <pos>`. The NPC walks there (real pathfinding, never
+  teleports), holds a book while reading, a quill-book with an occasional swing while writing, crouches and looks
+  around while investigating. Tasks, follow orders, a watching player and self-defence all interrupt it; it resumes
+  from the clock, so an unloaded chunk or a long chat changes nothing. Off with `/luminary npc routine <npc> off` or
+  `routine.enabled: false`.
+- **Plans.** A persistent multi-step `NpcPlan` (steps with preconditions, attempts, the task id that verified them)
+  driven by `PlanRunner` through the same validated `assign` path as a command: a running step is never re-issued,
+  a step is DONE only when its task COMPLETED, a failure is retried at most twice, an impossible precondition skips
+  the step, then the plan fails loudly. Templates: `/luminary npc plan stock <npc> <tree> <chest> <logs>` and
+  `/luminary npc plan smelt <npc> <chest> <furnace> <item> <count>`; `status`, `cancel`.
+- **Capability allowlist.** `Capability` is the closed list of what the NPC can do; the model may request only
+  SPEAK, REMEMBER_NOTE, REVEAL_ALLOWED_CLUE, GATHER_WOOD, DEPOSIT, WITHDRAW, SMELT, MOVE_TO, USE_CONTAINER,
+  FORGET_CONTAINER. DEFEND, WEAPON_TRANSFER, STORY_WRITE, PROGRESSION_WRITE, WORLD_EDIT, TELEPORT and ADMIN are
+  reachable only from authoritative events and commands. The model intent planner routes every emitted intent name
+  through `CapabilityRegistry`; refusals are counted and shown by `/luminary metrics`.
+- **Metrics.** `/luminary metrics`: gaze reactions, whispers, attacks, fights, strikes, knockouts, recoveries, thefts,
+  returns, purged copies, plan steps, routine arrivals, model refusals.
 
 ## Names, gear and reach (slice 14)
 

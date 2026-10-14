@@ -42,7 +42,8 @@ final class AttendPlayerGoal extends Goal {
 	private PlayerEntity findWatcher() {
 		PlayerEntity best = null;
 		double bestD = Double.MAX_VALUE;
-		for (PlayerEntity p : npc.getWorld().getPlayers()) {
+		// entities, not ServerWorld#getPlayers(): the latter lists only connected players, so GameTest mock players would be invisible
+		for (PlayerEntity p : npc.getWorld().getEntitiesByClass(PlayerEntity.class, npc.getBoundingBox().expand(RANGE), e -> true)) {
 			if (isLookingAt(p, npc)) {
 				double d = p.squaredDistanceTo(npc);
 				if (d < bestD) {
@@ -56,7 +57,7 @@ final class AttendPlayerGoal extends Goal {
 
 	@Override
 	public boolean canStart() {
-		if (npc.hasActiveTask() || npc.followTarget() != null) {
+		if (npc.isDown() || npc.hasActiveTask() || npc.followTarget() != null) {
 			return false;
 		}
 		watcher = findWatcher();
@@ -83,6 +84,10 @@ final class AttendPlayerGoal extends Goal {
 
 	@Override
 	public void stop() {
+		if (watcher != null) {
+			PlayerEntity gone = watcher;
+			dev.luminary.fabric.LuminaryRuntime.get().ifPresent(rt -> rt.npc().behaviour().onLookedAway(npc, gone));
+		}
 		watcher = null;
 	}
 
@@ -93,6 +98,9 @@ final class AttendPlayerGoal extends Goal {
 		}
 		if (watcher != null) {
 			npc.getLookControl().lookAt(watcher, 30.0f, 30.0f);
+			if (isLookingAt(watcher, npc)) {
+				dev.luminary.fabric.LuminaryRuntime.get().ifPresent(rt -> rt.npc().behaviour().onGazing(npc, watcher));
+			}
 		}
 	}
 }

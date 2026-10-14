@@ -91,6 +91,11 @@ public final class ModelDialogueProvider implements DialogueProvider {
 		for (String p : request.persona()) {
 			system.append("- ").append(p).append('\n');
 		}
+		for (String c : request.characterLines()) {
+			system.append("- ").append(c).append('\n');
+		}
+		request.standing().ifPresent(st -> system.append("\nYOUR ATTITUDE TOWARDS THIS PLAYER: ").append(st)
+				.append(" (FRIEND: warm and open; NEUTRAL: polite; WARY: short, careful, no favours; HOSTILE: cold, keep distance, refuse work).\n"));
 		PublicContext ctx = gate.publicContext();
 		system.append("\nPUBLIC CONTEXT:\n");
 		ctx.era().ifPresent(e -> system.append("- current era: ").append(e).append('\n'));
@@ -116,6 +121,10 @@ public final class ModelDialogueProvider implements DialogueProvider {
 		system.append("\nRespond with one JSON object: {\"line\": string, \"clue\": string id or null, \"note\": one short new fact you learned about the player, or null}.");
 		List<LlmMessage> messages = new ArrayList<>();
 		messages.add(LlmMessage.system(system.toString()));
+		for (var turn : request.recentTurns()) {
+			messages.add(turn.role() == dev.luminary.core.npc.conversation.ConversationContext.Role.PLAYER
+					? LlmMessage.user(request.playerName() + ": " + turn.text()) : LlmMessage.assistant(turn.text()));
+		}
 		String playerLine = request.playerUtterance().orElse("(the player approaches you without saying anything)");
 		messages.add(LlmMessage.user(request.playerName() + ": " + playerLine));
 		return messages;

@@ -23,12 +23,14 @@ public final class Luminary implements ModInitializer {
 	@Override
 	public void onInitialize() {
 		NpcEntities.register();
+		dev.luminary.fabric.npc.LuminaryItems.register();
 		ResourceManagerHelper.get(ResourceType.SERVER_DATA).registerReloadListener(new DefinitionsReloadListener());
 		LuminaryCommands.register();
 		ServerLifecycleEvents.SERVER_STARTED.register(LuminaryRuntime::start);
 		ServerLifecycleEvents.SERVER_STOPPING.register(LuminaryRuntime::stop);
 		ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> LuminaryRuntime.get().ifPresent(rt -> rt.npc().onEntityLoad(entity, world)));
 		ServerEntityEvents.ENTITY_UNLOAD.register((entity, world) -> LuminaryRuntime.get().ifPresent(rt -> rt.npc().onEntityUnload(entity, world)));
+		net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.END_SERVER_TICK.register(server -> LuminaryRuntime.get().ifPresent(rt -> rt.npc().behaviour().tickServer()));
 		ServerMessageEvents.CHAT_MESSAGE.register((message, sender, params) ->
 				LuminaryRuntime.get().ifPresent(rt -> rt.npc().onPlayerChat(sender, message.getSignedContent())));
 		LOGGER.info("Luminary {} initialized (core schema v{})", versionString(),

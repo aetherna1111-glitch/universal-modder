@@ -5,7 +5,13 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import dev.luminary.core.npc.NpcRoster;
 import dev.luminary.core.npc.autonomy.AutonomyRules;
+import dev.luminary.core.npc.combat.CombatRules;
+import dev.luminary.core.npc.presence.GazeTracker;
+import dev.luminary.core.npc.presence.MutterChannel;
+import dev.luminary.core.npc.relationship.RelationshipRules;
+import dev.luminary.core.npc.weapon.WeaponCustody;
 import dev.luminary.core.npc.llm.LlmConfig;
 import dev.luminary.fabric.Luminary;
 
@@ -41,8 +47,38 @@ import java.util.Set;
  */
 public record LuminaryConfig(String dialogueProvider, String intentPlanner, LlmConfig llm, boolean llmLogContent, Duration dialogueTimeout,
 							 boolean autonomyEnabled, AutonomyRules autonomy, int containerGrantPermission, boolean thinkingLine,
-							 boolean requireName, double chatRange) {
-	public static final LuminaryConfig DEFAULTS = new LuminaryConfig("scripted", "keyword", LlmConfig.DISABLED, false, Duration.ofSeconds(8), false, AutonomyRules.DEFAULTS, 0, true, true, 0);
+							 boolean requireName, double chatRange, Behaviour behaviour) {
+	/**
+	 * Presence, self-defence, relationships, the unique weapon and the daily routine (slice 15). {@code language} picks
+	 * the authored line set of the deterministic channels ({@code en} or {@code ru}).
+	 * <pre>
+	 * presence: { "language": "en", "gazeCooldownSeconds": 45, "gazeGlobalCooldownSeconds": 10, "gazeMinimumMillis": 600,
+	 *             "whisperEnabled": true, "whisperRange": 5.0, "whisperCooldownSeconds": 90, "whisperJitterSeconds": 45 }
+	 * combat:   { "attacksBeforeCombat": 3, "attackWindowSeconds": 60, "deescalateDistance": 8.0, "deescalateAfterSeconds": 20,
+	 *             "recoverySeconds": 30, "weaponDamageFraction": 0.5, "strikeReach": 3.5, "holdGroundRadius": 6.0,
+	 *             "knockoutMinutes": 5, "helpShortensBySeconds": 60, "duelConsentSeconds": 90, "shieldFirst": true }
+	 * relationship: { "threatHalfLifeMinutes": 10, "karmaRecoveryPerDay": 2.0, "hostileThreat": 60, "waryThreat": 25, "friendKarma": 20, "friendTrust": 30 }
+	 * weapon:   { "theftDurationMinutes": 60 }
+	 * routine:  { "enabled": true }
+	 * </pre>
+	 */
+	public record Behaviour(String language, GazeTracker.Rules gaze, MutterChannel.Rules mutter, CombatRules combat, RelationshipRules relationship,
+							Duration theftDuration, boolean routineEnabled) {
+		public static final Behaviour DEFAULTS = new Behaviour("en", GazeTracker.Rules.DEFAULTS, MutterChannel.Rules.DEFAULTS, CombatRules.DEFAULTS,
+				RelationshipRules.DEFAULTS, WeaponCustody.DEFAULT_THEFT_DURATION, true);
+
+		public NpcRoster.Rules rosterRules() {
+			return new NpcRoster.Rules(gaze, mutter, combat, relationship);
+		}
+	}
+
+	public static final LuminaryConfig DEFAULTS = new LuminaryConfig("scripted", "keyword", LlmConfig.DISABLED, false, Duration.ofSeconds(8), false, AutonomyRules.DEFAULTS, 0, true, true, 0, Behaviour.DEFAULTS);
+
+	public LuminaryConfig(String dialogueProvider, String intentPlanner, LlmConfig llm, boolean llmLogContent, Duration dialogueTimeout,
+						  boolean autonomyEnabled, AutonomyRules autonomy, int containerGrantPermission, boolean thinkingLine,
+						  boolean requireName, double chatRange) {
+		this(dialogueProvider, intentPlanner, llm, llmLogContent, dialogueTimeout, autonomyEnabled, autonomy, containerGrantPermission, thinkingLine, requireName, chatRange, Behaviour.DEFAULTS);
+	}
 
 	public LuminaryConfig(String dialogueProvider, String intentPlanner, LlmConfig llm, boolean llmLogContent, Duration dialogueTimeout,
 						  boolean autonomyEnabled, AutonomyRules autonomy, int containerGrantPermission, boolean thinkingLine) {
@@ -117,11 +153,69 @@ public record LuminaryConfig(String dialogueProvider, String intentPlanner, LlmC
 				requireName = !c.has("requireName") || c.get("requireName").getAsBoolean();
 				chatRange = c.has("chatRange") ? c.get("chatRange").getAsDouble() : 0;
 			}
-			return new LuminaryConfig(provider, planner, llm.withApiKey(key), logContent, dialogueTimeout, autonomyEnabled, autonomy, grant, thinking, requireName, chatRange);
+			return new LuminaryConfig(provider, planner, llm.withApiKey(key), logContent, dialogueTimeout, autonomyEnabled, autonomy, grant, thinking, requireName, chatRange, behaviour(o));
 		} catch (IOException | RuntimeException e) {
 			Luminary.LOGGER.error("[luminary] cannot read {}; using defaults ({})", file, e.getMessage());
 			return new LuminaryConfig(DEFAULTS.dialogueProvider(), DEFAULTS.intentPlanner(), DEFAULTS.llm().withApiKey(key), false, DEFAULTS.dialogueTimeout(), false, AutonomyRules.DEFAULTS, 0, true);
 		}
+	}
+
+	static Behaviour behaviour(JsonObject o) {
+		Behaviour d = Behaviour.DEFAULTS;
+		String language = d.language();
+		GazeTracker.Rules gaze = d.gaze();
+		MutterChannel.Rules mutter = d.mutter();
+		if (o.has("presence") && o.get("presence").isJsonObject()) {
+			JsonObject p = o.getAsJsonObject("presence");
+			language = p.has("language") ? p.get("language").getAsString() : language;
+			gaze = new GazeTracker.Rules(seconds(p, "gazeCooldownSeconds", d.gaze().perPlayer()), seconds(p, "gazeGlobalCooldownSeconds", d.gaze().global()),
+					p.has("gazeMinimumMillis") ? Duration.ofMillis(p.get("gazeMinimumMillis").getAsLong()) : d.gaze().minimumGaze());
+			mutter = new MutterChannel.Rules(p.has("whisperRange") ? p.get("whisperRange").getAsDouble() : d.mutter().range(),
+					seconds(p, "whisperCooldownSeconds", d.mutter().cooldown()), seconds(p, "whisperJitterSeconds", d.mutter().jitter()),
+					!p.has("whisperEnabled") || p.get("whisperEnabled").getAsBoolean());
+		}
+		CombatRules combat = d.combat();
+		if (o.has("combat") && o.get("combat").isJsonObject()) {
+			JsonObject c = o.getAsJsonObject("combat");
+			CombatRules x = d.combat();
+			combat = new CombatRules(c.has("attacksBeforeCombat") ? c.get("attacksBeforeCombat").getAsInt() : x.attacksBeforeCombat(),
+					seconds(c, "attackWindowSeconds", x.attackWindow()),
+					c.has("deescalateDistance") ? c.get("deescalateDistance").getAsDouble() : x.deescalateDistance(),
+					seconds(c, "deescalateAfterSeconds", x.deescalateAfter()), seconds(c, "recoverySeconds", x.recovery()),
+					c.has("weaponDamageFraction") ? c.get("weaponDamageFraction").getAsDouble() : x.weaponDamageFraction(),
+					c.has("strikeReach") ? c.get("strikeReach").getAsDouble() : x.strikeReach(),
+					c.has("holdGroundRadius") ? c.get("holdGroundRadius").getAsDouble() : x.holdGroundRadius(),
+					c.has("knockoutMinutes") ? Duration.ofMinutes(c.get("knockoutMinutes").getAsLong()) : x.knockout(),
+					seconds(c, "helpShortensBySeconds", x.helpShortensBy()), seconds(c, "duelConsentSeconds", x.duelConsentWindow()),
+					!c.has("shieldFirst") || c.get("shieldFirst").getAsBoolean());
+		}
+		RelationshipRules relationship = d.relationship();
+		if (o.has("relationship") && o.get("relationship").isJsonObject()) {
+			JsonObject r = o.getAsJsonObject("relationship");
+			RelationshipRules x = d.relationship();
+			relationship = new RelationshipRules(x.deltas(),
+					r.has("threatHalfLifeMinutes") ? Duration.ofMinutes(r.get("threatHalfLifeMinutes").getAsLong()) : x.threatHalfLife(),
+					r.has("karmaRecoveryPerDay") ? r.get("karmaRecoveryPerDay").getAsDouble() : x.karmaRecoveryPerDay(),
+					r.has("hostileThreat") ? r.get("hostileThreat").getAsInt() : x.hostileThreat(),
+					r.has("waryThreat") ? r.get("waryThreat").getAsInt() : x.waryThreat(),
+					r.has("friendKarma") ? r.get("friendKarma").getAsInt() : x.friendKarma(),
+					r.has("friendTrust") ? r.get("friendTrust").getAsInt() : x.friendTrust());
+		}
+		Duration theft = d.theftDuration();
+		if (o.has("weapon") && o.get("weapon").isJsonObject()) {
+			JsonObject w = o.getAsJsonObject("weapon");
+			theft = w.has("theftDurationMinutes") ? Duration.ofMinutes(w.get("theftDurationMinutes").getAsLong()) : theft;
+		}
+		boolean routine = d.routineEnabled();
+		if (o.has("routine") && o.get("routine").isJsonObject()) {
+			JsonObject r = o.getAsJsonObject("routine");
+			routine = !r.has("enabled") || r.get("enabled").getAsBoolean();
+		}
+		return new Behaviour(language, gaze, mutter, combat, relationship, theft, routine);
+	}
+
+	private static Duration seconds(JsonObject o, String key, Duration fallback) {
+		return o.has(key) ? Duration.ofSeconds(o.get(key).getAsLong()) : fallback;
 	}
 
 	private static void write(Path file, LuminaryConfig config) {
@@ -155,6 +249,45 @@ public record LuminaryConfig(String dialogueProvider, String intentPlanner, LlmC
 			conversation.addProperty("requireName", config.requireName());
 			conversation.addProperty("chatRange", config.chatRange());
 			o.add("conversation", conversation);
+			Behaviour b = config.behaviour();
+			JsonObject presence = new JsonObject();
+			presence.addProperty("language", b.language());
+			presence.addProperty("gazeCooldownSeconds", b.gaze().perPlayer().toSeconds());
+			presence.addProperty("gazeGlobalCooldownSeconds", b.gaze().global().toSeconds());
+			presence.addProperty("gazeMinimumMillis", b.gaze().minimumGaze().toMillis());
+			presence.addProperty("whisperEnabled", b.mutter().enabled());
+			presence.addProperty("whisperRange", b.mutter().range());
+			presence.addProperty("whisperCooldownSeconds", b.mutter().cooldown().toSeconds());
+			presence.addProperty("whisperJitterSeconds", b.mutter().jitter().toSeconds());
+			o.add("presence", presence);
+			JsonObject combat = new JsonObject();
+			combat.addProperty("attacksBeforeCombat", b.combat().attacksBeforeCombat());
+			combat.addProperty("attackWindowSeconds", b.combat().attackWindow().toSeconds());
+			combat.addProperty("deescalateDistance", b.combat().deescalateDistance());
+			combat.addProperty("deescalateAfterSeconds", b.combat().deescalateAfter().toSeconds());
+			combat.addProperty("recoverySeconds", b.combat().recovery().toSeconds());
+			combat.addProperty("weaponDamageFraction", b.combat().weaponDamageFraction());
+			combat.addProperty("strikeReach", b.combat().strikeReach());
+			combat.addProperty("holdGroundRadius", b.combat().holdGroundRadius());
+			combat.addProperty("knockoutMinutes", b.combat().knockout().toMinutes());
+			combat.addProperty("helpShortensBySeconds", b.combat().helpShortensBy().toSeconds());
+			combat.addProperty("duelConsentSeconds", b.combat().duelConsentWindow().toSeconds());
+			combat.addProperty("shieldFirst", b.combat().shieldFirst());
+			o.add("combat", combat);
+			JsonObject relationship = new JsonObject();
+			relationship.addProperty("threatHalfLifeMinutes", b.relationship().threatHalfLife().toMinutes());
+			relationship.addProperty("karmaRecoveryPerDay", b.relationship().karmaRecoveryPerDay());
+			relationship.addProperty("hostileThreat", b.relationship().hostileThreat());
+			relationship.addProperty("waryThreat", b.relationship().waryThreat());
+			relationship.addProperty("friendKarma", b.relationship().friendKarma());
+			relationship.addProperty("friendTrust", b.relationship().friendTrust());
+			o.add("relationship", relationship);
+			JsonObject weapon = new JsonObject();
+			weapon.addProperty("theftDurationMinutes", b.theftDuration().toMinutes());
+			o.add("weapon", weapon);
+			JsonObject routine = new JsonObject();
+			routine.addProperty("enabled", b.routineEnabled());
+			o.add("routine", routine);
 			Files.writeString(tmp, GSON.toJson(o) + "\n", StandardCharsets.UTF_8);
 			Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
 		} catch (IOException e) {

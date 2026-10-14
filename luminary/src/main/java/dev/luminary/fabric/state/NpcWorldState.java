@@ -13,6 +13,8 @@ public class NpcWorldState extends PersistentState {
 	public static final String ID = Luminary.MOD_ID + "_npc";
 	static final String KEY_SCHEMA = "schemaVersion";
 	static final String KEY_JSON = "json";
+	/** UTF-8 bytes of the JSON: NBT strings are capped at 65535 bytes, a growing memory is not. Legacy {@code json} is still read. */
+	static final String KEY_JSON_BYTES = "jsonBytes";
 	private static final NpcStateCodec CODEC = NpcStateCodec.production();
 
 	private final NpcRoster roster;
@@ -30,11 +32,11 @@ public class NpcWorldState extends PersistentState {
 	}
 
 	public static NpcWorldState fromNbt(NbtCompound nbt) {
-		if (!nbt.contains(KEY_JSON)) {
+		if (!nbt.contains(KEY_JSON) && !nbt.contains(KEY_JSON_BYTES)) {
 			return new NpcWorldState();
 		}
 		try {
-			return new NpcWorldState(CODEC.decode(nbt.getString(KEY_JSON)));
+			return new NpcWorldState(CODEC.decode(readJson(nbt)));
 		} catch (SchemaMigrations.UnsupportedSchemaException e) {
 			Luminary.LOGGER.error("[luminary] REFUSING to load NPC state: {}. NPC memory is read-only-empty until resolved.", e.getMessage());
 			return new ReadOnly();
@@ -44,10 +46,15 @@ public class NpcWorldState extends PersistentState {
 		}
 	}
 
+	static String readJson(NbtCompound nbt) {
+		return nbt.contains(KEY_JSON_BYTES) ? new String(nbt.getByteArray(KEY_JSON_BYTES), java.nio.charset.StandardCharsets.UTF_8) : nbt.getString(KEY_JSON);
+	}
+
 	@Override
 	public NbtCompound writeNbt(NbtCompound nbt) {
 		nbt.putInt(KEY_SCHEMA, NpcStateCodec.CURRENT_SCHEMA_VERSION);
-		nbt.putString(KEY_JSON, CODEC.encode(roster));
+		nbt.putByteArray(KEY_JSON_BYTES, CODEC.encode(roster).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+		nbt.remove(KEY_JSON);
 		return nbt;
 	}
 

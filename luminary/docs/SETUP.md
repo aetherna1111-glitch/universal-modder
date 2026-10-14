@@ -78,3 +78,12 @@ Autonomy (off by default twice):
 
 With the port installed (branch with the observer API), research completions, scans and aspect discoveries reach
 Luminary automatically; see `docs/integration/README.md`. Check with `/luminary progression status` (signals are listed there) after a scan.
+
+## 7. Presence, self-defence, the blade, the routine
+
+Slice 15 adds the sections `presence`, `combat`, `relationship`, `weapon` and `routine` to `config/luminary.json`
+(defaults are written on first start). For the Russian line set put `"presence": { "language": "ru" }`. Give Lumin
+his places once (`/luminary npc place luminary:npc/lumin study <x y z>`, then `desk`, `site`, `home`) and he lives
+his day between them. Everything else is on by default and needs no model. The full table of keys is in
+`docs/BEHAVIOUR.md`.
+

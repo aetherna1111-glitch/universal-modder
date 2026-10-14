@@ -312,6 +312,7 @@ public final class IntentGameTests implements FabricGameTest {
 		expect(npc.spawn(id, ctx.getWorld(), spawn).ok(), "spawn failed");
 		LuminaryNpcEntity body = npc.body(id).orElseThrow();
 		PlayerEntity player = ctx.createMockSurvivalPlayer();
+		expect(ctx.getWorld().spawnEntity(player), "the mock player must be in the world so the NPC can see it (1.20.1 only constructs it)");
 		// stand two blocks west of the chest, look at it
 		Vec3d stand = Vec3d.ofBottomCenter(chest.west(2));
 		face(player, stand, -90.0f, 20.0f);   // yaw -90 faces +x (east)

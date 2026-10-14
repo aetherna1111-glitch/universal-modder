@@ -19,6 +19,8 @@ public class LuminaryWorldState extends PersistentState {
 	public static final String ID = Luminary.MOD_ID;
 	static final String KEY_SCHEMA = "schemaVersion";
 	static final String KEY_JSON = "json";
+	/** UTF-8 bytes of the JSON: NBT strings are capped at 65535 bytes, a growing memory is not. Legacy {@code json} is still read. */
+	static final String KEY_JSON_BYTES = "jsonBytes";
 
 	private static final CivilizationStateCodec CODEC = CivilizationStateCodec.production();
 
@@ -37,12 +39,12 @@ public class LuminaryWorldState extends PersistentState {
 	}
 
 	public static LuminaryWorldState fromNbt(NbtCompound nbt) {
-		if (!nbt.contains(KEY_JSON)) {
+		if (!nbt.contains(KEY_JSON) && !nbt.contains(KEY_JSON_BYTES)) {
 			Luminary.LOGGER.warn("[luminary] persistent state without payload; starting empty");
 			return new LuminaryWorldState();
 		}
 		try {
-			return new LuminaryWorldState(CODEC.decode(nbt.getString(KEY_JSON)));
+			return new LuminaryWorldState(CODEC.decode(readJson(nbt)));
 		} catch (SchemaMigrations.UnsupportedSchemaException e) {
 			// Fail closed: never overwrite data from a newer Luminary. The server keeps running with an empty,
 			// non-persisting view so admins can downgrade/upgrade deliberately.
@@ -54,10 +56,15 @@ public class LuminaryWorldState extends PersistentState {
 		}
 	}
 
+	static String readJson(NbtCompound nbt) {
+		return nbt.contains(KEY_JSON_BYTES) ? new String(nbt.getByteArray(KEY_JSON_BYTES), java.nio.charset.StandardCharsets.UTF_8) : nbt.getString(KEY_JSON);
+	}
+
 	@Override
 	public NbtCompound writeNbt(NbtCompound nbt) {
 		nbt.putInt(KEY_SCHEMA, CivilizationState.CURRENT_SCHEMA_VERSION);
-		nbt.putString(KEY_JSON, CODEC.encode(state));
+		nbt.putByteArray(KEY_JSON_BYTES, CODEC.encode(state).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+		nbt.remove(KEY_JSON);
 		return nbt;
 	}
 

@@ -58,7 +58,10 @@ public final class NpcService {
 	private final MinecraftServer server;
 	private final NpcWorldState state;
 	private final NpcDialogueService dialogue;
-	private final Clock clock;
+	/** Wall clock, adjustable by an offset for tests of real-time deadlines (knockout, weapon return). */
+	private final Clock baseClock;
+	private Clock clock;
+	private final BehaviourService behaviour;
 	private final TaskExecutor executor;
 	private final CandidateScanner scanner;
 	private IntentPlanner planner = IntentPlanner.none();
@@ -74,9 +77,25 @@ public final class NpcService {
 		this.server = server;
 		this.state = state;
 		this.dialogue = dialogue;
+		this.baseClock = clock;
 		this.clock = clock;
 		this.executor = new TaskExecutor(TaskRules.DEFAULTS, state::markDirty);
 		this.scanner = new CandidateScanner(TaskRules.DEFAULTS);
+		this.behaviour = new BehaviourService(this, server, state, dialogue, () -> this.clock.instant());
+	}
+
+	/** Presence, combat, relationships, weapon, routine and plans. */
+	public BehaviourService behaviour() {
+		return behaviour;
+	}
+
+	/** Tests only: shifts the service clock (real-time deadlines) by {@code offset}; {@code Duration.ZERO} restores it. */
+	public void setClockOffset(java.time.Duration offset) {
+		this.clock = offset.isZero() ? baseClock : Clock.offset(baseClock, offset);
+	}
+
+	public Instant now() {
+		return clock.instant();
 	}
 
 	public TaskExecutor executor() {
@@ -233,7 +252,7 @@ public final class NpcService {
 		return action.type();
 	}
 
-	private String nameOf(LuminaryId npc, UUID player) {
+	String nameOf(LuminaryId npc, UUID player) {
 		var online = server.getPlayerManager().getPlayer(player);
 		if (online != null) {
 			return online.getGameProfile().getName();
@@ -296,6 +315,9 @@ public final class NpcService {
 			return;   // a duplicate body awaiting discard must never execute the task
 		}
 		state.roster().get(id).ifPresent(record -> {
+			if (record.knockout().isPresent() || record.combat().state() == dev.luminary.core.npc.combat.CombatState.COMBAT) {
+				return;   // down or fighting: the task waits (its executor re-validates when it resumes)
+			}
 			if (record.hasActiveTask()) {
 				NpcTask task = record.task().orElseThrow();
 				executor.tick(body, record);
@@ -464,6 +486,7 @@ public final class NpcService {
 		player.sendMessage(Text.empty().append(Text.literal("<").append(name).append("> ").formatted(Formatting.GOLD)).append(Text.translatable(key, item)), false);
 		npc.npcId().ifPresent(id -> {
 			if (result == GearManager.Offer.TOOK_TOOL || result == GearManager.Offer.WEARING) {
+				behaviour.event(id, player.getUuid(), dev.luminary.core.npc.relationship.RelationshipEvent.GIFT);
 				Instant now = clock.instant();
 				dialogue.memory(id).add(MemoryEntry.of(MemoryKind.RELATIONSHIP, player.getUuid(), "gift/" + item.toLowerCase(java.util.Locale.ROOT),
 						player.getGameProfile().getName() + " gave me " + item, now, Provenance.OBSERVED_IN_WORLD), now);
@@ -541,6 +564,14 @@ public final class NpcService {
 			return talk(npc, player, Optional.of(text)).thenApply(turn -> new ChatOutcome(Optional.empty(), Optional.empty(), turn));
 		}
 		NpcRoster.NpcRecord record = state.roster().ensureRecord(id);
+		Optional<String> handled = behaviour.onAddressed(npc, player, text);
+		if (handled.isPresent()) {
+			Intent intent = new Intent(Optional.empty(), Optional.empty(), handled, "behaviour");
+			return CompletableFuture.completedFuture(carryOut(npc, id, player, text, intent));
+		}
+		if (record.knockout().isPresent()) {
+			return CompletableFuture.completedFuture(ChatOutcome.NONE);   // unconscious: hears nothing
+		}
 		IntentCandidates candidates = scanner.scan(world, npc, record, player);
 		MemoryStore memory = dialogue.memory(id);
 		List<MemoryEntry> relevant = MemoryRetriever.select(memory, new MemoryRetriever.Query(player.getUuid(), MemoryRetriever.keywords(text), 8, 800), clock.instant());
@@ -584,8 +615,16 @@ public final class NpcService {
 		state.roster().remember(id, player.getUuid(), name, now, intent.replyKey().orElse(DialogueResponseKeys.INTENT));
 		Optional<Result> assignment = Optional.empty();
 		if (intent.action().isPresent()) {
-			assignment = Optional.of(assign(id, intent.action().get(), player.getUuid()));
+			if (behaviour.standing(id, player.getUuid()) == dev.luminary.core.npc.relationship.Relationship.Standing.HOSTILE) {
+				assignment = Optional.of(Result.fail("luminary.intent.hostile"));
+			} else {
+				assignment = Optional.of(assign(id, intent.action().get(), player.getUuid()));
+				if (assignment.get().ok()) {
+					behaviour.event(id, player.getUuid(), dev.luminary.core.npc.relationship.RelationshipEvent.REQUESTED_WORK);
+				}
+			}
 		}
+		state.roster().ensureRecord(id).conversation(player.getUuid()).add(dev.luminary.core.npc.conversation.ConversationContext.Role.PLAYER, text, now);
 		if (intent.grant().isPresent()) {
 			Intent.Grant g = intent.grant().get();
 			if (!player.hasPermissionLevel(containerGrantPermission)) {
@@ -612,6 +651,7 @@ public final class NpcService {
 			line = Text.translatable(intent.replyKey().orElse(Intent.REPLY_WILL_DO));
 		}
 		player.sendMessage(Text.empty().append(Text.literal("<").append(npcName).append("> ").formatted(Formatting.GOLD)).append(line), false);
+		state.roster().ensureRecord(id).conversation(player.getUuid()).add(dev.luminary.core.npc.conversation.ConversationContext.Role.NPC, line.getString(), now);
 		state.markDirty();
 		return new ChatOutcome(Optional.of(intent), assignment, Optional.empty());
 	}

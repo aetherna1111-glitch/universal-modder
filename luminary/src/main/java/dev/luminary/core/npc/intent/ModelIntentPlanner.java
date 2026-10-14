@@ -2,6 +2,7 @@ package dev.luminary.core.npc.intent;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import dev.luminary.core.npc.capability.CapabilityRegistry;
 import dev.luminary.core.npc.llm.LanguageHint;
 import dev.luminary.core.npc.llm.LlmException;
 import dev.luminary.core.npc.llm.LlmMessage;
@@ -37,6 +38,8 @@ public final class ModelIntentPlanner implements IntentPlanner {
 	private final TaskRules rules;
 	private final Duration timeout;
 	private final Consumer<String> diagnostics;
+	/** The allowlist between model output and the world; every intent name the model emits passes through it. */
+	private final CapabilityRegistry capabilities = new CapabilityRegistry();
 
 	public ModelIntentPlanner(LlmProvider llm, IntentPlanner fallback, TaskRules rules, Duration timeout, Consumer<String> diagnostics) {
 		this.llm = Objects.requireNonNull(llm);
@@ -180,6 +183,11 @@ public final class ModelIntentPlanner implements IntentPlanner {
 		}
 		Optional<String> literal = reply.isEmpty() ? Optional.empty() : Optional.of(reply);
 		String intent = o.get("intent").getAsString().strip();
+		if (capabilities.forModelIntent(intent).isEmpty()) {
+			// outside the allowlist: the words may be spoken, nothing is done; without words the character prompt answers
+			diagnostics.accept("intent: model asked for '" + intent + "', which is outside the model allowlist; it only gets to talk");
+			return literal.map(l -> new Intent(Optional.empty(), Optional.empty(), Optional.of(l), ID));
+		}
 		IntentCandidates c = request.candidates();
 		Optional<NpcAction> action = Optional.empty();
 		switch (intent) {
@@ -238,6 +246,10 @@ public final class ModelIntentPlanner implements IntentPlanner {
 			return fallbackNow(request);
 		}
 		return Optional.of(new Intent(action, Optional.empty(), literal, ID));
+	}
+
+	public CapabilityRegistry capabilities() {
+		return capabilities;
 	}
 
 	private Optional<Intent> fallbackNow(IntentRequest request) {

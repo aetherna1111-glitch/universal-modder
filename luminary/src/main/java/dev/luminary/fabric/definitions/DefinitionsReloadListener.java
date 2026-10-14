@@ -21,8 +21,10 @@ import dev.luminary.core.story.StoryPhase;
 import dev.luminary.core.npc.DialogueLine;
 import dev.luminary.core.npc.DialogueScript;
 import dev.luminary.core.npc.NpcDefinition;
+import dev.luminary.core.npc.character.CharacterSheet;
 import dev.luminary.core.npc.NpcDefinitions;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
 import dev.luminary.fabric.Luminary;
@@ -191,7 +193,39 @@ public final class DefinitionsReloadListener implements SimpleSynchronousResourc
 				aliases.add(el.getAsString());
 			}
 		}
-		return new NpcDefinition(id, nameKey, LuminaryId.parse(require(json, "dialogue", file).getAsString()), persona, aliases);
+		CharacterSheet character = CharacterSheet.EMPTY;
+		if (json.has("character") && json.get("character").isJsonObject()) {
+			character = parseCharacter(json.getAsJsonObject("character"));
+		}
+		return new NpcDefinition(id, nameKey, LuminaryId.parse(require(json, "dialogue", file).getAsString()), persona, aliases, character);
+	}
+
+	/**
+	 * {@code {"version":1,"origin":"...","principles":[...],"speechStyle":[...],"boundaries":[...],"loreFacts":[...],
+	 * "lines":{"gaze":{"en":["..."],"ru":["..."]}, "mutter.reading":{...}}}}
+	 */
+	static CharacterSheet parseCharacter(JsonObject c) {
+		Map<String, Map<String, List<String>>> lines = new LinkedHashMap<>();
+		if (c.has("lines") && c.get("lines").isJsonObject()) {
+			for (Map.Entry<String, JsonElement> group : c.getAsJsonObject("lines").entrySet()) {
+				Map<String, List<String>> byLang = new LinkedHashMap<>();
+				for (Map.Entry<String, JsonElement> lang : group.getValue().getAsJsonObject().entrySet()) {
+					byLang.put(lang.getKey(), strings(lang.getValue()));
+				}
+				lines.put(group.getKey(), byLang);
+			}
+		}
+		return new CharacterSheet(c.has("version") ? c.get("version").getAsInt() : 1, c.has("origin") ? c.get("origin").getAsString() : "",
+				c.has("principles") ? strings(c.get("principles")) : List.of(), c.has("speechStyle") ? strings(c.get("speechStyle")) : List.of(),
+				c.has("boundaries") ? strings(c.get("boundaries")) : List.of(), c.has("loreFacts") ? strings(c.get("loreFacts")) : List.of(), lines);
+	}
+
+	private static List<String> strings(JsonElement array) {
+		List<String> out = new ArrayList<>();
+		for (JsonElement el : array.getAsJsonArray()) {
+			out.add(el.getAsString());
+		}
+		return out;
 	}
 
 	/**

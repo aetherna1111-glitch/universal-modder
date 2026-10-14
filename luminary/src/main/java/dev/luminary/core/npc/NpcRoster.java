@@ -2,8 +2,20 @@ package dev.luminary.core.npc;
 
 import dev.luminary.core.ids.LuminaryId;
 import dev.luminary.core.npc.autonomy.AutonomyState;
+import dev.luminary.core.npc.capability.CapabilityRegistry;
+import dev.luminary.core.npc.combat.CombatMachine;
+import dev.luminary.core.npc.combat.CombatRules;
+import dev.luminary.core.npc.combat.Knockout;
+import dev.luminary.core.npc.conversation.ConversationContext;
 import dev.luminary.core.npc.memory.MemoryStore;
+import dev.luminary.core.npc.plan.NpcPlan;
+import dev.luminary.core.npc.presence.GazeTracker;
+import dev.luminary.core.npc.presence.MutterChannel;
+import dev.luminary.core.npc.relationship.RelationshipLedger;
+import dev.luminary.core.npc.relationship.RelationshipRules;
+import dev.luminary.core.npc.routine.RoutineState;
 import dev.luminary.core.npc.task.NpcTask;
+import dev.luminary.core.npc.weapon.WeaponCustody;
 
 import java.time.Instant;
 import java.util.Collections;
@@ -39,6 +51,105 @@ public final class NpcRoster {
 		private NpcTask task;
 		private final MemoryStore memory = new MemoryStore();
 		private final AutonomyState autonomy = new AutonomyState();
+		private final Map<UUID, ConversationContext> conversations = new TreeMap<>();
+		private final RelationshipLedger relationships = new RelationshipLedger();
+		private final RoutineState routine = new RoutineState();
+		private final CapabilityRegistry capabilities = new CapabilityRegistry();
+		private GazeTracker gaze;
+		private MutterChannel mutter;
+		private CombatMachine combat;
+		private Knockout knockout;
+		private WeaponCustody weapon;
+		private NpcPlan plan;
+
+		NpcRecord(Rules rules) {
+			this.gaze = new GazeTracker(rules.gaze());
+			this.mutter = new MutterChannel(rules.mutter());
+			this.combat = new CombatMachine(rules.combat());
+		}
+
+		/** Re-creates the rule-bound machines with new rules, keeping their persisted state. */
+		void applyRules(Rules rules) {
+			this.gaze = new GazeTracker(rules.gaze());
+			this.mutter = new MutterChannel(rules.mutter());
+			CombatMachine fresh = new CombatMachine(rules.combat());
+			fresh.restore(combat.state(), combat.opponent().orElse(null), combat.stateSince());
+			this.combat = fresh;
+		}
+
+		/** Gaze reaction cooldowns (runtime only). */
+		public GazeTracker gaze() {
+			return gaze;
+		}
+
+		/** Whisper channel (runtime only). */
+		public MutterChannel mutter() {
+			return mutter;
+		}
+
+		/** Self-defence state; state, opponent and timestamp persist. */
+		public CombatMachine combat() {
+			return combat;
+		}
+
+		/** Present while the body is down. */
+		public Optional<Knockout> knockout() {
+			return Optional.ofNullable(knockout);
+		}
+
+		public void setKnockout(Knockout k) {
+			this.knockout = k;
+		}
+
+		/** The unique weapon's custody; created on first use with a fresh instance id. */
+		public WeaponCustody weapon() {
+			if (weapon == null) {
+				weapon = new WeaponCustody(UUID.randomUUID());
+			}
+			return weapon;
+		}
+
+		public boolean hasWeaponRecord() {
+			return weapon != null;
+		}
+
+		/** The current (or last) plan. */
+		public Optional<NpcPlan> plan() {
+			return Optional.ofNullable(plan);
+		}
+
+		public boolean hasActivePlan() {
+			return plan != null && plan.isActive();
+		}
+
+		/** Installs a plan; refused while another plan is active. */
+		public boolean startPlan(NpcPlan p) {
+			if (hasActivePlan()) {
+				return false;
+			}
+			plan = p;
+			return true;
+		}
+
+		public ConversationContext conversation(UUID player) {
+			return conversations.computeIfAbsent(player, k -> new ConversationContext());
+		}
+
+		public Map<UUID, ConversationContext> conversations() {
+			return Collections.unmodifiableMap(conversations);
+		}
+
+		public RelationshipLedger relationships() {
+			return relationships;
+		}
+
+		public RoutineState routine() {
+			return routine;
+		}
+
+		public CapabilityRegistry capabilities() {
+			return capabilities;
+		}
 
 		/** Self-direction switch, standing orders and budget; see {@code core.npc.autonomy}. */
 		public AutonomyState autonomy() {
@@ -91,7 +202,23 @@ public final class NpcRoster {
 
 	public enum RegisterResult { REGISTERED, ALREADY_THIS_ENTITY, OCCUPIED }
 
+	/** Server-wide rules the per-record machines are built with; set from config before any record is used. */
+	public record Rules(GazeTracker.Rules gaze, MutterChannel.Rules mutter, CombatRules combat, RelationshipRules relationship) {
+		public static final Rules DEFAULTS = new Rules(GazeTracker.Rules.DEFAULTS, MutterChannel.Rules.DEFAULTS, CombatRules.DEFAULTS, RelationshipRules.DEFAULTS);
+	}
+
 	private final Map<LuminaryId, NpcRecord> records = new LinkedHashMap<>();
+	private Rules rules = Rules.DEFAULTS;
+
+	public Rules rules() {
+		return rules;
+	}
+
+	/** Applies new rules to every record, existing and future, keeping persisted state. */
+	public void setRules(Rules rules) {
+		this.rules = java.util.Objects.requireNonNull(rules);
+		records.values().forEach(r -> r.applyRules(rules));
+	}
 
 	public Optional<NpcRecord> get(LuminaryId npc) {
 		return Optional.ofNullable(records.get(npc));
@@ -102,7 +229,7 @@ public final class NpcRoster {
 	}
 
 	private NpcRecord ensure(LuminaryId npc) {
-		return records.computeIfAbsent(npc, k -> new NpcRecord());
+		return records.computeIfAbsent(npc, k -> new NpcRecord(rules));
 	}
 
 	/**
@@ -201,6 +328,14 @@ public final class NpcRoster {
 
 		public static void task(NpcRoster roster, LuminaryId npc, NpcTask task) {
 			roster.ensure(npc).task = task;
+		}
+
+		public static void weapon(NpcRoster roster, LuminaryId npc, WeaponCustody.State state) {
+			roster.ensure(npc).weapon = new WeaponCustody(state);
+		}
+
+		public static void plan(NpcRoster roster, LuminaryId npc, NpcPlan plan) {
+			roster.ensure(npc).plan = plan;
 		}
 	}
 }

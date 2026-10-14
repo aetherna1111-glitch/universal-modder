@@ -121,6 +121,9 @@ class ModelIntentPlannerTest {
 		assertTrue(diagnostics.stream().anyMatch(d -> d.contains("does not hold")));
 		Intent unknown = await(planner(new FakeLlm("{\"intent\":\"build_castle\",\"reply\":\"Building!\"}")).plan(req("x", false))).orElseThrow();
 		assertTrue(unknown.action().isEmpty());
+		assertEquals(Optional.of("Building!"), unknown.literalReply());
+		assertTrue(diagnostics.stream().anyMatch(d -> d.contains("allowlist")), "the capability gate refused it: " + diagnostics);
+		assertTrue(await(planner(new FakeLlm("{\"intent\":\"attack_player\",\"reply\":\"\"}")).plan(req("x", false))).isEmpty(), "no words, no action: the character prompt answers");
 		Intent busy = await(planner(new FakeLlm("{\"intent\":\"deposit\",\"container\":0,\"reply\":\"Unloading.\"}")).plan(req("unload", true))).orElseThrow();
 		assertTrue(busy.action().isEmpty());
 		assertEquals(Optional.of(Intent.REPLY_BUSY), busy.replyKey());

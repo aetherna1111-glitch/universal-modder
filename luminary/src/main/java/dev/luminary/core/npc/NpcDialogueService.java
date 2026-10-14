@@ -2,6 +2,7 @@ package dev.luminary.core.npc;
 
 import dev.luminary.core.catalog.Result;
 import dev.luminary.core.ids.LuminaryId;
+import dev.luminary.core.npc.conversation.ConversationContext;
 import dev.luminary.core.npc.memory.MemoryEntry;
 import dev.luminary.core.npc.memory.MemoryKind;
 import dev.luminary.core.npc.memory.MemoryRetriever;
@@ -140,8 +141,11 @@ public final class NpcDialogueService {
 		}
 		List<MemoryEntry> relevant = MemoryRetriever.select(store,
 				new MemoryRetriever.Query(player, MemoryRetriever.keywords(said.orElse("")), MEMORY_BUDGET_ENTRIES, MEMORY_BUDGET_CHARS), now);
+		NpcRoster.NpcRecord record = roster.ensureRecord(npcId);
+		List<ConversationContext.Turn> recent = record.conversation(player).turns(now);
+		String standing = record.relationships().standing(player, now, roster.rules().relationship()).name();
 		DialogueRequest request = new DialogueRequest(npcId, script.get(), player, playerName,
-				roster.get(npcId).flatMap(r -> r.player(player)), said, relevant, def.get().persona());
+				Optional.of(record).flatMap(r -> r.player(player)), said, relevant, def.get().persona(), def.get().character().promptLines(), recent, Optional.of(standing));
 		CompletableFuture<Optional<DialogueResponse>> answer;
 		try {
 			answer = provider.respondAsync(request, gate);
@@ -197,6 +201,9 @@ public final class NpcDialogueService {
 		}
 		revealed.ifPresent(clue -> store.add(MemoryEntry.of(MemoryKind.DISCOVERY_CLUE, player, "clue/" + clue, "Told " + playerName + " the clue " + clue, now, Provenance.OBSERVED_IN_WORLD), now));
 		summarizer.compact(store, player, playerName, now);
+		ConversationContext context = roster.ensureRecord(npcId).conversation(player);
+		said.ifPresent(t -> context.add(ConversationContext.Role.PLAYER, t, now));
+		context.add(ConversationContext.Role.NPC, literal.orElse(textKey), now);
 		onChange.run();
 		boolean fromProvider = response.isPresent() && textKey.equals(response.get().textKey());
 		return new Turn(textKey, literal, fromProvider, revealed, memory.interactions());

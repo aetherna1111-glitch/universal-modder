@@ -1,7 +1,14 @@
 package dev.luminary.fabric.npc;
 
 import dev.luminary.core.ids.LuminaryId;
+import dev.luminary.core.npc.presence.Activity;
 import dev.luminary.fabric.LuminaryRuntime;
+import net.minecraft.entity.EntityPose;
+import net.minecraft.entity.damage.DamageSource;
+import net.minecraft.entity.data.DataTracker;
+import net.minecraft.entity.data.TrackedData;
+import net.minecraft.entity.data.TrackedDataHandlerRegistry;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.ai.goal.LookAroundGoal;
 import net.minecraft.entity.ai.goal.LookAtEntityGoal;
@@ -31,9 +38,17 @@ public class LuminaryNpcEntity extends PathAwareEntity {
 	static final String NBT_FOLLOW = "LuminaryFollow";
 
 	static final String NBT_HELD = "LuminaryHeld";
+	static final String NBT_DOWN = "LuminaryDown";
+	/** Synced so the client renders the lying pose while the NPC is knocked out. */
+	private static final TrackedData<Boolean> DOWN = DataTracker.registerData(LuminaryNpcEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
 
 	private LuminaryId npcId;
 	private UUID followTarget;
+	/** Runtime only: what the body is visibly doing (whispers) and what the routine goal set. */
+	private Activity activity = Activity.IDLE;
+	private Activity routineActivity;
+	/** Where the current fight started; the NPC holds ground around it. */
+	private Vec3d combatAnchor;
 	/** Items the NPC physically carries (collected drops not yet deposited). Saved with the entity. */
 	private final SimpleInventory heldItems = new SimpleInventory(9);
 
@@ -44,14 +59,113 @@ public class LuminaryNpcEntity extends PathAwareEntity {
 	}
 
 	@Override
+	protected void initDataTracker() {
+		super.initDataTracker();
+		dataTracker.startTracking(DOWN, false);
+	}
+
+	@Override
 	protected void initGoals() {
 		goalSelector.add(0, new SwimGoal(this));
-		goalSelector.add(1, new TaskGoal(this));
-		goalSelector.add(2, new FollowPlayerGoal(this));
-		goalSelector.add(3, new AttendPlayerGoal(this));
-		goalSelector.add(5, new LookAtEntityGoal(this, PlayerEntity.class, 8.0f));
-		goalSelector.add(6, new WanderAroundGoal(this, 0.6, 240));   // a short stroll every ~12 s on average, not constant pacing
-		goalSelector.add(7, new LookAroundGoal(this));
+		goalSelector.add(1, new CombatGoal(this));
+		goalSelector.add(2, new TaskGoal(this));
+		goalSelector.add(3, new FollowPlayerGoal(this));
+		goalSelector.add(4, new AttendPlayerGoal(this));
+		goalSelector.add(5, new RoutineGoal(this));
+		goalSelector.add(6, new LookAtEntityGoal(this, PlayerEntity.class, 8.0f));
+		goalSelector.add(7, new WanderAroundGoal(this, 0.6, 240));   // a short stroll every ~12 s on average, not constant pacing
+		goalSelector.add(8, new LookAroundGoal(this));
+	}
+
+	// ------------------------------------------------------------------ presence, combat, knockout
+
+	public Activity activity() {
+		return activity;
+	}
+
+	void setActivity(Activity activity) {
+		this.activity = activity;
+	}
+
+	/** The activity the routine goal is performing, or null when the routine is not running. */
+	Activity routineActivity() {
+		return routineActivity;
+	}
+
+	void setRoutineActivity(Activity activity) {
+		this.routineActivity = activity;
+	}
+
+	/** Test/status view of {@link #routineActivity()}. */
+	public Activity routineActivityPublic() {
+		return routineActivity;
+	}
+
+	public Optional<Vec3d> combatAnchor() {
+		return Optional.ofNullable(combatAnchor);
+	}
+
+	void setCombatAnchor(Vec3d anchor) {
+		this.combatAnchor = anchor;
+	}
+
+	/** Knocked out: lying, AI off, invulnerable, still the same entity. */
+	public boolean isDown() {
+		return dataTracker.get(DOWN);
+	}
+
+	public void setDown(boolean down) {
+		if (isDown() == down && (down == (getPose() == EntityPose.SLEEPING))) {
+			return;
+		}
+		dataTracker.set(DOWN, down);
+		setAiDisabled(down);
+		if (down) {
+			getNavigation().stop();
+			clearActiveItem();
+			setSneaking(false);
+			setHealth(1.0f);
+			setPose(EntityPose.SLEEPING);
+		} else {
+			setPose(EntityPose.STANDING);
+		}
+	}
+
+	@Override
+	public boolean isInvulnerableTo(DamageSource source) {
+		return isDown() && !source.isOf(net.minecraft.entity.damage.DamageTypes.OUT_OF_WORLD) || super.isInvulnerableTo(source);
+	}
+
+	/** Damage never kills: at zero the body goes down for a fixed real time instead. Attacks feed the self-defence machine. */
+	@Override
+	public boolean damage(DamageSource source, float amount) {
+		if (getWorld().isClient) {
+			return super.damage(source, amount);
+		}
+		if (isDown()) {
+			return false;
+		}
+		Optional<LuminaryRuntime> rt = LuminaryRuntime.get();
+		if (amount >= getHealth() && npcId != null && rt.isPresent()) {
+			rt.get().npc().behaviour().knockOut(this, source);
+			return true;
+		}
+		boolean hurt = super.damage(source, amount);
+		if (hurt && npcId != null && rt.isPresent()) {
+			rt.get().npc().behaviour().onAttacked(this, source, amount);
+		}
+		return hurt;
+	}
+
+	@Override
+	public void tick() {
+		super.tick();
+		if (!getWorld().isClient && npcId != null) {
+			LuminaryRuntime.get().ifPresent(rt -> {
+				rt.npc().behaviour().tickKnockout(this);
+				rt.npc().behaviour().tickWeapon(this);
+			});
+		}
 	}
 
 	public Optional<LuminaryId> npcId() {
@@ -94,6 +208,9 @@ public class LuminaryNpcEntity extends PathAwareEntity {
 			LuminaryRuntime.get().ifPresent(rt -> {
 				rt.npc().tickTask(this);
 				rt.npc().tickAutonomy(this);
+				rt.npc().behaviour().tickCombat(this);
+				rt.npc().behaviour().tickPresence(this);
+				rt.npc().behaviour().tickPlan(this);
 			});
 		}
 	}
@@ -117,7 +234,15 @@ public class LuminaryNpcEntity extends PathAwareEntity {
 		}
 		if (!getWorld().isClient) {
 			ItemStack inHand = player.getStackInHand(hand);
-			if (GearManager.isTool(inHand) || GearManager.isArmor(inHand)) {
+			if (isDown()) {
+				LuminaryRuntime.get().ifPresent(rt -> rt.npc().behaviour().interactDown(this, player, inHand));
+			} else if (inHand.isOf(LuminaryItems.LUMIN_BLADE)) {
+				LuminaryRuntime.get().ifPresent(rt -> {
+					if (!rt.npc().behaviour().offerBladeBack(this, player, inHand)) {
+						rt.npc().talk(this, player);
+					}
+				});
+			} else if (GearManager.isTool(inHand) || GearManager.isArmor(inHand)) {
 				LuminaryRuntime.get().ifPresent(rt -> rt.npc().offer(this, player, inHand));
 			} else {
 				LuminaryRuntime.get().ifPresent(rt -> rt.npc().talk(this, player));
@@ -154,6 +279,7 @@ public class LuminaryNpcEntity extends PathAwareEntity {
 			nbt.putUuid(NBT_FOLLOW, followTarget);
 		}
 		nbt.put(NBT_HELD, heldItems.toNbtList());
+		nbt.putBoolean(NBT_DOWN, isDown());
 	}
 
 	@Override
@@ -170,6 +296,11 @@ public class LuminaryNpcEntity extends PathAwareEntity {
 		heldItems.clear();
 		if (nbt.contains(NBT_HELD, NbtElement.LIST_TYPE)) {
 			heldItems.readNbtList(nbt.getList(NBT_HELD, NbtElement.COMPOUND_TYPE));
+		}
+		if (nbt.getBoolean(NBT_DOWN)) {
+			dataTracker.set(DOWN, true);
+			setPose(EntityPose.SLEEPING);
+			setAiDisabled(true);
 		}
 	}
 }
