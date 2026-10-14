@@ -213,13 +213,11 @@
       "warning": {
         "en": [
           "Stop. I will not ask twice.",
-          "Lower your hand. I do not want to hurt you.",
-          "Last warning."
+          "Lower your hand. I do not want to hurt you."
         ],
         "ru": [
           "Стой. Второй раз просить не буду.",
-          "Опусти руку. Я не хочу тебе вредить.",
-          "Последнее предупреждение."
+          "Опусти руку. Я не хочу тебе вредить."
         ]
       },
       "fight": {
@@ -956,6 +954,18 @@
         ],
         "en": [
           "recovering"
+        ]
+      },
+      "warning_shot": {
+        "en": [
+          "That one went over your head. The next will not.",
+          "Light in the sky, so you see what I hold. Last warning.",
+          "I aimed high on purpose. Do not make me aim lower."
+        ],
+        "ru": [
+          "Этот ушёл над головой. Следующий не уйдёт.",
+          "Свет в небо, чтобы ты видел, что у меня в руке. Последнее предупреждение.",
+          "Я нарочно взял выше. Не заставляй брать ниже."
         ]
       }
     }

@@ -148,6 +148,7 @@ public final class BehaviourGameTests implements FabricGameTest {
 		ctx.getWorld().getServer().setDifficulty(net.minecraft.world.Difficulty.NORMAL, true);   // the test server is peaceful: mob attacks would scale to zero
 		LuminaryNpcEntity body = spawn(ctx, id, new BlockPos(8, FLOOR_Y + 1, 8));
 		NpcRoster.NpcRecord record = npc().roster().ensureRecord(id);
+		BehaviourService b = npc().behaviour();
 		PlayerEntity attacker = worldPlayer(ctx, ctx.getAbsolute(new Vec3d(8.5, FLOOR_Y + 1, 10.5)), 180f, 0f);
 		UUID a = attacker.getUuid();
 		hit(body, attacker, 1f);   // vanilla invulnerability frames: later hits in the same second must be heavier to land
@@ -158,8 +159,14 @@ public final class BehaviourGameTests implements FabricGameTest {
 		expect(afterOne.threat() > 0 && afterOne.karma() < 0, "an unprovoked hit costs karma and raises threat: " + afterOne);
 		hit(body, attacker, 2f);
 		expect(record.combat().state() == CombatState.DEFENSIVE_WARNING, "second hit: still warning");
+		long strikes0 = b.metrics().count(Metrics.STRIKES);
 		hit(body, attacker, 3f);
-		expect(record.combat().state() == CombatState.COMBAT, "third hit: combat, got " + record.combat().state());
+		expect(record.combat().state() == CombatState.DEFENSIVE_WARNING && b.metrics().count(Metrics.STRIKES) == strikes0 + 1, "third hit: a shot into the air, still no fight");
+		expect(attacker.getHealth() >= attacker.getMaxHealth() - 0.01, "the warning shot harms nobody");
+		hit(body, attacker, 4f);
+		expect(record.combat().state() == CombatState.DEFENSIVE_WARNING, "fourth hit: still warning");
+		hit(body, attacker, 5f);
+		expect(record.combat().state() == CombatState.COMBAT, "fifth hit: combat, got " + record.combat().state());
 		expect(body.getMainHandStack().isOf(LuminaryItems.LUMIN_BLADE), "the blade is drawn in combat");
 		expect(record.combat().opponent().orElse(null).equals(a), "the attacker is the opponent");
 		float before = attacker.getHealth();
@@ -197,10 +204,11 @@ public final class BehaviourGameTests implements FabricGameTest {
 		expect(record.combat().state() == CombatState.DEFENSIVE_WARNING && body.getOffHandStack().isOf(Items.SHIELD), "shield up after the first hit");
 		hit(body, attacker, 2f);    // vanilla invulnerability frames: each blow must be heavier than the last to land
 		expect(Math.abs(record.shieldPoints(20) - 18.0) < 0.01, "the blow on the raised shield took its points: " + record.shieldPoints(20));
-		hit(body, attacker, 30f);   // more than the shield has left
+		hit(body, attacker, 18f);   // more than the shield has left (17), less than his health allows before a knockout
 		expect(record.shieldBroken(npc().now()) && body.getOffHandStack().isEmpty(), "the shield shattered and is gone");
 		hit(body, attacker, 3f);
-		expect(record.combat().state() == CombatState.COMBAT && body.getOffHandStack().isEmpty(), "in combat without a shield while it is broken");
+		hit(body, attacker, 4f);
+		expect(record.combat().state() == CombatState.COMBAT && body.getOffHandStack().isEmpty(), "in combat (five blows) without a shield while it is broken: state=" + record.combat().state() + " hits=" + record.combat().recentHits() + " down=" + body.isDown() + " hp=" + body.getHealth() + "/" + body.getMaxHealth() + " off=" + body.getOffHandStack());
 		npc().setClockOffset(Duration.ofMinutes(6));
 		record.combat().restore(CombatState.CALM, null, npc().now());
 		hit(body, attacker, 1f);

@@ -10,7 +10,8 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 
 class CombatMachineTest {
-	private final CombatRules rules = CombatRules.DEFAULTS;   // 3 attacks, 60 s window, 8 blocks, 20 s, 30 s recovery
+	/** Three blows to combat, the rest as the defaults (the defaults themselves are five). */
+	private final CombatRules rules = new CombatRules(3, Duration.ofSeconds(60), 8, Duration.ofSeconds(20), Duration.ofSeconds(30), 0.5, 3.5, 10, Duration.ofMinutes(5), Duration.ofSeconds(60), Duration.ofSeconds(90), true);
 	private final Instant t0 = Instant.parse("2026-10-14T12:00:00Z");
 	private final UUID a = UUID.randomUUID();
 	private final UUID b = UUID.randomUUID();
@@ -35,7 +36,7 @@ class CombatMachineTest {
 
 	@Test
 	void thresholdIsConfigurableAndHitsExpireWithTheWindow() {
-		CombatMachine five = new CombatMachine(new CombatRules(5, Duration.ofSeconds(60), 8, Duration.ofSeconds(20), Duration.ofSeconds(30), 0.5, 3.5, 6, Duration.ofMinutes(5), Duration.ofSeconds(60), Duration.ofSeconds(90), true));
+		CombatMachine five = new CombatMachine(CombatRules.DEFAULTS);   // five blows by default
 		for (int i = 0; i < 4; i++) five.onAttacked(a, t0.plusSeconds(i));
 		assertEquals(CombatState.DEFENSIVE_WARNING, five.state());
 		assertEquals(CombatState.COMBAT, five.onAttacked(a, t0.plusSeconds(4)).to());

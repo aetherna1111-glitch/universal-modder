@@ -579,8 +579,29 @@ public final class BehaviourService {
 	// ------------------------------------------------------------------ combat
 
 	/** The body took a hit. Returns false when the hit must be ignored (down, or not a real attack). */
-	private final java.util.Map<UUID, Instant> warnings = new java.util.HashMap<>();
-	public static final Duration WARNING_COOLDOWN = Duration.ofSeconds(8);
+	/** The blow that is answered with a shot into the air (the blade's beam past the attacker's head, no damage). */
+	public static final int WARNING_SHOT_AT = 3;
+	public static final String LINES_WARNING_SHOT = "warning_shot";
+
+	/** The beam fired high over the attacker: light, thunder and no harm. With the blade given away, the harp's chord without its damage. */
+	void warningShot(LuminaryNpcEntity body, PlayerEntity attacker, NpcRoster.NpcRecord record) {
+		if (!(body.getWorld() instanceof ServerWorld world)) {
+			return;
+		}
+		body.swingHand(Hand.MAIN_HAND);
+		Vec3d from = body.getEyePos();
+		Vec3d flat = attacker.getPos().subtract(body.getPos());
+		Vec3d dir = new Vec3d(flat.x, 0, flat.z).normalize().multiply(0.35).add(0, 1.0, 0);   // steeply up: the sweep passes over every head
+		if (record.weapon().custody() == WeaponCustody.Custody.NPC) {
+			ItemStack blade = blade(body.npcId().get(), record.weapon().instanceId());
+			HolySwordItem.verdict(blade, world, body, from, dir, 0f);
+		} else {
+			world.spawnParticles(net.minecraft.particle.ParticleTypes.END_ROD, from.x, from.y + 1, from.z, 30, 0.3, 1.5, 0.3, 0.05);
+		}
+		world.playSound(null, body.getBlockPos(), net.minecraft.sound.SoundEvents.ENTITY_LIGHTNING_BOLT_THUNDER, net.minecraft.sound.SoundCategory.NEUTRAL, 0.6f, 1.6f);
+		world.playSound(null, body.getBlockPos(), net.minecraft.sound.SoundEvents.BLOCK_BEACON_DEACTIVATE, net.minecraft.sound.SoundCategory.NEUTRAL, 1.0f, 1.3f);
+		metrics.inc(Metrics.STRIKES);
+	}
 
 	public void onAttacked(LuminaryNpcEntity body, DamageSource source, float amount) {
 		Optional<NpcRoster.NpcRecord> rec = record(body);
@@ -608,11 +629,13 @@ public final class BehaviourService {
 		String name = attacker.getGameProfile().getName();
 		switch (tr.reaction()) {
 			case RAISE_SHIELD, WARN -> {
-				// one warning when the shield comes up, one more at most every WARNING_COOLDOWN after that: no line per blow
-				Instant lastWarned = warnings.get(attacker.getUuid());
-				if (tr.changed() || lastWarned == null || now.isAfter(lastWarned.plus(WARNING_COOLDOWN))) {
-					warnings.put(attacker.getUuid(), now);
-					line(id, CharacterSheet.LINES_WARNING, record.combat().recentHits()).ifPresent(l -> say(body, attacker, l));
+				// the escalation by blows: the first raises the shield with a warning, the third is answered with a shot into the air, the fifth is the fight; the others are silent
+				int hits = record.combat().recentHits();
+				if (tr.changed() || hits == 1) {
+					line(id, CharacterSheet.LINES_WARNING, 0).ifPresent(l -> say(body, attacker, l));
+				} else if (hits == WARNING_SHOT_AT) {
+					warningShot(body, attacker, record);
+					line(id, LINES_WARNING_SHOT, now.getEpochSecond()).ifPresent(l -> say(body, attacker, l));
 				}
 				if (tr.changed()) {
 					remember(id, MemoryKind.SIGNIFICANT_EVENT, attacker.getUuid(), "attack", name + " struck me" + (duel ? " in a duel" : " without cause") + "; I raised my shield and warned them");

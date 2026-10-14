@@ -154,3 +154,9 @@ In COMBAT he now closes in at 1.35 speed, re-pathing every half second so a stra
 who struck him within the last 8 s is pressed wherever they stand, one who stopped and walked off is followed only
 inside the hold-ground radius (default now 10 blocks). A warning line comes once when the shield goes up and then at
 most every 8 s per attacker, not per blow.
+
+## Escalation by blows (2026-10-14)
+Five blows inside the window start the fight (default `attacksBeforeCombat` 5): the first raises the shield with a warning
+line, the third is answered with a warning shot (the blade's beam fired steeply over the attacker's head, light and
+thunder, no harm; without the blade, a burst of light) and a `warning_shot` line, the fifth is the fight line and COMBAT.
+The second and fourth are silent. A pack config that sets `attacksBeforeCombat: 3` keeps the old threshold.

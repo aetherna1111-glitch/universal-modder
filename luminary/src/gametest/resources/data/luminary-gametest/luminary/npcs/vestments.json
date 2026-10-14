@@ -82,6 +82,11 @@
         "en": [
           "DUEL_LINE"
         ]
+      },
+      "warning_shot": {
+        "en": [
+          "SHOT_LINE"
+        ]
       }
     }
   },

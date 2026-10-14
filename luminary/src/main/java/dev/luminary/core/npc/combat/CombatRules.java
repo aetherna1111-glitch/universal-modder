@@ -14,7 +14,7 @@ public record CombatRules(int attacksBeforeCombat, Duration attackWindow, double
 						  Duration recovery, double weaponDamageFraction, double strikeReach, double holdGroundRadius,
 						  Duration knockout, Duration helpShortensBy, Duration duelConsentWindow, boolean shieldFirst,
 						  double shieldPoints, Duration shieldRepair) {
-	public static final CombatRules DEFAULTS = new CombatRules(3, Duration.ofSeconds(60), 8.0, Duration.ofSeconds(20),
+	public static final CombatRules DEFAULTS = new CombatRules(5, Duration.ofSeconds(60), 8.0, Duration.ofSeconds(20),
 			Duration.ofSeconds(30), 0.5, 3.5, 10.0, Duration.ofMinutes(5), Duration.ofSeconds(60), Duration.ofSeconds(90), true, 20.0, Duration.ofMinutes(5));
 
 	/** Without the shield fields: default 20 shield points, five minutes of repair. */

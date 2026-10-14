@@ -165,7 +165,7 @@ public final class TradeGameTests implements FabricGameTest {
 		Result t = npc().behaviour().transferWeapon(ID, player, "test");
 		expect(t.ok(), "transfer: " + t.reasonKey());
 		NpcRoster.NpcRecord record = npc().roster().ensureRecord(ID);
-		float[] blows = {1f, 2f, 3f, 4f};
+		float[] blows = {1f, 2f, 3f, 4f, 5f};
 		for (float b : blows) {
 			body.timeUntilRegen = 0;
 			body.damage(body.getDamageSources().playerAttack(player), b);
