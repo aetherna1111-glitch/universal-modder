@@ -200,6 +200,27 @@ public final class NpcStateCodec {
 			o.add("routine", rj);
 		}
 		r.plan().ifPresent(p -> o.add("plan", planToJson(p)));
+		if (!r.ledgers().isEmpty()) {
+			JsonObject trade = new JsonObject();
+			r.ledgers().forEach((pid, l) -> {
+				JsonObject lj = new JsonObject();
+				lj.addProperty("points", l.points());
+				lj.addProperty("purchases", l.purchases());
+				lj.addProperty("specialClaimed", l.specialClaimed());
+				JsonArray done = new JsonArray();
+				l.completed().forEach(q -> done.add(q.toString()));
+				lj.add("completed", done);
+				JsonObject active = new JsonObject();
+				l.active().forEach((q, prog) -> {
+					JsonObject pj = new JsonObject();
+					prog.kills().forEach(pj::addProperty);
+					active.add(q.toString(), pj);
+				});
+				lj.add("active", active);
+				trade.add(pid.toString(), lj);
+			});
+			o.add("trade", trade);
+		}
 	}
 
 	static JsonObject planToJson(NpcPlan p) {
@@ -313,6 +334,24 @@ public final class NpcStateCodec {
 		}
 		if (o.has("plan")) {
 			NpcRoster.Restore.plan(roster, id, planFromJson(o.getAsJsonObject("plan")));
+		}
+		if (o.has("trade")) {
+			for (Map.Entry<String, JsonElement> te : o.getAsJsonObject("trade").entrySet()) {
+				JsonObject lj = te.getValue().getAsJsonObject();
+				dev.luminary.core.npc.trade.PlayerLedger l = r.ledger(UUID.fromString(te.getKey()));
+				l.restore(lj.get("points").getAsInt(), lj.get("purchases").getAsInt(), lj.has("specialClaimed") && lj.get("specialClaimed").getAsBoolean());
+				if (lj.has("completed")) {
+					for (JsonElement q : lj.getAsJsonArray("completed")) {
+						l.restoreCompleted(LuminaryId.parse(q.getAsString()));
+					}
+				}
+				if (lj.has("active")) {
+					for (Map.Entry<String, JsonElement> ae : lj.getAsJsonObject("active").entrySet()) {
+						dev.luminary.core.npc.trade.PlayerLedger.Progress prog = l.restoreActive(LuminaryId.parse(ae.getKey()));
+						ae.getValue().getAsJsonObject().entrySet().forEach(ke -> prog.restore(ke.getKey(), ke.getValue().getAsInt()));
+					}
+				}
+			}
 		}
 	}
 

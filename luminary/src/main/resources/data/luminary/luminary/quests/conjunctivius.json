@@ -1,0 +1,9 @@
+{
+  "id": "luminary:quest/lumin/conjunctivius",
+  "npc": "luminary:npc/lumin",
+  "order": 6,
+  "kills": {
+    "minecells:conjunctivius": 1
+  },
+  "points": 15
+}

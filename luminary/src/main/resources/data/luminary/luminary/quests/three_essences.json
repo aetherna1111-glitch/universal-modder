@@ -1,0 +1,11 @@
+{
+  "id": "luminary:quest/lumin/three_essences",
+  "npc": "luminary:npc/lumin",
+  "order": 10,
+  "kills": {
+    "soulsweapons:chaos_monarch": 1,
+    "soulsweapons:moonknight": 1,
+    "aquamirae:captain_cornelia": 1
+  },
+  "points": 30
+}

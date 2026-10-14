@@ -161,7 +161,7 @@ public final class BehaviourService {
 		return out;
 	}
 
-	private void remember(LuminaryId id, MemoryKind kind, UUID player, String topic, String text) {
+	void remember(LuminaryId id, MemoryKind kind, UUID player, String topic, String text) {
 		Instant now = clock.get();
 		dialogue.memory(id).add(MemoryEntry.of(kind, player, topic, text, now, Provenance.OBSERVED_IN_WORLD), now);
 		state.markDirty();
@@ -531,7 +531,8 @@ public final class BehaviourService {
 			return;
 		}
 		boolean armed = rec.get().weapon().custody() == WeaponCustody.Custody.NPC;
-		float damage = armed ? (float) (target.getMaxHealth() * combatRules().weaponDamageFraction()) : 2.0f;
+		boolean harp = body.getMainHandStack().isOf(LuminaryItems.ANGELIC_HARP);
+		float damage = armed ? (float) (target.getMaxHealth() * combatRules().weaponDamageFraction()) : harp ? (float) AngelicHarpItem.DAMAGE : 2.0f;
 		body.swingHand(Hand.MAIN_HAND);
 		if (target.damage(body.getDamageSources().mobAttack(body), damage)) {
 			Vec3d push = target.getPos().subtract(body.getPos()).normalize();
@@ -543,7 +544,18 @@ public final class BehaviourService {
 	/** Lumin judges from a distance: the sword's beam at an opponent beyond reach, for half the melee blow. Only while armed. */
 	public boolean judge(LuminaryNpcEntity body, LivingEntity target) {
 		Optional<NpcRoster.NpcRecord> rec = record(body);
-		if (rec.isEmpty() || rec.get().weapon().custody() != WeaponCustody.Custody.NPC || !body.getMainHandStack().isOf(LuminaryItems.LUMIN_BLADE) || !(body.getWorld() instanceof ServerWorld world)) {
+		if (rec.isEmpty() || !(body.getWorld() instanceof ServerWorld world)) {
+			return false;
+		}
+		if (body.getMainHandStack().isOf(LuminaryItems.ANGELIC_HARP) && body.squaredDistanceTo(target) <= AngelicHarpItem.RADIUS * AngelicHarpItem.RADIUS) {
+			body.swingHand(Hand.MAIN_HAND);   // the harp's chord instead of the blade's beam
+			int struck = AngelicHarpItem.chord(world, body);
+			if (struck > 0) {
+				metrics.inc(Metrics.STRIKES);
+			}
+			return struck > 0;
+		}
+		if (rec.get().weapon().custody() != WeaponCustody.Custody.NPC || !body.getMainHandStack().isOf(LuminaryItems.LUMIN_BLADE)) {
 			return false;
 		}
 		Vec3d from = body.getEyePos();
@@ -570,14 +582,24 @@ public final class BehaviourService {
 		} else if (shield && !body.isUsingItem()) {
 			body.setCurrentHand(Hand.OFF_HAND);
 		}
-		boolean blade = !down && record.combat().state() == CombatState.COMBAT && record.weapon().custody() == WeaponCustody.Custody.NPC;
+		boolean fighting = !down && record.combat().state() == CombatState.COMBAT;
+		boolean blade = fighting && record.weapon().custody() == WeaponCustody.Custody.NPC;
+		boolean harp = fighting && record.weapon().custody() == WeaponCustody.Custody.TRANSFERRED;   // the blade given away: he plays the harp
 		ItemStack main = body.getMainHandStack();
 		if (blade && !main.isOf(LuminaryItems.LUMIN_BLADE)) {
 			GearManager.stowTool(body);
 			body.equipStack(net.minecraft.entity.EquipmentSlot.MAINHAND, blade(body.npcId().get(), record.weapon().instanceId()));
-		} else if (!blade && main.isOf(LuminaryItems.LUMIN_BLADE)) {
+		} else if (harp && !main.isOf(LuminaryItems.ANGELIC_HARP)) {
+			GearManager.stowTool(body);
+			body.equipStack(net.minecraft.entity.EquipmentSlot.MAINHAND, harp(body.npcId().get()));
+		} else if (!blade && main.isOf(LuminaryItems.LUMIN_BLADE) || !harp && main.isOf(LuminaryItems.ANGELIC_HARP)) {
 			body.equipStack(net.minecraft.entity.EquipmentSlot.MAINHAND, ItemStack.EMPTY);
 		}
+	}
+
+	/** The NPC's own harp, named after him. */
+	public ItemStack harp(LuminaryId id) {
+		return AngelicHarpItem.bound(LuminaryItems.ANGELIC_HARP, id, nameKeyOf(id));
 	}
 
 	// ------------------------------------------------------------------ knockout
@@ -861,7 +883,7 @@ public final class BehaviourService {
 	 * The single integration point for a permanent transfer (a quest the game has not written yet, or an admin).
 	 * {@code reason} is recorded verbatim. The player receives the live instance; the NPC fights unarmed from now on.
 	 */
-	public Result transferWeapon(LuminaryId id, ServerPlayerEntity player, String reason) {
+	public Result transferWeapon(LuminaryId id, PlayerEntity player, String reason) {
 		if (dialogue.definitions().npc(id).isEmpty()) {
 			return Result.fail(NpcService.REASON_UNKNOWN_NPC);
 		}
@@ -873,7 +895,8 @@ public final class BehaviourService {
 			returnWeapon(id, record, "it was about to be given away properly");
 		}
 		WeaponCustody.State s = record.weapon().transferPermanently(player.getUuid(), reason, clock.get());
-		ItemStack blade = blade(id, s.instanceId());
+		// the same blade, every attribute and mark kept; only the owner id on it changes from the NPC's to the player's
+		ItemStack blade = HolySwordItem.transferTo(blade(id, s.instanceId()), player.getUuid(), player.getGameProfile().getName());
 		if (!player.giveItemStack(blade)) {
 			player.dropItem(blade, false);
 		}

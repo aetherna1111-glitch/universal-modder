@@ -1,0 +1,9 @@
+{
+  "id": "luminary:quest/lumin/withered_king",
+  "npc": "luminary:npc/lumin",
+  "order": 2,
+  "kills": {
+    "soulsweapons:accursed_lord_boss": 1
+  },
+  "points": 12
+}

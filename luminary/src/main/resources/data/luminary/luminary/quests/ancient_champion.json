@@ -1,0 +1,9 @@
+{
+  "id": "luminary:quest/lumin/ancient_champion",
+  "npc": "luminary:npc/lumin",
+  "order": 7,
+  "kills": {
+    "soulsweapons:draugr_boss": 1
+  },
+  "points": 18
+}

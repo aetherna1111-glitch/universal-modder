@@ -1,0 +1,9 @@
+{
+  "id": "luminary:quest/lumin/obsidilith",
+  "npc": "luminary:npc/lumin",
+  "order": 8,
+  "kills": {
+    "bosses_of_mass_destruction:obsidilith": 1
+  },
+  "points": 20
+}

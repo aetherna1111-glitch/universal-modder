@@ -1,0 +1,9 @@
+{
+  "id": "luminary:quest/lumin/the_faceless",
+  "npc": "luminary:npc/lumin",
+  "order": 13,
+  "kills": {
+    "eldritch_end:the_faceless": 1
+  },
+  "points": 30
+}

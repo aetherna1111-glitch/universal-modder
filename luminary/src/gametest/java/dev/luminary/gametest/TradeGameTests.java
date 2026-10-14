@@ -1,0 +1,167 @@
+package dev.luminary.gametest;
+
+import dev.luminary.core.catalog.Result;
+import dev.luminary.core.ids.LuminaryId;
+import dev.luminary.core.npc.NpcRoster;
+import dev.luminary.core.npc.combat.CombatState;
+import dev.luminary.core.npc.trade.PlayerLedger;
+import dev.luminary.core.npc.trade.TradeService;
+import dev.luminary.core.npc.weapon.WeaponCustody;
+import dev.luminary.fabric.LuminaryRuntime;
+import dev.luminary.fabric.npc.HolySwordItem;
+import dev.luminary.fabric.npc.LuminaryItems;
+import dev.luminary.fabric.npc.LuminaryNpcEntity;
+import dev.luminary.fabric.npc.NpcService;
+import dev.luminary.fabric.npc.TradeManager;
+import net.fabricmc.fabric.api.gametest.v1.FabricGameTest;
+import net.minecraft.entity.EntityType;
+import net.minecraft.entity.attribute.EntityAttributes;
+import net.minecraft.entity.mob.ZombieEntity;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.ItemStack;
+import net.minecraft.test.GameTest;
+import net.minecraft.test.GameTestException;
+import net.minecraft.test.TestContext;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Vec3d;
+
+/** Lumin's economy: kills advance accepted tasks only, points buy from his shop, five tasks and no purchase open the trial, and the trial ends with his blade in the player's name. */
+public final class TradeGameTests implements FabricGameTest {
+	private static final String ARENA = "luminary-gametest:arena";
+	private static final int FLOOR_Y = 1;
+	private static final LuminaryId ID = LuminaryId.parse("luminary-gametest:npc/trade");
+
+	private static void expect(boolean c, String m) {
+		if (!c) throw new GameTestException(m);
+	}
+
+	private static NpcService npc() {
+		return LuminaryRuntime.get().orElseThrow().npc();
+	}
+
+	private static LuminaryId quest(String name) {
+		return LuminaryId.parse("luminary-gametest:quest/" + name);
+	}
+
+	private static void kill(TestContext ctx, PlayerEntity player, BlockPos at) {
+		ZombieEntity z = ctx.spawnEntity(EntityType.ZOMBIE, at);
+		z.timeUntilRegen = 0;
+		expect(z.damage(player.getDamageSources().playerAttack(player), 1000f), "the blow lands");
+		expect(z.isDead() || z.getHealth() <= 0, "the zombie dies");
+	}
+
+	private static int count(PlayerEntity p, net.minecraft.item.Item item) {
+		int n = 0;
+		for (int i = 0; i < p.getInventory().size(); i++) {
+			ItemStack s = p.getInventory().getStack(i);
+			if (s.isOf(item)) n += s.getCount();
+		}
+		return n;
+	}
+
+	private static ItemStack find(PlayerEntity p, net.minecraft.item.Item item) {
+		for (int i = 0; i < p.getInventory().size(); i++) {
+			ItemStack s = p.getInventory().getStack(i);
+			if (s.isOf(item)) return s;
+		}
+		return ItemStack.EMPTY;
+	}
+
+	@GameTest(templateName = ARENA, tickLimit = 400, batchId = "trade-economy")
+	public void tasksPayPointsTheShopTakesThemAndTheTrialHandsOverTheBlade(TestContext ctx) {
+		expect(npc().spawn(ID, ctx.getWorld(), Vec3d.ofBottomCenter(ctx.getAbsolutePos(new BlockPos(8, FLOOR_Y + 1, 8)))).ok(), "spawn");
+		TradeManager trade = npc().trade();
+		PlayerEntity player = ctx.createMockSurvivalPlayer();
+		expect(ctx.getWorld().spawnEntity(player), "player in the world");
+		expect(trade.quests(ID).size() == 6 && trade.quests(ID).get(5).special(), "five tasks and the trial last: " + trade.quests(ID));
+		expect(trade.offers(ID).size() == 2, "an offer naming a mod that is not installed is skipped: " + trade.offers(ID));
+		PlayerLedger ledger = trade.ledger(ID, player);
+		// a kill before accepting counts for nothing
+		kill(ctx, player, new BlockPos(4, FLOOR_Y + 1, 4));
+		expect(ledger.points() == 0 && ledger.active().isEmpty(), "nothing accepted, nothing counted");
+		expect(trade.service().state(trade.quests(ID).get(5), ledger) == TradeService.QuestState.LOCKED, "the trial is locked at first");
+		for (int i = 1; i <= 5; i++) {
+			Result r = trade.accept(ID, player, quest("zombie_" + i));
+			expect(r.ok(), "accept " + i + ": " + r.reasonKey());
+		}
+		expect(!trade.claim(ID, player, quest("zombie_1")).ok(), "not done yet");
+		kill(ctx, player, new BlockPos(4, FLOOR_Y + 1, 12));   // one zombie advances all five
+		for (int i = 1; i <= 5; i++) {
+			expect(trade.service().state(trade.quests(ID).get(i - 1), ledger) == TradeService.QuestState.CLAIMABLE, "task " + i + " claimable");
+			Result r = trade.claim(ID, player, quest("zombie_" + i));
+			expect(r.ok(), "claim " + i + ": " + r.reasonKey());
+		}
+		expect(ledger.points() == 20 && ledger.completed().size() == 5, "five tasks: 20 points, got " + ledger.points());
+		expect(ledger.specialAvailable(), "five tasks and nothing bought: the trial opens");
+		expect(trade.service().state(trade.quests(ID).get(5), ledger) == TradeService.QuestState.AVAILABLE, "the trial is offered");
+		// the trial: two zombies, death resets
+		expect(trade.accept(ID, player, quest("trial")).ok(), "accept the trial");
+		kill(ctx, player, new BlockPos(12, FLOOR_Y + 1, 4));
+		expect(ledger.progress(quest("trial")).orElseThrow().total() == 1, "one of two");
+		trade.onDeath(player);
+		expect(ledger.progress(quest("trial")).orElseThrow().total() == 0, "death wiped the count");
+		kill(ctx, player, new BlockPos(12, FLOOR_Y + 1, 12));
+		kill(ctx, player, new BlockPos(12, FLOOR_Y + 1, 10));
+		NpcRoster.NpcRecord record = npc().roster().ensureRecord(ID);
+		expect(record.weapon().custody() == WeaponCustody.Custody.NPC, "the blade is his before the claim");
+		Result claimed = trade.claim(ID, player, quest("trial"));
+		expect(claimed.ok(), "claim the trial: " + claimed.reasonKey());
+		expect(record.weapon().custody() == WeaponCustody.Custody.TRANSFERRED, "the blade changed hands for good");
+		ItemStack blade = find(player, LuminaryItems.LUMIN_BLADE);
+		expect(!blade.isEmpty(), "the player holds the blade");
+		expect(HolySwordItem.ownerPlayer(blade).filter(player.getUuid()::equals).isPresent(), "the owner id on it is the player's");
+		expect(HolySwordItem.owner(blade).isEmpty(), "and no longer the NPC's");
+		expect(HolySwordItem.instance(blade).filter(record.weapon().instanceId()::equals).isPresent(), "the same custody instance");
+		expect(HolySwordItem.ownerLine(blade).map(t -> t.getString().contains(player.getGameProfile().getName())).orElse(false), "the tooltip names the player: " + HolySwordItem.ownerLine(blade));
+		double dmg = blade.getAttributeModifiers(net.minecraft.entity.EquipmentSlot.MAINHAND).get(EntityAttributes.GENERIC_ATTACK_DAMAGE).stream().mapToDouble(m -> m.getValue()).sum() + 1.0;
+		expect(Math.abs(dmg - HolySwordItem.BASE_DAMAGE) < 0.01, "every attribute kept: " + dmg);
+		expect(blade.getEnchantments().size() >= 3 && blade.getNbt().contains(HolySwordItem.NBT_RUNE), "runes and blessings kept");
+		npc().behaviour().reconcileHeldBlade(blade, player);
+		expect(!blade.isEmpty(), "a given blade is never purged");
+		expect(ledger.specialClaimed() && !ledger.specialAvailable(), "the trial is claimed once");
+		// the shop: points buy, the unique seal only once, a mod item that is missing never shows
+		Result buy = trade.buy(ID, player, 0);
+		expect(buy.ok() && ledger.points() == 10 && count(player, LuminaryItems.LIGHTSTONE_DUST) == 8, "8 dust for 10 points: " + buy.reasonKey() + " points=" + ledger.points());
+		expect(trade.buy(ID, player, 1).reasonKey().equals(TradeService.REASON_NOT_ENOUGH_POINTS), "15 for the seal, 10 left");
+		trade.service().grant(ledger, 20);
+		expect(trade.buy(ID, player, 1).ok() && count(player, LuminaryItems.ENVOY_SEAL) == 1, "the seal");
+		expect(trade.buy(ID, player, 1).reasonKey().equals(TradeService.REASON_UNIQUE_OWNED), "one of a kind");
+		expect(trade.buy(ID, player, 5).reasonKey().equals(TradeService.REASON_UNKNOWN_OFFER), "no such offer");
+		expect(ledger.purchases() == 2, "two purchases on the ledger");
+		npc().behaviour().reclaimWeapon(ID);
+		npc().despawn(ID);
+		ctx.complete();
+	}
+
+	@GameTest(templateName = ARENA, tickLimit = 400, batchId = "trade-harp")
+	public void withTheBladeGivenAwayHeFightsWithTheHarp(TestContext ctx) {
+		ctx.getWorld().getServer().setDifficulty(net.minecraft.world.Difficulty.NORMAL, true);
+		expect(npc().spawn(ID, ctx.getWorld(), Vec3d.ofBottomCenter(ctx.getAbsolutePos(new BlockPos(8, FLOOR_Y + 1, 8)))).ok(), "spawn");
+		LuminaryNpcEntity body = npc().body(ID).orElseThrow();
+		PlayerEntity player = ctx.createMockSurvivalPlayer();
+		player.refreshPositionAndAngles(ctx.getAbsolute(new Vec3d(8.5, FLOOR_Y + 1, 10.5)).x, FLOOR_Y + 1 + ctx.getAbsolutePos(BlockPos.ORIGIN).getY(), ctx.getAbsolute(new Vec3d(8.5, FLOOR_Y + 1, 10.5)).z, 180f, 0f);
+		expect(ctx.getWorld().spawnEntity(player), "player in the world");
+		Result t = npc().behaviour().transferWeapon(ID, player, "test");
+		expect(t.ok(), "transfer: " + t.reasonKey());
+		NpcRoster.NpcRecord record = npc().roster().ensureRecord(ID);
+		float[] blows = {1f, 2f, 3f, 4f};
+		for (float b : blows) {
+			body.timeUntilRegen = 0;
+			body.damage(body.getDamageSources().playerAttack(player), b);
+			if (record.combat().state() == CombatState.COMBAT) break;
+		}
+		expect(record.combat().state() == CombatState.COMBAT, "in combat: " + record.combat().state());
+		expect(body.getMainHandStack().isOf(LuminaryItems.ANGELIC_HARP), "the harp in hand, not the blade: " + body.getMainHandStack());
+		expect(HolySwordItem.ownerLine(body.getMainHandStack()).isPresent(), "his harp carries his name");
+		expect(!body.getMainHandStack().isDamageable() || body.getMainHandStack().getNbt().getBoolean("Unbreakable"), "unbreakable");
+		ZombieEntity z = ctx.spawnEntity(EntityType.ZOMBIE, new BlockPos(10, FLOOR_Y + 1, 8));
+		float hp = z.getHealth();
+		int struck = dev.luminary.fabric.npc.AngelicHarpItem.chord(ctx.getWorld(), body);
+		expect(struck >= 1 && z.getHealth() < hp, "the chord hurts the zombie: struck=" + struck + " hp " + hp + " -> " + z.getHealth());
+		expect(z.hasStatusEffect(net.minecraft.entity.effect.StatusEffects.GLOWING), "and lights it up");
+		npc().behaviour().reclaimWeapon(ID);
+		npc().behaviour().revive(ID);
+		npc().despawn(ID);
+		ctx.complete();
+	}
+}

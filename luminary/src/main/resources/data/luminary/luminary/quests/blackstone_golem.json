@@ -1,0 +1,9 @@
+{
+  "id": "luminary:quest/lumin/blackstone_golem",
+  "npc": "luminary:npc/lumin",
+  "order": 5,
+  "kills": {
+    "adventurez:blackstone_golem": 1
+  },
+  "points": 15
+}

@@ -1,0 +1,9 @@
+{
+  "id": "luminary:quest/lumin/otherworldly_eye",
+  "npc": "luminary:npc/lumin",
+  "order": 9,
+  "kills": {
+    "eldritch_end:eye": 1
+  },
+  "points": 20
+}

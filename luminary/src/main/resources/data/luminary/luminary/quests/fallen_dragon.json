@@ -1,0 +1,9 @@
+{
+  "id": "luminary:quest/lumin/fallen_dragon",
+  "npc": "luminary:npc/lumin",
+  "order": 4,
+  "kills": {
+    "minecraft:ender_dragon": 1
+  },
+  "points": 15
+}

@@ -24,6 +24,7 @@ public final class LuminaryClient implements ClientModInitializer {
 		EntityRendererRegistry.register(NpcEntities.NPC, NpcRenderer::new);
 		VestmentArmorRenderer.register();
 		net.minecraft.client.gui.screen.ingame.HandledScreens.register(dev.luminary.fabric.npc.GearViewScreenHandler.TYPE, GearViewScreen::new);
+		TradeScreen.register();
 	}
 
 	@Environment(EnvType.CLIENT)

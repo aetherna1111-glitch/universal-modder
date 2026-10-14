@@ -21,6 +21,11 @@ public final class LuminaryItems {
 	public static final LuminArmorItem VESTMENT_BOOTS = new LuminArmorItem(net.minecraft.item.ArmorItem.Type.BOOTS, new Item.Settings().maxCount(1).rarity(Rarity.EPIC).fireproof());
 	public static final java.util.List<LuminArmorItem> VESTMENTS = java.util.List.of(VESTMENT_HELMET, VESTMENT_CHESTPLATE, VESTMENT_LEGGINGS, VESTMENT_BOOTS);
 
+	/** Lumin's shop: the dust he sells by the handful, the one seal no trader has, and the harp he plays once his blade is gone. */
+	public static final LightstoneDustItem LIGHTSTONE_DUST = new LightstoneDustItem(new Item.Settings().rarity(Rarity.UNCOMMON));
+	public static final EnvoySealItem ENVOY_SEAL = new EnvoySealItem(new Item.Settings().maxCount(1).rarity(Rarity.EPIC).fireproof());
+	public static final AngelicHarpItem ANGELIC_HARP = new AngelicHarpItem(new Item.Settings().maxCount(1).rarity(Rarity.EPIC).fireproof());
+
 	private LuminaryItems() {
 	}
 
@@ -31,8 +36,14 @@ public final class LuminaryItems {
 		Registry.register(Registries.ITEM, new Identifier(Luminary.MOD_ID, "vestment_chestplate"), VESTMENT_CHESTPLATE);
 		Registry.register(Registries.ITEM, new Identifier(Luminary.MOD_ID, "vestment_leggings"), VESTMENT_LEGGINGS);
 		Registry.register(Registries.ITEM, new Identifier(Luminary.MOD_ID, "vestment_boots"), VESTMENT_BOOTS);
+		Registry.register(Registries.ITEM, new Identifier(Luminary.MOD_ID, "lightstone_dust"), LIGHTSTONE_DUST);
+		Registry.register(Registries.ITEM, new Identifier(Luminary.MOD_ID, "envoy_seal"), ENVOY_SEAL);
+		Registry.register(Registries.ITEM, new Identifier(Luminary.MOD_ID, "angelic_harp"), ANGELIC_HARP);
+		ItemGroupEvents.modifyEntriesEvent(ItemGroups.INGREDIENTS).register(entries -> entries.add(LIGHTSTONE_DUST));
+		ItemGroupEvents.modifyEntriesEvent(ItemGroups.TOOLS).register(entries -> entries.add(ENVOY_SEAL));
 		ItemGroupEvents.modifyEntriesEvent(ItemGroups.COMBAT).register(entries -> {
 			entries.add(HolySwordItem.unbound(LUMIN_BLADE));   // a free blade, fully prepared
+			entries.add(new net.minecraft.item.ItemStack(ANGELIC_HARP));
 			for (LuminArmorItem piece : VESTMENTS) {
 				entries.add(LuminArmorItem.unbound(piece));
 			}

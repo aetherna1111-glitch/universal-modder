@@ -154,9 +154,37 @@ public final class HolySwordItem extends Item {
 		return nbt != null && nbt.contains(NBT_OWNER_NAME) ? Optional.of(nbt.getString(NBT_OWNER_NAME)) : Optional.empty();
 	}
 
-	/** "Belongs to Lumin" in gold, or nothing for a free item. */
+	/** The player the blade was given to for good (quest reward): the NPC id is replaced by the player's id. */
+	public static final String NBT_OWNER_PLAYER = "LuminaryOwnerPlayer";
+	/** That player's name, literal, for the tooltip. */
+	public static final String NBT_OWNER_LITERAL = "LuminaryOwnerLiteral";
+
+	/** "Belongs to Lumin" (or to the player it was given to) in gold, or nothing for a free item. */
 	public static Optional<Text> ownerLine(ItemStack stack) {
+		NbtCompound nbt = stack.getNbt();
+		if (nbt != null && nbt.contains(NBT_OWNER_LITERAL)) {
+			return Optional.of(Text.translatable("item.luminary.owner", Text.literal(nbt.getString(NBT_OWNER_LITERAL))).formatted(Formatting.GOLD));
+		}
 		return ownerNameKey(stack).map(k -> Text.translatable("item.luminary.owner", Text.translatable(k)).formatted(Formatting.GOLD));
+	}
+
+	/**
+	 * The permanent gift: the owner id on the item changes from the NPC's to the player's, the name line to the player's
+	 * name; the custody instance, marks, runes, blessings and attributes stay exactly as they were. Without an NPC owner
+	 * the blade is nobody's to recall: it never flies home and is never purged.
+	 */
+	public static ItemStack transferTo(ItemStack stack, UUID player, String playerName) {
+		NbtCompound nbt = stack.getOrCreateNbt();
+		nbt.remove(NBT_OWNER);
+		nbt.remove(NBT_OWNER_NAME);
+		nbt.putUuid(NBT_OWNER_PLAYER, player);
+		nbt.putString(NBT_OWNER_LITERAL, playerName);
+		return stack;
+	}
+
+	public static Optional<UUID> ownerPlayer(ItemStack stack) {
+		NbtCompound nbt = stack.getNbt();
+		return nbt != null && nbt.containsUuid(NBT_OWNER_PLAYER) ? Optional.of(nbt.getUuid(NBT_OWNER_PLAYER)) : Optional.empty();
 	}
 
 	/** A stack bound to {@code npc}'s current custody instance, with its base attributes written. */
@@ -532,6 +560,6 @@ public final class HolySwordItem extends Item {
 			tooltip.add(Text.translatable(k + "rune." + nether + ".text").formatted(Formatting.DARK_GRAY));
 		}
 		tooltip.add(Text.empty());
-		tooltip.add(Text.translatable(isBound(stack) ? k + "bound" : k + "unbound").formatted(Formatting.DARK_PURPLE));
+		tooltip.add(Text.translatable(isBound(stack) ? k + "bound" : ownerPlayer(stack).isPresent() ? k + "given" : k + "unbound").formatted(Formatting.DARK_PURPLE));
 	}
 }

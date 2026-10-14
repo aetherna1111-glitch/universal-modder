@@ -1,0 +1,1 @@
+{"id": "luminary-gametest:quest/trial", "npc": "luminary-gametest:npc/trade", "order": 99, "special": true, "resetOnDeath": true, "points": 0, "kills": {"minecraft:zombie": 2}}

@@ -32,12 +32,12 @@ slice**; design and research live in `../docs/research/luminary-2026-10-11/` (st
 Nothing here grants items, unlocks recipes or changes gameplay yet. The slice proves the architecture: a Minecraft-free
 core, server-side rules, persistence with migrations, admin commands, and an in-world test harness.
 
-## Last recorded verification (2026-10-14, slice 15, JDK 21 runtime, `release 17`)
+## Last recorded verification (2026-10-14, slice 16, JDK 21 runtime, `release 17`)
 
 | Check | Result |
 |---|---|
-| `./gradlew build` (compile main/test/gametest, 144 unit tests, jar) | passed |
-| `./gradlew runGametest` (headless 1.20.1 server, Fabric API 0.92.12, Loader 0.19.5) | "All 39 required tests passed" (3 consecutive runs at 37, then 39 with the sword tests) |
+| `./gradlew build` (compile main/test/gametest, 153 unit tests, jar) | passed |
+| `./gradlew runGametest` (headless 1.20.1 server, Fabric API 0.92.12, Loader 0.19.5) | "All 46 required tests passed" (44 before the trade tests, then 46) |
 | `um publish check luminary` | 0 failures (1 warning in the ignored `.gradle/` cache) |
 | Not verified | a real dedicated server with players; the integrated client, the NPC renderer, the blade item model and the lying pose; any other mod loaded alongside; a real Ollama or hosted model endpoint (only the mock server was exercised) |
 
@@ -483,6 +483,17 @@ glance, a whisper, a warning, a fight or a return.
   through `CapabilityRegistry`; refusals are counted and shown by `/luminary metrics`.
 - **Metrics.** `/luminary metrics`: gaze reactions, whispers, attacks, fights, strikes, knockouts, recoveries, thefts,
   returns, purged copies, plan steps, routine arrivals, model refusals.
+
+## Lumin's economy: tasks, points, the shop, the Trial of the Envoy (slice 16)
+
+Right-click Lumin: his dialogue screen (portrait, his points, tasks, shop, a look at his gear; dark navy and gold).
+He pays in his own points for the pack's main-story bosses (13 tasks from the FTB Quests `main_story` chapter, from
+the Night Lich and the Withered King to the Faceless), sells lightstone dust, the Paladins & Priests holy items and
+the one-of-a-kind Seal of the Envoy. Five tasks done with nothing bought open the Trial of the Envoy (five late
+bosses without dying once); its reward is his blade with the player's name on it, kept exactly as it was. He then
+fights with the Angelic Harp. Rules: `dev.luminary.core.npc.trade`; world side: `TradeManager`; screen:
+`TradeScreen`; data: `data/luminary/luminary/quests/`, the `shop` list of `lumin.json`. Full description:
+`docs/TRADE.md`.
 
 ## Names, gear and reach (slice 14)
 

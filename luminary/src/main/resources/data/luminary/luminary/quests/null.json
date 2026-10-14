@@ -1,0 +1,9 @@
+{
+  "id": "luminary:quest/lumin/null",
+  "npc": "luminary:npc/lumin",
+  "order": 11,
+  "kills": {
+    "archon:null": 1
+  },
+  "points": 25
+}

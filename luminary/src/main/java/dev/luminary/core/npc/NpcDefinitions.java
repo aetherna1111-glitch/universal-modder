@@ -13,6 +13,31 @@ import java.util.Optional;
 public final class NpcDefinitions {
 	private final Map<LuminaryId, NpcDefinition> npcs = new LinkedHashMap<>();
 	private final Map<LuminaryId, DialogueScript> dialogues = new LinkedHashMap<>();
+	private final Map<LuminaryId, dev.luminary.core.npc.trade.Quest> quests = new LinkedHashMap<>();
+
+	public NpcDefinitions addQuest(dev.luminary.core.npc.trade.Quest q) {
+		if (quests.putIfAbsent(q.id(), q) != null) {
+			throw new IllegalArgumentException("duplicate quest " + q.id());
+		}
+		return this;
+	}
+
+	public Optional<dev.luminary.core.npc.trade.Quest> quest(LuminaryId id) {
+		return Optional.ofNullable(quests.get(id));
+	}
+
+	/** The quests of one NPC, by {@code order} then id, the special quest last. */
+	public java.util.List<dev.luminary.core.npc.trade.Quest> questsOf(LuminaryId npc) {
+		java.util.Comparator<dev.luminary.core.npc.trade.Quest> byOrder = java.util.Comparator.comparingInt(dev.luminary.core.npc.trade.Quest::order).thenComparing(q -> q.id().toString());
+		java.util.List<dev.luminary.core.npc.trade.Quest> out = new java.util.ArrayList<>();
+		quests.values().stream().filter(q -> q.npc().equals(npc) && !q.special()).sorted(byOrder).forEach(out::add);
+		quests.values().stream().filter(q -> q.npc().equals(npc) && q.special()).sorted(byOrder).forEach(out::add);
+		return out;
+	}
+
+	public java.util.Collection<dev.luminary.core.npc.trade.Quest> quests() {
+		return java.util.Collections.unmodifiableCollection(quests.values());
+	}
 
 	public NpcDefinitions addNpc(NpcDefinition d) {
 		if (npcs.putIfAbsent(d.id(), d) != null) {

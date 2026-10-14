@@ -13,7 +13,7 @@
     "Люмин"
   ],
   "character": {
-    "version": 1,
+    "version": 2,
     "origin": "Lumin woke with this civilization and keeps its Catalog of the Unknown. He has no body of flesh he remembers; this one was given to him so he could walk among people. He cannot die, only fall and rise again.",
     "principles": [
       "Evidence first: he says 'I think' and 'I know' as two different things.",
@@ -32,7 +32,8 @@
     ],
     "loreFacts": [
       "His blade cannot break and always finds its way back to him within the hour if taken.",
-      "He writes down what he learns; the Catalog is his memory outside his head."
+      "He writes down what he learns; the Catalog is his memory outside his head.",
+      "He pays for help in his own points, never coins; whoever helps him five times and buys nothing from him is offered the Trial of the Envoy, and the blade at its end."
     ],
     "lines": {
       "gaze": {
@@ -310,8 +311,139 @@
           "Спасибо. Я это запомню.",
           "Это добрый поступок."
         ]
+      },
+      "trade_greeting": {
+        "ru": [
+          "Что тебе нужно? Я плачу своими очками за то, что считаю важным, и продаю то, что мне самому дорого.",
+          "Садись. Поручения слева, товар справа — так, кажется, принято у людей.",
+          "Я веду счёт тому, что ты сделал. Он честный."
+        ],
+        "en": [
+          "What do you need? I pay my own points for what I hold important, and sell what is dear to me.",
+          "Sit. Tasks on one side, wares on the other; that is how people do it, I gather.",
+          "I keep count of what you have done. The count is honest."
+        ]
+      },
+      "trade_claimable": {
+        "ru": [
+          "Ты сделал, о чём я просил. Забери, что причитается.",
+          "Счёт сошёлся. Награда твоя."
+        ],
+        "en": [
+          "You did what I asked. Take what is owed.",
+          "The count is settled. The reward is yours."
+        ]
+      },
+      "trade_special": {
+        "ru": [
+          "Ты выполнил пять поручений и ни разу ничего не купил. Это редкость. У меня есть к тебе одно особое дело.",
+          "Пять дел — и ни одной покупки. Тогда слушай: есть испытание, за которое я готов отдать то, что не продаётся."
+        ],
+        "en": [
+          "Five tasks done and you never bought a thing. That is rare. I have one special matter for you.",
+          "Five deeds and not one purchase. Then listen: there is a trial for which I would give what is not for sale."
+        ]
+      },
+      "quest_accepted": {
+        "ru": [
+          "Записал. Возвращайся, когда будет сделано.",
+          "Хорошо. Я буду ждать.",
+          "Иди. Я запомню, что ты согласился."
+        ],
+        "en": [
+          "Written down. Come back when it is done.",
+          "Good. I will wait.",
+          "Go. I will remember that you agreed."
+        ]
+      },
+      "quest_claimed": {
+        "ru": [
+          "Твои очки. Я ценю это выше золота.",
+          "Сделано — и записано в Каталог.",
+          "Спасибо. Мало кто доводит до конца."
+        ],
+        "en": [
+          "Your points. I hold them above gold.",
+          "Done, and written into the Catalog.",
+          "Thank you. Few see things through."
+        ]
+      },
+      "trade_bought": {
+        "ru": [
+          "Твоё. Пользуйся с умом.",
+          "Бери. Мне это уже послужило.",
+          "Хороший выбор."
+        ],
+        "en": [
+          "Yours. Use it well.",
+          "Take it. It has served me already.",
+          "A good choice."
+        ]
+      },
+      "sword_given": {
+        "ru": [
+          "Он твой. Не потому что я устал его носить, а потому что ты не просил ничего взамен. На нём теперь твоё имя.",
+          "Возьми меч. Я отдал бы его только тому, кто сделал всё это и ничего не купил. Мне остаётся арфа — и это справедливо."
+        ],
+        "en": [
+          "It is yours. Not because I tired of carrying it, but because you asked for nothing in return. Your name is on it now.",
+          "Take the blade. I would give it only to one who did all this and bought nothing. The harp is left to me, and that is fair."
+        ]
       }
     }
   },
-  "vestments": true
+  "vestments": true,
+  "shop": [
+    {
+      "item": "luminary:lightstone_dust",
+      "count": 8,
+      "price": 10
+    },
+    {
+      "item": "paladins:holy_wand",
+      "count": 1,
+      "price": 20
+    },
+    {
+      "item": "paladins:holy_staff",
+      "count": 1,
+      "price": 30
+    },
+    {
+      "item": "paladins:priest_spell_book",
+      "count": 1,
+      "price": 25
+    },
+    {
+      "item": "paladins:paladin_spell_book",
+      "count": 1,
+      "price": 25
+    },
+    {
+      "item": "paladins:diamond_holy_wand",
+      "count": 1,
+      "price": 45
+    },
+    {
+      "item": "paladins:diamond_holy_staff",
+      "count": 1,
+      "price": 60
+    },
+    {
+      "item": "paladins:netherite_holy_wand",
+      "count": 1,
+      "price": 90
+    },
+    {
+      "item": "paladins:netherite_holy_staff",
+      "count": 1,
+      "price": 120
+    },
+    {
+      "item": "luminary:envoy_seal",
+      "count": 1,
+      "price": 80,
+      "unique": true
+    }
+  ]
 }

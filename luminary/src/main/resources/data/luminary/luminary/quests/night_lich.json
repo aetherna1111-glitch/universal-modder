@@ -1,0 +1,9 @@
+{
+  "id": "luminary:quest/lumin/night_lich",
+  "npc": "luminary:npc/lumin",
+  "order": 1,
+  "kills": {
+    "bosses_of_mass_destruction:lich": 1
+  },
+  "points": 10
+}

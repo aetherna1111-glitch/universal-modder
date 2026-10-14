@@ -1,0 +1,9 @@
+{
+  "id": "luminary:quest/lumin/hand_of_the_nether",
+  "npc": "luminary:npc/lumin",
+  "order": 3,
+  "kills": {
+    "bosses_of_mass_destruction:gauntlet": 1
+  },
+  "points": 12
+}

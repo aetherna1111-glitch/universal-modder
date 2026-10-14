@@ -62,6 +62,7 @@ public final class NpcService {
 	private final Clock baseClock;
 	private Clock clock;
 	private final BehaviourService behaviour;
+	private final TradeManager trade;
 	private final TaskExecutor executor;
 	private final CandidateScanner scanner;
 	private IntentPlanner planner = IntentPlanner.none();
@@ -82,6 +83,12 @@ public final class NpcService {
 		this.executor = new TaskExecutor(TaskRules.DEFAULTS, state::markDirty);
 		this.scanner = new CandidateScanner(TaskRules.DEFAULTS);
 		this.behaviour = new BehaviourService(this, server, state, dialogue, () -> this.clock.instant());
+		this.trade = new TradeManager(this, state, () -> this.clock.instant());
+	}
+
+	/** Quests, points and the shop. */
+	public TradeManager trade() {
+		return trade;
 	}
 
 	/** Presence, combat, relationships, weapon, routine and plans. */

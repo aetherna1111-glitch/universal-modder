@@ -40,6 +40,10 @@ class NpcStateCodecBehaviourTest {
 		r.routine().setPlace(PlaceKind.DESK, 12345L);
 		NpcPlan plan = PlanTemplates.stockWood(1L, 2L, 3, t0, player);
 		r.startPlan(plan);
+		dev.luminary.core.npc.trade.PlayerLedger ledger = r.ledger(player);
+		ledger.restore(42, 1, false);
+		ledger.restoreCompleted(LuminaryId.parse("luminary:quest/lumin/night_lich"));
+		ledger.restoreActive(LuminaryId.parse("luminary:quest/lumin/three_essences")).restore("aquamirae:captain_cornelia", 1);
 
 		String json = codec.encode(roster);
 		NpcRoster back = codec.decode(json);
@@ -48,6 +52,11 @@ class NpcStateCodecBehaviourTest {
 		assertEquals("yes?", b.conversation(player).all().get(1).text());
 		assertEquals(30, b.relationships().get(player, t0, RelationshipRules.DEFAULTS).threat());
 		assertEquals(CombatState.DEFENSIVE_WARNING, b.combat().state());
+		dev.luminary.core.npc.trade.PlayerLedger bl = b.ledger(player);
+		assertEquals(42, bl.points());
+		assertEquals(1, bl.purchases());
+		assertTrue(bl.isCompleted(LuminaryId.parse("luminary:quest/lumin/night_lich")));
+		assertEquals(1, bl.progress(LuminaryId.parse("luminary:quest/lumin/three_essences")).orElseThrow().count("aquamirae:captain_cornelia"));
 		assertEquals(player, b.combat().opponent().orElseThrow());
 		assertEquals(t0.plusSeconds(240), b.knockout().orElseThrow().deadline());
 		assertEquals(1, b.knockout().orElseThrow().timesHelped());

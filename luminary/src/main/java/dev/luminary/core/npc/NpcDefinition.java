@@ -13,13 +13,19 @@ import java.util.Objects;
  * {@link CharacterSheet} with the authored lines of the deterministic channels; {@code vestments} marks the NPC that
  * wears the bound Vestments of the Envoy. All of it is data, never generated.
  */
-public record NpcDefinition(LuminaryId id, String nameKey, LuminaryId dialogue, List<String> persona, List<String> aliases, CharacterSheet character, boolean vestments) {
+public record NpcDefinition(LuminaryId id, String nameKey, LuminaryId dialogue, List<String> persona, List<String> aliases, CharacterSheet character, boolean vestments,
+							List<dev.luminary.core.npc.trade.ShopOffer> shop) {
 	/** Without the vestments flag: an ordinary NPC that wears whatever it is handed. */
 	public NpcDefinition(LuminaryId id, String nameKey, LuminaryId dialogue, List<String> persona, List<String> aliases, CharacterSheet character) {
-		this(id, nameKey, dialogue, persona, aliases, character, false);
+		this(id, nameKey, dialogue, persona, aliases, character, false, List.of());
+	}
+
+	public NpcDefinition(LuminaryId id, String nameKey, LuminaryId dialogue, List<String> persona, List<String> aliases, CharacterSheet character, boolean vestments) {
+		this(id, nameKey, dialogue, persona, aliases, character, vestments, List.of());
 	}
 
 	public NpcDefinition {
+		shop = List.copyOf(shop);
 		Objects.requireNonNull(id, "id");
 		Objects.requireNonNull(character, "character");
 		Objects.requireNonNull(nameKey, "nameKey");

@@ -1,0 +1,9 @@
+{
+  "id": "luminary:quest/lumin/magus",
+  "npc": "luminary:npc/lumin",
+  "order": 12,
+  "kills": {
+    "spellbladenext:magus": 1
+  },
+  "points": 25
+}

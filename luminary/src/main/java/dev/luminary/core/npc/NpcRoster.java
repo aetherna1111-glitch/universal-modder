@@ -54,6 +54,7 @@ public final class NpcRoster {
 		private final Map<UUID, ConversationContext> conversations = new TreeMap<>();
 		private final RelationshipLedger relationships = new RelationshipLedger();
 		private final RoutineState routine = new RoutineState();
+		private final Map<UUID, dev.luminary.core.npc.trade.PlayerLedger> ledgers = new TreeMap<>();
 		private final CapabilityRegistry capabilities = new CapabilityRegistry();
 		private GazeTracker gaze;
 		private MutterChannel mutter;
@@ -183,6 +184,15 @@ public final class NpcRoster {
 
 		public RoutineState routine() {
 			return routine;
+		}
+
+		/** The player's points, quests and purchases with this NPC. */
+		public dev.luminary.core.npc.trade.PlayerLedger ledger(UUID player) {
+			return ledgers.computeIfAbsent(player, k -> new dev.luminary.core.npc.trade.PlayerLedger());
+		}
+
+		public Map<UUID, dev.luminary.core.npc.trade.PlayerLedger> ledgers() {
+			return Collections.unmodifiableMap(ledgers);
 		}
 
 		public CapabilityRegistry capabilities() {

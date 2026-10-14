@@ -55,6 +55,7 @@ import java.util.stream.Collectors;
  * data/&lt;ns&gt;/luminary/story/branches/*.json → StoryBranch
  * data/&lt;ns&gt;/luminary/npcs/*.json            → NpcDefinition
  * data/&lt;ns&gt;/luminary/dialogues/*.json       → DialogueScript
+ * data/&lt;ns&gt;/luminary/quests/*.json          → Quest (the NPC trade quests)
  * </pre>
  * A file with an error is reported with its path and skipped. If cross-references do not validate, the whole new set
  * is rejected and the previous definitions stay in force, so a bad reload never empties the game.
@@ -88,6 +89,7 @@ public final class DefinitionsReloadListener implements SimpleSynchronousResourc
 		load(manager, "luminary/story/clues", errors, (json, file) -> story.addClue(parseClue(json, file)));
 		load(manager, "luminary/dialogues", errors, (json, file) -> npcs.addDialogue(parseDialogue(json, file)));
 		load(manager, "luminary/npcs", errors, (json, file) -> npcs.addNpc(parseNpc(json, file)));
+		load(manager, "luminary/quests", errors, (json, file) -> npcs.addQuest(parseQuest(json, file)));
 		try {
 			templates.validate();
 			Set<LuminaryId> known = templates.all().stream().map(DiscoveryTemplate::id).collect(Collectors.toSet());
@@ -119,9 +121,9 @@ public final class DefinitionsReloadListener implements SimpleSynchronousResourc
 		}
 		current = new Definitions(templates, progression, story, npcs);
 		LuminaryRuntime.get().ifPresent(rt -> rt.rebuildServices(current));
-		Luminary.LOGGER.info("[luminary] loaded {} discovery templates, {} eras, {} technologies, {} story phases, {} clues, {} branches, {} npcs, {} dialogues ({} files with errors)",
+		Luminary.LOGGER.info("[luminary] loaded {} discovery templates, {} eras, {} technologies, {} story phases, {} clues, {} branches, {} npcs, {} dialogues, {} quests ({} files with errors)",
 				templates.size(), progression.erasInOrder().size(), progression.technologies().size(),
-				story.phasesInOrder().size(), story.clues().size(), story.branches().size(), npcs.npcs().size(), npcs.dialogues().size(), errors[0]);
+				story.phasesInOrder().size(), story.clues().size(), story.branches().size(), npcs.npcs().size(), npcs.dialogues().size(), npcs.quests().size(), errors[0]);
 	}
 
 	private static void load(ResourceManager manager, String folder, int[] errors, BiConsumer<JsonObject, Identifier> sink) {
@@ -198,7 +200,37 @@ public final class DefinitionsReloadListener implements SimpleSynchronousResourc
 			character = parseCharacter(json.getAsJsonObject("character"));
 		}
 		boolean vestments = json.has("vestments") && json.get("vestments").getAsBoolean();
-		return new NpcDefinition(id, nameKey, LuminaryId.parse(require(json, "dialogue", file).getAsString()), persona, aliases, character, vestments);
+		List<dev.luminary.core.npc.trade.ShopOffer> shop = new ArrayList<>();
+		if (json.has("shop") && json.get("shop").isJsonArray()) {
+			for (JsonElement el : json.getAsJsonArray("shop")) {
+				JsonObject o = el.getAsJsonObject();
+				shop.add(new dev.luminary.core.npc.trade.ShopOffer(require(o, "item", file).getAsString(), o.has("count") ? o.get("count").getAsInt() : 1,
+						require(o, "price", file).getAsInt(), o.has("unique") && o.get("unique").getAsBoolean()));
+			}
+		}
+		return new NpcDefinition(id, nameKey, LuminaryId.parse(require(json, "dialogue", file).getAsString()), persona, aliases, character, vestments, shop);
+	}
+
+	/** {@code data/<ns>/luminary/quests/*.json}: id, npc, kills {entity: count}, points, flags. Title and description keys default to {@code quest.<ns>.<path>.title/.desc}. */
+	static dev.luminary.core.npc.trade.Quest parseQuest(JsonObject json, Identifier file) {
+		LuminaryId id = LuminaryId.parse(require(json, "id", file).getAsString());
+		LuminaryId npc = LuminaryId.parse(require(json, "npc", file).getAsString());
+		String base = "quest." + id.namespace() + "." + id.path().replace('/', '.');
+		String title = json.has("title") ? json.get("title").getAsString() : base + ".title";
+		String desc = json.has("description") ? json.get("description").getAsString() : base + ".desc";
+		Map<String, Integer> kills = new java.util.LinkedHashMap<>();
+		for (Map.Entry<String, JsonElement> e : require(json, "kills", file).getAsJsonObject().entrySet()) {
+			kills.put(e.getKey(), e.getValue().getAsInt());
+		}
+		List<String> rewardItems = new ArrayList<>();
+		if (json.has("rewardItems")) {
+			for (JsonElement el : json.getAsJsonArray("rewardItems")) {
+				rewardItems.add(el.getAsString());
+			}
+		}
+		return new dev.luminary.core.npc.trade.Quest(id, npc, title, desc, kills, json.has("points") ? json.get("points").getAsInt() : 0,
+				json.has("special") && json.get("special").getAsBoolean(), json.has("resetOnDeath") && json.get("resetOnDeath").getAsBoolean(), rewardItems,
+				json.has("order") ? json.get("order").getAsInt() : 0);
 	}
 
 	/**

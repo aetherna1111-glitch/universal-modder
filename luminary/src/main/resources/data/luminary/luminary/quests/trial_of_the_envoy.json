@@ -1,0 +1,15 @@
+{
+  "id": "luminary:quest/lumin/trial_of_the_envoy",
+  "npc": "luminary:npc/lumin",
+  "order": 99,
+  "special": true,
+  "resetOnDeath": true,
+  "points": 0,
+  "kills": {
+    "bosses_of_mass_destruction:obsidilith": 1,
+    "eldritch_end:eye": 1,
+    "archon:null": 1,
+    "spellbladenext:magus": 1,
+    "eldritch_end:the_faceless": 1
+  }
+}

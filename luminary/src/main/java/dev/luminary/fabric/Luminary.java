@@ -26,6 +26,14 @@ public final class Luminary implements ModInitializer {
 		dev.luminary.fabric.npc.LuminaryItems.register();
 		ResourceManagerHelper.get(ResourceType.SERVER_DATA).registerReloadListener(new DefinitionsReloadListener());
 		LuminaryCommands.register();
+		dev.luminary.fabric.npc.TradeManager.registerReceiver();
+		net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents.AFTER_DEATH.register((entity, source) -> LuminaryRuntime.get().ifPresent(rt -> {
+			if (entity instanceof net.minecraft.entity.player.PlayerEntity dead) {
+				rt.npc().trade().onDeath(dead);
+			} else if (source.getAttacker() instanceof net.minecraft.entity.player.PlayerEntity killer) {
+				rt.npc().trade().onKill(killer, entity);
+			}
+		}));
 		ServerLifecycleEvents.SERVER_STARTED.register(LuminaryRuntime::start);
 		ServerLifecycleEvents.SERVER_STOPPING.register(LuminaryRuntime::stop);
 		ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> LuminaryRuntime.get().ifPresent(rt -> rt.npc().onEntityLoad(entity, world)));
