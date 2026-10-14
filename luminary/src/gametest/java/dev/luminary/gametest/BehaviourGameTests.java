@@ -307,7 +307,8 @@ public final class BehaviourGameTests implements FabricGameTest {
 		});
 	}
 
-	@GameTest(templateName = ARENA, tickLimit = 1400)
+	/** Own batch: its logs would otherwise be inside the scan reach of a neighbouring arena's autonomous NPC, which then competes for them. */
+	@GameTest(templateName = ARENA, tickLimit = 1400, batchId = "behaviour-plan")
 	public void aPlanRunsItsStepsThroughValidatedTasksAndFinishesOnce(TestContext ctx) {
 		LuminaryId id = LuminaryId.parse("luminary-gametest:npc/plan");
 		BlockPos chest = new BlockPos(10, FLOOR_Y + 1, 2);

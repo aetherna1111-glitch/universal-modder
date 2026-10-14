@@ -185,5 +185,6 @@
   "item.luminary.holy_sword_of_lumin.rune.clarity.text": "+1 Везение; отметки улик гаснут вдвое медленнее.",
   "item.luminary.holy_sword_of_lumin.rune.embers": "[ Адская руна Пепла ]",
   "item.luminary.holy_sword_of_lumin.rune.embers.text": "Каждый удар поджигает цель на 4 с; удар по горящей цели исцеляет вас.",
-  "item.luminary.holy_sword_of_lumin.lore2": "Отнятый, он ждёт ровно час и уходит домой, не прощаясь. Каждый удар он записывает. Не промахивайся: он тоже."
+  "item.luminary.holy_sword_of_lumin.lore2": "Отнятый, он ждёт ровно час и уходит домой, не прощаясь. Каждый удар он записывает. Не промахивайся: он тоже.",
+  "item.luminary.holy_sword_of_lumin.unbound": "Свободный клинок: никому не принадлежит и ни на чей зов не идёт."
 }

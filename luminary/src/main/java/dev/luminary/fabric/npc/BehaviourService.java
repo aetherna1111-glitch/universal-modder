@@ -699,8 +699,7 @@ public final class BehaviourService {
 		Optional<LuminaryId> owner = HolySwordItem.owner(stack);
 		Optional<UUID> instance = HolySwordItem.instance(stack);
 		if (owner.isEmpty() || instance.isEmpty()) {
-			stack.setCount(0);   // an unbound blade is a forgery
-			return;
+			return;   // a free blade (creative tab, /give): nobody's, so nothing to reconcile
 		}
 		Optional<NpcRoster.NpcRecord> record = state.roster().get(owner.get());
 		if (record.isEmpty() || !record.get().hasWeaponRecord()) {

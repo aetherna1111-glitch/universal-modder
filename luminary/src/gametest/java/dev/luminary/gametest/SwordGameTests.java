@@ -49,6 +49,13 @@ public final class SwordGameTests implements FabricGameTest {
 		expect(custom.getEnchantments().size() == 1 && net.minecraft.enchantment.EnchantmentHelper.getLevel(net.minecraft.enchantment.Enchantments.SHARPNESS, custom) == 2, "configured blessings, malformed entries ignored");
 		HolySwordItem.setBlessings(HolySwordItem.DEFAULT_BLESSINGS);
 		expect(HolySwordItem.hasRune(sword, HolySwordItem.RUNE_CLARITY) && HolySwordItem.hasRune(sword, HolySwordItem.RUNE_EMBERS), "both sockets filled");
+		ItemStack free = HolySwordItem.unbound(LuminaryItems.LUMIN_BLADE);
+		expect(!HolySwordItem.isBound(free) && free.getEnchantments().size() == 6 && HolySwordItem.hasRune(free, HolySwordItem.RUNE_EMBERS) && Math.abs(attackDamage(free) - HolySwordItem.BASE_DAMAGE) < 0.01, "a creative-tab blade is fully prepared but bound to nobody");
+		ItemStack plain = new ItemStack(LuminaryItems.LUMIN_BLADE);
+		plain.inventoryTick(ctx.getWorld(), ctx.createMockSurvivalPlayer(), 0, false);
+		expect(plain.getNbt() != null && plain.getNbt().getBoolean(HolySwordItem.NBT_PREPARED) && HolySwordItem.hasRune(plain, HolySwordItem.RUNE_CLARITY), "a /give blade prepares itself on its first inventory tick");
+		LuminaryRuntime.get().orElseThrow().npc().behaviour().reconcileHeldBlade(free, ctx.createMockSurvivalPlayer());
+		expect(!free.isEmpty(), "a free blade is never purged");
 		expect(sword.getAttributeModifiers(EquipmentSlot.MAINHAND).get(EntityAttributes.GENERIC_LUCK).stream().mapToDouble(m -> m.getValue()).sum() == 1.0, "Rune of Clarity: +1 luck");
 		PlayerEntity player = ctx.createMockSurvivalPlayer();
 		Vec3d at = ctx.getAbsolute(new Vec3d(4.5, FLOOR_Y + 1, 8.5));
@@ -123,8 +130,7 @@ public final class SwordGameTests implements FabricGameTest {
 		player.setStackInHand(Hand.MAIN_HAND, sword);
 		player.setSneaking(true);
 		expect(!sword.use(ctx.getWorld(), player, Hand.MAIN_HAND).getResult().isAccepted(), "needs three marks");
-		CowEntity dummy = ctx.spawnEntity(EntityType.COW, new BlockPos(2, FLOOR_Y + 1, 2));
-		for (int i = 0; i < 4; i++) sword.getItem().postHit(sword, dummy, player);
+		HolySwordItem.setEvidence(sword, 4, ctx.getWorld().getTime());   // set directly: a Revelation on a hit would add a second mark
 		ZombieEntity inside = ctx.spawnEntity(EntityType.ZOMBIE, new BlockPos(10, FLOOR_Y + 1, 8));
 		ZombieEntity outside = ctx.spawnEntity(EntityType.ZOMBIE, new BlockPos(20, FLOOR_Y + 1, 20));
 		inside.setAiDisabled(true);

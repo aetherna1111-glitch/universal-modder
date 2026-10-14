@@ -20,6 +20,6 @@ public final class LuminaryItems {
 
 	public static void register() {
 		Registry.register(Registries.ITEM, BLADE_ID, LUMIN_BLADE);
-		ItemGroupEvents.modifyEntriesEvent(ItemGroups.COMBAT).register(entries -> entries.add(LUMIN_BLADE));
+		ItemGroupEvents.modifyEntriesEvent(ItemGroups.COMBAT).register(entries -> entries.add(HolySwordItem.unbound(LUMIN_BLADE)));   // a free blade, fully prepared
 	}
 }

@@ -134,17 +134,43 @@ public final class HolySwordItem extends Item {
 
 	// ------------------------------------------------------------------ identity
 
+	public static final String NBT_PREPARED = "LuminaryPrepared";
+
 	/** A stack bound to {@code npc}'s current custody instance, with its base attributes written. */
 	public static ItemStack bound(Item item, LuminaryId npc, UUID instance) {
 		ItemStack stack = new ItemStack(item);
 		NbtCompound nbt = stack.getOrCreateNbt();
 		nbt.putString(NBT_OWNER, npc.toString());
 		nbt.putUuid(NBT_INSTANCE, instance);
+		prepare(stack);
+		return stack;
+	}
+
+	/**
+	 * A free blade: the creative tab and {@code /give} hand out swords that belong to nobody. They have every ability,
+	 * both runes and the blessings, but no custody: they never fly home and are never purged.
+	 */
+	public static ItemStack unbound(Item item) {
+		ItemStack stack = new ItemStack(item);
+		prepare(stack);
+		return stack;
+	}
+
+	/** Runes, attributes and blessings; idempotent (a plain {@code /give} stack is prepared on its first inventory tick). */
+	public static void prepare(ItemStack stack) {
+		NbtCompound nbt = stack.getOrCreateNbt();
+		if (nbt.getBoolean(NBT_PREPARED)) {
+			return;
+		}
+		nbt.putBoolean(NBT_PREPARED, true);
 		nbt.putString(NBT_RUNE, RUNE_CLARITY);
 		nbt.putString(NBT_NETHER_RUNE, RUNE_EMBERS);
-		writeAttributes(stack, 0);
+		writeAttributes(stack, evidence(stack));
 		bless(stack);
-		return stack;
+	}
+
+	public static boolean isBound(ItemStack stack) {
+		return owner(stack).isPresent() && instance(stack).isPresent();
 	}
 
 	public static Optional<LuminaryId> owner(ItemStack stack) {
@@ -171,7 +197,7 @@ public final class HolySwordItem extends Item {
 		return nbt == null ? 0 : Math.max(0, Math.min(MAX_EVIDENCE, nbt.getInt(NBT_EVIDENCE)));
 	}
 
-	static void setEvidence(ItemStack stack, int marks, long now) {
+	public static void setEvidence(ItemStack stack, int marks, long now) {
 		NbtCompound nbt = stack.getOrCreateNbt();
 		int clamped = Math.max(0, Math.min(MAX_EVIDENCE, marks));
 		nbt.putInt(NBT_EVIDENCE, clamped);
@@ -363,6 +389,16 @@ public final class HolySwordItem extends Item {
 	// ------------------------------------------------------------------ item plumbing
 
 	@Override
+	public com.google.common.collect.Multimap<net.minecraft.entity.attribute.EntityAttribute, EntityAttributeModifier> getAttributeModifiers(EquipmentSlot slot) {
+		if (slot != EquipmentSlot.MAINHAND) {
+			return super.getAttributeModifiers(slot);
+		}
+		return com.google.common.collect.ImmutableMultimap.of(
+				EntityAttributes.GENERIC_ATTACK_DAMAGE, new EntityAttributeModifier(ATTACK_DAMAGE_MODIFIER_ID, "Weapon modifier", BASE_DAMAGE - 1.0, EntityAttributeModifier.Operation.ADDITION),
+				EntityAttributes.GENERIC_ATTACK_SPEED, new EntityAttributeModifier(ATTACK_SPEED_MODIFIER_ID, "Weapon modifier", ATTACK_SPEED, EntityAttributeModifier.Operation.ADDITION));
+	}
+
+	@Override
 	public boolean isDamageable() {
 		return false;
 	}
@@ -384,7 +420,11 @@ public final class HolySwordItem extends Item {
 
 	@Override
 	public void inventoryTick(ItemStack stack, World world, Entity entity, int slot, boolean selected) {
-		if (world.isClient || world.getTime() % 20 != 0) {
+		if (world.isClient) {
+			return;
+		}
+		prepare(stack);
+		if (world.getTime() % 20 != 0) {
 			return;
 		}
 		if (entity instanceof PlayerEntity player) {
@@ -464,6 +504,6 @@ public final class HolySwordItem extends Item {
 			tooltip.add(Text.translatable(k + "rune." + nether + ".text").formatted(Formatting.DARK_GRAY));
 		}
 		tooltip.add(Text.empty());
-		tooltip.add(Text.translatable(k + "bound").formatted(Formatting.DARK_PURPLE));
+		tooltip.add(Text.translatable(isBound(stack) ? k + "bound" : k + "unbound").formatted(Formatting.DARK_PURPLE));
 	}
 }

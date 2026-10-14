@@ -185,5 +185,6 @@
   "item.luminary.holy_sword_of_lumin.rune.clarity.text": "+1 Luck; marks of evidence fade twice as slowly.",
   "item.luminary.holy_sword_of_lumin.rune.embers": "[ Netherfused Rune of Embers ]",
   "item.luminary.holy_sword_of_lumin.rune.embers.text": "Every hit kindles the target for 4 s; a hit on a burning target heals you.",
-  "item.luminary.holy_sword_of_lumin.lore2": "Taken, it waits exactly one hour and walks home without saying goodbye. It writes down every blow. Do not miss: it does not."
+  "item.luminary.holy_sword_of_lumin.lore2": "Taken, it waits exactly one hour and walks home without saying goodbye. It writes down every blow. Do not miss: it does not.",
+  "item.luminary.holy_sword_of_lumin.unbound": "A free blade: it belongs to no one and answers to no call."
 }
