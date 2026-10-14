@@ -211,5 +211,10 @@
   "item.luminary.vestments.rune.dawn": "[ Rune of Dawn ]",
   "item.luminary.vestments.rune.dawn.text": "+%s max health per piece.",
   "item.luminary.vestments.rune.cinders": "[ Netherfused Rune of Cinders ]",
-  "item.luminary.vestments.rune.cinders.text": "Whoever strikes you catches fire, %s s per piece."
+  "item.luminary.vestments.rune.cinders.text": "Whoever strikes you catches fire, %s s per piece.",
+  "npc.luminary.gear.title": "%s: gear",
+  "npc.luminary.helmet.off": "As you wish.",
+  "npc.luminary.helmet.on": "Very well.",
+  "npc.luminary.helmet.already": "It already is.",
+  "npc.luminary.helmet.busy": "Not now."
 }

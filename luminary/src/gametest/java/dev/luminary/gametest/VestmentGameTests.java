@@ -68,6 +68,50 @@ public final class VestmentGameTests implements FabricGameTest {
 		});
 	}
 
+	@GameTest(templateName = ARENA, tickLimit = 400, batchId = "vestments-helmet")
+	public void theHelmetComesOffAndBackOnByChatWithAnAnimationAndTheGearScreenIsReadOnly(TestContext ctx) {
+		NpcService npc = LuminaryRuntime.get().orElseThrow().npc();
+		npc.configureChat(true, 0);
+		LuminaryId id = LuminaryId.parse("luminary-gametest:npc/vestments");
+		expect(npc.spawn(id, ctx.getWorld(), Vec3d.ofBottomCenter(ctx.getAbsolutePos(new BlockPos(8, FLOOR_Y + 1, 8)))).ok(), "spawn");
+		LuminaryNpcEntity body = npc.body(id).orElseThrow();
+		PlayerEntity player = ctx.createMockSurvivalPlayer();
+		player.refreshPositionAndAngles(body.getX() + 2, body.getY(), body.getZ(), 0, 0);
+		body.heldItems().setStack(0, new ItemStack(Items.IRON_AXE));
+		ctx.waitAndRun(25, () -> {
+			expect(LuminArmorItem.wearsFullSet(body), "dressed");
+			// the read-only gear screen mirrors hands, armour and bag; clicks move nothing
+			var handler = (dev.luminary.fabric.npc.GearViewScreenHandler) dev.luminary.fabric.npc.GearViewScreenHandler.factory(body).createMenu(1, player.getInventory(), player);
+			expect(handler.getSlot(2).getStack().isOf(LuminaryItems.VESTMENT_HELMET) && handler.getSlot(3).getStack().isOf(LuminaryItems.VESTMENT_CHESTPLATE)
+					&& handler.getSlot(9).getStack().isOf(Items.IRON_AXE), "the mirror shows the diadem, the cuirass and the axe in the bag");
+			handler.onSlotClick(9, 0, net.minecraft.screen.slot.SlotActionType.PICKUP, player);
+			expect(handler.getCursorStack().isEmpty() && body.heldItems().getStack(0).isOf(Items.IRON_AXE) && player.getInventory().isEmpty(), "a click takes nothing");
+			expect(handler.quickMove(player, 9).isEmpty() && body.heldItems().getStack(0).isOf(Items.IRON_AXE), "shift-click moves nothing");
+			player.getInventory().setStack(0, new ItemStack(Items.DIRT, 5));
+			handler.onSlotClick(27, 0, net.minecraft.screen.slot.SlotActionType.QUICK_MOVE, player);
+			expect(player.getInventory().getStack(0).getCount() == 5 && body.heldItems().getStack(1).isEmpty(), "nothing can be put in");
+			expect(!handler.getSlot(9).canInsert(new ItemStack(Items.DIRT)) || !handler.canInsertIntoSlot(handler.getSlot(9)), "slots refuse insertion");
+			// "take off your helmet": the animation plays and the head stays bare until asked otherwise
+			NpcService.ChatOutcome off = npc.onPlayerChat(player, "Vestments, сними шлем").join();
+			expect(off.heard() && off.intent().flatMap(i -> i.literalReply()).orElse("").equals("As you wish."), "answered: " + off);
+			ctx.waitAndRun(BehaviourService.HELMET_ANIMATION_TICKS - 6, () -> {
+				expect(body.getEquippedStack(EquipmentSlot.HEAD).isEmpty(), "mid-animation the head is bare");
+				expect(body.getMainHandStack().isOf(LuminaryItems.VESTMENT_HELMET) || body.getOffHandStack().isOf(LuminaryItems.VESTMENT_HELMET), "the diadem is in the hand");
+				ctx.waitAndRun(30, () -> {
+					expect(body.helmetOff() && body.getEquippedStack(EquipmentSlot.HEAD).isEmpty() && !body.getMainHandStack().isOf(LuminaryItems.VESTMENT_HELMET) && !body.getOffHandStack().isOf(LuminaryItems.VESTMENT_HELMET), "put away, head bare, and the vestment tick does not put it back");
+					expect(npc.onPlayerChat(player, "Vestments, сними шлем").join().intent().flatMap(i -> i.literalReply()).orElse("").equals("It already is."), "asked twice");
+					NpcService.ChatOutcome on = npc.onPlayerChat(player, "Vestments, надень шлем").join();
+					expect(on.intent().flatMap(i -> i.literalReply()).orElse("").equals("Very well."), "put it on: " + on);
+					ctx.waitAndRun(BehaviourService.HELMET_ANIMATION_TICKS + 5, () -> {
+						expect(!body.helmetOff() && body.getEquippedStack(EquipmentSlot.HEAD).isOf(LuminaryItems.VESTMENT_HELMET), "the diadem is back on");
+						npc.despawn(id);
+						ctx.complete();
+					});
+				});
+			});
+		});
+	}
+
 	@GameTest(templateName = ARENA, tickLimit = 600)
 	public void aFreeSetProtectsItsWearerWithEveryEffectAndTheNova(TestContext ctx) {
 		ctx.getWorld().getServer().setDifficulty(net.minecraft.world.Difficulty.NORMAL, true);

@@ -200,8 +200,12 @@ public final class BehaviourService {
 		if (dialogue.definitions().npc(id).map(d -> !d.vestments()).orElse(true)) {
 			return;
 		}
+		tickHelmetAnimation(body, id);
 		for (LuminArmorItem piece : LuminaryItems.VESTMENTS) {
 			net.minecraft.entity.EquipmentSlot slot = piece.getSlotType();
+			if (slot == net.minecraft.entity.EquipmentSlot.HEAD && (body.helmetOff() || body.helmetAnimation() != 0)) {
+				continue;   // asked bare-headed, or mid-animation: the diadem is not re-equipped
+			}
 			ItemStack worn = body.getEquippedStack(slot);
 			if (body.age % 20 == 0 && !(worn.getItem() == piece && LuminArmorItem.owner(worn).filter(id::equals).isPresent())) {
 				body.equipStack(slot, LuminArmorItem.bound(piece, id));
@@ -212,6 +216,70 @@ public final class BehaviourService {
 				piece.wornTick(worn, world, body);
 			}
 		}
+	}
+
+	public static final int HELMET_ANIMATION_TICKS = 30;
+
+	/**
+	 * "Take off your helmet": the arm comes up, the diadem is in the hand for a moment, then it is put away; "put it
+	 * on" plays the same in reverse. The gaze and the tool hand are left alone (a tool in hand postpones nothing: the
+	 * helmet rides the off hand's place for the animation's length).
+	 */
+	public boolean helmet(LuminaryNpcEntity body, boolean off) {
+		if (body.npcId().isEmpty() || body.helmetAnimation() != 0 || body.helmetOff() == off || body.isDown()) {
+			return false;
+		}
+		body.setHelmetAnimation(off ? HELMET_ANIMATION_TICKS : -HELMET_ANIMATION_TICKS);
+		body.swingHand(Hand.MAIN_HAND);
+		return true;
+	}
+
+	private void tickHelmetAnimation(LuminaryNpcEntity body, LuminaryId id) {
+		int t = body.helmetAnimation();
+		if (t == 0) {
+			return;
+		}
+		boolean off = t > 0;
+		int left = Math.abs(t);
+		net.minecraft.entity.EquipmentSlot head = net.minecraft.entity.EquipmentSlot.HEAD;
+		if (left == HELMET_ANIMATION_TICKS - 8) {
+			// the hand reaches the head: the diadem leaves (or arrives at) the head and shows in the hand
+			if (off) {
+				body.equipStack(head, ItemStack.EMPTY);
+			}
+			ItemStack shown = LuminArmorItem.bound(LuminaryItems.VESTMENT_HELMET, id);
+			if (body.getMainHandStack().isEmpty()) {
+				body.equipStack(net.minecraft.entity.EquipmentSlot.MAINHAND, shown);
+			} else {
+				body.equipStack(net.minecraft.entity.EquipmentSlot.OFFHAND, shown);
+			}
+			body.swingHand(Hand.MAIN_HAND);
+		}
+		if (left == 1) {
+			// the hand comes down: the diadem is put away (or back on)
+			for (net.minecraft.entity.EquipmentSlot hand : new net.minecraft.entity.EquipmentSlot[] {net.minecraft.entity.EquipmentSlot.MAINHAND, net.minecraft.entity.EquipmentSlot.OFFHAND}) {
+				if (body.getEquippedStack(hand).isOf(LuminaryItems.VESTMENT_HELMET)) {
+					body.equipStack(hand, ItemStack.EMPTY);
+				}
+			}
+			if (!off) {
+				body.equipStack(head, LuminArmorItem.bound(LuminaryItems.VESTMENT_HELMET, id));
+			}
+			body.setHelmetOff(off);
+			body.setHelmetAnimation(0);
+			return;
+		}
+		body.setHelmetAnimation(off ? left - 1 : -(left - 1));
+	}
+
+	static boolean isHelmetOff(String t) {
+		return (t.contains("шлем") || t.contains("helmet") || t.contains("венец") || t.contains("diadem"))
+				&& (t.contains("сними") || t.contains("снять") || t.contains("без ") || t.contains("take off") || t.contains("remove") || t.contains(" off"));
+	}
+
+	static boolean isHelmetOn(String t) {
+		return (t.contains("шлем") || t.contains("helmet") || t.contains("венец") || t.contains("diadem"))
+				&& (t.contains("надень") || t.contains("надеть") || t.contains("put on") || t.contains("wear") || t.contains(" on"));
 	}
 
 	/** Every second: derive what the NPC is doing and maybe whisper it to whoever stands close. */
@@ -287,6 +355,15 @@ public final class BehaviourService {
 		record.relationships().apply(player.getUuid(), RelationshipEvent.CONVERSATION, now, state.roster().rules().relationship());
 		onSpoke(body, player.getUuid());
 		String t = text.toLowerCase(Locale.ROOT);
+		if (isHelmetOff(t) || isHelmetOn(t)) {
+			boolean off = isHelmetOff(t) && !t.contains("надень") && !t.contains("put on");
+			if (dialogue.definitions().npc(id).map(d -> !d.vestments()).orElse(true)) {
+				return Optional.empty();   // no vestments: the dialogue answers
+			}
+			boolean started = helmet(body, off);
+			String key = !started ? (body.helmetOff() == off ? "npc.luminary.helmet.already" : "npc.luminary.helmet.busy") : off ? "npc.luminary.helmet.off" : "npc.luminary.helmet.on";
+			return Optional.of(Text.translatable(key).getString().isEmpty() ? "..." : net.minecraft.util.Language.getInstance().get(key));
+		}
 		if (isApology(t) && record.combat().opponent().filter(o -> o.equals(player.getUuid())).isPresent() && record.combat().state() != CombatState.CALM) {
 			CombatMachine.Transition tr = record.combat().onApology(player.getUuid(), now);
 			if (tr.reaction() != CombatMachine.Reaction.NONE) {

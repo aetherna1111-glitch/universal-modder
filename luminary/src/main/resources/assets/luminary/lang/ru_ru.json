@@ -211,5 +211,10 @@
   "item.luminary.vestments.rune.dawn": "[ Руна Зари ]",
   "item.luminary.vestments.rune.dawn.text": "+%s к максимальному здоровью за часть.",
   "item.luminary.vestments.rune.cinders": "[ Адская руна Углей ]",
-  "item.luminary.vestments.rune.cinders.text": "Кто ударит вас, загорается на %s с за каждую часть."
+  "item.luminary.vestments.rune.cinders.text": "Кто ударит вас, загорается на %s с за каждую часть.",
+  "npc.luminary.gear.title": "%s: снаряжение",
+  "npc.luminary.helmet.off": "Как скажешь.",
+  "npc.luminary.helmet.on": "Хорошо.",
+  "npc.luminary.helmet.already": "Уже.",
+  "npc.luminary.helmet.busy": "Не сейчас."
 }

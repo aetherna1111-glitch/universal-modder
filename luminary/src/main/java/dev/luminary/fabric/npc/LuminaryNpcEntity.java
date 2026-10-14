@@ -39,6 +39,7 @@ public class LuminaryNpcEntity extends PathAwareEntity {
 
 	static final String NBT_HELD = "LuminaryHeld";
 	static final String NBT_DOWN = "LuminaryDown";
+	static final String NBT_HELMET_OFF = "LuminaryHelmetOff";
 	/** Synced so the client renders the lying pose while the NPC is knocked out. */
 	private static final TrackedData<Boolean> DOWN = DataTracker.registerData(LuminaryNpcEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
 
@@ -49,6 +50,10 @@ public class LuminaryNpcEntity extends PathAwareEntity {
 	private Activity routineActivity;
 	/** Where the current fight started; the NPC holds ground around it. */
 	private Vec3d combatAnchor;
+	/** The helmet was asked off ("take off your helmet"): the vestments keep the head bare until asked back on. */
+	private boolean helmetOff;
+	/** Ticks left in the take-off / put-on animation (positive: taking off, negative: putting on). */
+	private int helmetAnimation;
 	/** Items the NPC physically carries (collected drops not yet deposited). Saved with the entity. */
 	private final SimpleInventory heldItems = new SimpleInventory(9);
 
@@ -99,6 +104,22 @@ public class LuminaryNpcEntity extends PathAwareEntity {
 	/** Test/status view of {@link #routineActivity()}. */
 	public Activity routineActivityPublic() {
 		return routineActivity;
+	}
+
+	public boolean helmetOff() {
+		return helmetOff;
+	}
+
+	void setHelmetOff(boolean off) {
+		this.helmetOff = off;
+	}
+
+	int helmetAnimation() {
+		return helmetAnimation;
+	}
+
+	void setHelmetAnimation(int ticks) {
+		this.helmetAnimation = ticks;
 	}
 
 	public Optional<Vec3d> combatAnchor() {
@@ -245,8 +266,11 @@ public class LuminaryNpcEntity extends PathAwareEntity {
 				});
 			} else if (GearManager.isTool(inHand) || GearManager.isArmor(inHand)) {
 				LuminaryRuntime.get().ifPresent(rt -> rt.npc().offer(this, player, inHand));
-			} else {
+			} else if (player.isSneaking()) {
 				LuminaryRuntime.get().ifPresent(rt -> rt.npc().talk(this, player));
+			} else {
+				// a plain right-click opens a read-only look at the gear; conversation is by chat (or sneak + right-click)
+				player.openHandledScreen(GearViewScreenHandler.factory(this));
 			}
 		}
 		return ActionResult.success(getWorld().isClient);
@@ -281,6 +305,7 @@ public class LuminaryNpcEntity extends PathAwareEntity {
 		}
 		nbt.put(NBT_HELD, heldItems.toNbtList());
 		nbt.putBoolean(NBT_DOWN, isDown());
+		nbt.putBoolean(NBT_HELMET_OFF, helmetOff);
 	}
 
 	@Override
@@ -298,6 +323,7 @@ public class LuminaryNpcEntity extends PathAwareEntity {
 		if (nbt.contains(NBT_HELD, NbtElement.LIST_TYPE)) {
 			heldItems.readNbtList(nbt.getList(NBT_HELD, NbtElement.COMPOUND_TYPE));
 		}
+		helmetOff = nbt.getBoolean(NBT_HELMET_OFF);
 		if (nbt.getBoolean(NBT_DOWN)) {
 			dataTracker.set(DOWN, true);
 			setPose(EntityPose.SLEEPING);
