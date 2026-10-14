@@ -68,7 +68,7 @@ While down: right-click with food helps; empty hand loots one item; sneaking + e
 | `theftDurationMinutes` | 60 |
 | `blessings` | the 17 default enchantments as `namespace:path:level` (vanilla, `mcdw:`, `zenith:`); unknown ids are skipped |
 
-Item `luminary:holy_sword_of_lumin`: 9 damage, 1.6 swings/s, unbreakable. **Witness**: +1 mark per hit (max 7),
+Item `luminary:holy_sword_of_lumin`: 15 damage, 1.7 swings/s, Godlike tier (above mythic), unbreakable. **Witness**: +1 mark per hit (max 7),
 +0.5 damage per mark, a mark fades after 30 s of rest. **Verdict** (use): 12-block beam, 3 + 2 × marks damage,
 undead ×1.5 and burning, glowing 10 s, spends the marks, 6 s cooldown. **Sanctuary** (sneak + use, 3 marks): circle of
 light, radius 5, 8 s: players and Lumin regenerate and resist, hostile mobs weaken and glow; 30 s cooldown. Lumin

@@ -171,5 +171,6 @@
   "item.luminary.holy_sword_of_lumin.witness": "Свидетель: %s/%s отметок улик (+0,5 урона за каждую; отметка гаснет через 30 с покоя)",
   "item.luminary.holy_sword_of_lumin.verdict": "Приговор (ПКМ): луч света сквозь всех на линии, %s урона, нежить горит; тратит отметки, перезарядка 6 с",
   "item.luminary.holy_sword_of_lumin.sanctuary": "Святилище (Shift + ПКМ, %s отметки): круг света на 8 с; союзники восстанавливаются и защищены, монстры ослаблены и светятся; перезарядка 30 с",
-  "item.luminary.holy_sword_of_lumin.bound": "Связан с Люмином. Отнятый, он вернётся к нему в течение часа."
+  "item.luminary.holy_sword_of_lumin.bound": "Связан с Люмином. Отнятый, он вернётся к нему в течение часа.",
+  "item.luminary.rarity.godlike": "✦ Богоподобие ✦"
 }

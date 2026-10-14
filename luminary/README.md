@@ -422,7 +422,7 @@ glance, a whisper, a warning, a fight or a return.
   empty hand takes one item from its bag (looting, remembered); sneaking with an empty hand takes the blade.
   `/luminary npc revive <npc>` ends it early.
 - **The Holy Sword of Lumin.** `luminary:holy_sword_of_lumin` (texture `textures/item/holy_sword_of_lumin.png`,
-  Better Combat claymore moveset via `data/luminary/weapon_attributes/`): 9 attack damage, 1.6 swings/s, epic,
+  Better Combat claymore moveset via `data/luminary/weapon_attributes/`): 15 attack damage, 1.7 swings/s, its own Godlike tier above mythic (gold-white bold name and a tier line in the tooltip),
   unbreakable, unenchantable. Three abilities in the style of the pack's unique swords, all server-side:
   **Witness** (passive) records a mark of evidence per hit, up to 7, each +0.5 damage written into the stack's
   attribute modifiers (the tooltip shows it); a mark fades after 30 s without a hit. **Verdict** (use) spends all

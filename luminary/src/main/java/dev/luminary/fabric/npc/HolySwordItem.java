@@ -56,9 +56,11 @@ public final class HolySwordItem extends Item {
 	public static final String NBT_LAST_HIT = "LuminaryLastHit";
 
 	public static final int MAX_EVIDENCE = 7;
-	public static final double BASE_DAMAGE = 9.0;      // shown as 9 attack damage with an empty ledger
+	public static final double BASE_DAMAGE = 15.0;     // shown as 15 attack damage with an empty ledger
 	public static final double DAMAGE_PER_EVIDENCE = 0.5;
-	public static final double ATTACK_SPEED = -2.4;    // 1.6 swings per second
+	public static final double ATTACK_SPEED = -2.3;    // 1.7 swings per second
+	/** The sword's own rarity tier, above the pack's mythic: the name is drawn in this colour, bold, and the tooltip names the tier. */
+	public static final int GODLIKE_COLOR = 0xFFE27A;
 	public static final int EVIDENCE_FADE_TICKS = 600;
 	public static final double VERDICT_RANGE = 12.0;
 	public static final float VERDICT_BASE = 3.0f;
@@ -325,7 +327,13 @@ public final class HolySwordItem extends Item {
 	}
 
 	@Override
+	public Text getName(ItemStack stack) {
+		return Text.translatable(getTranslationKey(stack)).styled(st -> st.withColor(GODLIKE_COLOR).withBold(true));
+	}
+
+	@Override
 	public void appendTooltip(ItemStack stack, World world, List<Text> tooltip, TooltipContext context) {
+		tooltip.add(Text.translatable("item.luminary.rarity.godlike").styled(st -> st.withColor(GODLIKE_COLOR).withBold(true)));
 		tooltip.add(Text.translatable("item.luminary.holy_sword_of_lumin.lore").formatted(Formatting.GRAY, Formatting.ITALIC));
 		int marks = evidence(stack);
 		tooltip.add(Text.translatable("item.luminary.holy_sword_of_lumin.witness", marks, MAX_EVIDENCE).formatted(Formatting.AQUA));
