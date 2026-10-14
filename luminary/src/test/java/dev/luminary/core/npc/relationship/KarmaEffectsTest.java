@@ -21,6 +21,7 @@ class KarmaEffectsTest {
 	void tradersMarkUpOnlyNegativeKarma() {
 		assertEquals(0.0, KarmaEffects.markup(30));
 		assertEquals(0.0, KarmaEffects.markup(0));
+		assertEquals(0.0, KarmaEffects.markup(-9), "a little bad blood: no markup");
 		assertEquals(0.375, KarmaEffects.markup(-50), 1e-9);
 		assertEquals(0.75, KarmaEffects.markup(-100), 1e-9);
 		assertEquals(0, KarmaEffects.extraPrice(10, 0));

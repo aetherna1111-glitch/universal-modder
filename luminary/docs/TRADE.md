@@ -88,8 +88,8 @@ with time): tasks (+3 each), help and gifts raise it; blows, looting and theft l
 into:
 - **Luck**: the player's `generic.luck` attribute gets a modifier of karma/25 in half points, capped at ±4,
   refreshed every 5 s per online player (`BehaviourService.applyKarmaLuck`). Per player, persistent.
-- **Traders' prices**: a villager (and every villager-derived trader) asks more of a player with negative karma:
-  up to +75% at karma -100 (`VillagerPricesMixin`, at the tail of vanilla's `prepareOffersFor`, so vanilla's
+- **Traders' prices**: a villager (and every villager-derived trader) asks more of a player whose karma is -10 or
+  below: up to +75% at karma -100 (`VillagerPricesMixin`, at the tail of vanilla's `prepareOffersFor`, so vanilla's
   reputation discounts still apply first). Never a discount; the wandering trader is untouched.
 - **Worthiness**: the Trial of the Envoy is refused (`luminary.trade.unworthy`, the button reads «Недостоин») to a
   player Lumin is WARY or HOSTILE with, or whose karma is below zero.

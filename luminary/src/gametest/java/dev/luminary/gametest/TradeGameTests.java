@@ -200,9 +200,9 @@ public final class TradeGameTests implements FabricGameTest {
 		expect(b.worthy(ID, player.getUuid()), "worthy with good karma");
 		b.applyKarmaLuck(player);
 		expect(Math.abs(player.getAttributeValue(net.minecraft.entity.attribute.EntityAttributes.GENERIC_LUCK) - 0.5) < 0.01, "+15 karma is half a point of luck: " + player.getAttributeValue(net.minecraft.entity.attribute.EntityAttributes.GENERIC_LUCK));
-		// three unprovoked blows: karma -24 from +15 → -9, threat 90: wary/hostile and in debt
+		// four unprovoked blows: karma -32 from +15 → -17 (below the traders' -10 line), threat high: wary/hostile and in debt
 		NpcRoster.NpcRecord record = npc().roster().ensureRecord(ID);
-		for (int i = 0; i < 3; i++) {
+		for (int i = 0; i < 4; i++) {
 			record.relationships().apply(player.getUuid(), dev.luminary.core.npc.relationship.RelationshipEvent.ATTACKED, npc().now(), npc().roster().rules().relationship());
 		}
 		double karma = b.karmaOf(player.getUuid());

@@ -9,8 +9,9 @@ public final class KarmaEffects {
 	/** Luck attribute points per 25 karma, capped at ±4 (a full Luck IV, or its mirror). */
 	public static final double LUCK_PER_KARMA = 1.0 / 25.0;
 	public static final double MAX_LUCK = 4.0;
-	/** Traders' markup at karma -100: three quarters more; nothing at zero or above. */
+	/** Traders' markup at karma -100: three quarters more; nothing above {@value #MARKUP_FROM} (a little bad blood is not a trader's business). */
 	public static final double MAX_MARKUP = 0.75;
+	public static final double MARKUP_FROM = -10;
 	/** Alms: this many emeralds to the NPC buy {@value #DONATION_KARMA} karma (the {@code DONATION} event). */
 	public static final int DONATION_EMERALDS = 10;
 	public static final int DONATION_KARMA = 5;
@@ -31,7 +32,7 @@ public final class KarmaEffects {
 
 	/** Fraction added to every trader price: 0 at karma ≥ 0, up to {@value #MAX_MARKUP} at -100. */
 	public static double markup(double karma) {
-		return karma >= 0 ? 0 : Math.min(MAX_MARKUP, -karma / 100.0 * MAX_MARKUP);
+		return karma > MARKUP_FROM ? 0 : Math.min(MAX_MARKUP, -karma / 100.0 * MAX_MARKUP);
 	}
 
 	/** Emeralds (or whatever) added to a price of {@code base} items under {@code markup}; never below one extra once there is any markup. */
