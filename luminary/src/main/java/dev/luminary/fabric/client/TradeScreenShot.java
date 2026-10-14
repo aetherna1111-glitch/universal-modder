@@ -28,6 +28,21 @@ final class TradeScreenShot {
 	private static int ticks;
 
 	static void registerIfRequested() {
+		String title = System.getProperty("luminary.screenshot.title");
+		if (title != null && !title.isEmpty()) {   // just the title screen (to look at the server lock's buttons)
+			ClientTickEvents.END_CLIENT_TICK.register(client -> {
+				if (client.getOverlay() != null || !(client.currentScreen instanceof TitleScreen)) {
+					return;
+				}
+				if (++ticks == 40) {
+					shoot(client, title);
+				}
+				if (ticks == 50) {
+					client.scheduleStop();
+				}
+			});
+			return;
+		}
 		String out = System.getProperty("luminary.screenshot");
 		if (out == null || out.isEmpty()) {
 			return;

@@ -26,6 +26,7 @@ public final class LuminaryClient implements ClientModInitializer {
 		net.minecraft.client.gui.screen.ingame.HandledScreens.register(dev.luminary.fabric.npc.GearViewScreenHandler.TYPE, GearViewScreen::new);
 		TradeScreen.register();
 		TradeScreenShot.registerIfRequested();
+		ServerLock.register();
 	}
 
 	@Environment(EnvType.CLIENT)

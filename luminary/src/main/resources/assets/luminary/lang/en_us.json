@@ -332,5 +332,7 @@
   "screen.luminary.trade.donate": "Alms %s ✧",
   "screen.luminary.trade.karma.alms": "Alms: %s emeralds = +%s karma.",
   "luminary.trade.not_enough_emeralds": "Not enough emeralds for alms.",
-  "npc.luminary.trade.donation": "Your alms cleanse your soul and wash your sins away."
+  "npc.luminary.trade.donation": "Your alms cleanse your soul and wash your sins away.",
+  "screen.luminary.lock.play": "Play",
+  "screen.luminary.lock.reconnect": "Reconnect"
 }
