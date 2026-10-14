@@ -151,10 +151,10 @@ public final class TradeScreen extends Screen {
 		c.fill(x0 + 6, y0 + 6, x0 + LEFT_W - 6, y0 + 7, GOLD_DIM);
 		Entity e = client.world == null ? portraitOverride : client.world.getEntityById(snap.entityId);
 		if (e instanceof LivingEntity living) {
-			int px = x0 + LEFT_W / 2, py = y0 + 112;
-			c.enableScissor(x0 + 7, y0 + 8, x0 + LEFT_W - 7, y0 + 118);
+			int px = x0 + LEFT_W / 2, py = y0 + 106;   // feet; 34 px per block keeps the armoured body (wings, halo) inside the panel
+			c.enableScissor(x0 + 7, y0 + 8, x0 + LEFT_W - 7, y0 + 116);
 			try {
-				InventoryScreen.drawEntity(c, px, py, 44, (float) px - mouseX, (float) (py - 70) - mouseY, living);
+				InventoryScreen.drawEntity(c, px, py, 34, (float) px - mouseX, (float) (py - 55) - mouseY, living);
 			} catch (RuntimeException ex) {
 				portraitOverride = null;   // a world-less portrait that cannot be drawn: leave the panel empty
 				dev.luminary.fabric.Luminary.LOGGER.warn("[luminary] portrait not drawn", ex);
