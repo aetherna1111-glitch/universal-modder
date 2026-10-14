@@ -1,6 +1,6 @@
 {
- "parent": "minecraft:item/handheld",
  "credit": "Luminary: the Holy Sword of Lumin, a volumetric model",
+ "gui_light": "front",
  "texture_size": [
   16,
   16
