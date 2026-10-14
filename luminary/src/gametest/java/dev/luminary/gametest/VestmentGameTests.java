@@ -90,6 +90,11 @@ public final class VestmentGameTests implements FabricGameTest {
 		player.setHealth(4f);   // below 30 %: the Envoy's Light fires on the next chest tick
 		ctx.waitAndRun(25, () -> {
 			expect(player.getAttributeValue(net.minecraft.entity.attribute.EntityAttributes.GENERIC_ARMOR) >= 24, "24 armour once equipment changes were applied: " + player.getAttributeValue(net.minecraft.entity.attribute.EntityAttributes.GENERIC_ARMOR));
+			expect(player.getMaxHealth() >= 28f, "the Runes of Dawn add 8 max health: " + player.getMaxHealth());
+			ZombieEntity striker = ctx.spawnEntity(EntityType.ZOMBIE, new BlockPos(6, FLOOR_Y + 1, 8));
+			striker.setAiDisabled(true);
+			player.damage(player.getDamageSources().mobAttack(striker), 1f);
+			expect(striker.isOnFire(), "the Runes of Cinders set the striker on fire");
 			expect(!player.hasStatusEffect(StatusEffects.SLOWNESS) && !player.hasStatusEffect(StatusEffects.BLINDNESS), "slowness and blindness are shrugged off");
 			expect(player.hasStatusEffect(StatusEffects.FIRE_RESISTANCE), "the cuirass keeps fire away");
 			expect(player.getHealth() >= 10f && player.hasStatusEffect(StatusEffects.REGENERATION), "the nova healed 6 and regenerates: " + player.getHealth());

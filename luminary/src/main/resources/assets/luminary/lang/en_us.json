@@ -207,5 +207,9 @@
   "item.luminary.vestments.set.title": "Set bonus, all four pieces: the Envoy's Light",
   "item.luminary.vestments.set.text": "Below %s%% health: a burst of light heals %s, grants Regeneration II and hurls hostile things within %s blocks away, marking them.",
   "item.luminary.vestments.bound": "Lumin's own. It cannot be taken from him, and it will not fit anyone else's shoulders.",
-  "item.luminary.vestments.unbound": "A free vestment: it belongs to no one."
+  "item.luminary.vestments.unbound": "A free vestment: it belongs to no one.",
+  "item.luminary.vestments.rune.dawn": "[ Rune of Dawn ]",
+  "item.luminary.vestments.rune.dawn.text": "+%s max health per piece.",
+  "item.luminary.vestments.rune.cinders": "[ Netherfused Rune of Cinders ]",
+  "item.luminary.vestments.rune.cinders.text": "Whoever strikes you catches fire, %s s per piece."
 }

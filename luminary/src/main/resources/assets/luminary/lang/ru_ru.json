@@ -207,5 +207,9 @@
   "item.luminary.vestments.set.title": "Бонус комплекта, все четыре части: Свет Посланника",
   "item.luminary.vestments.set.text": "Ниже %s%% здоровья: вспышка света исцеляет на %s, даёт Регенерацию II и отбрасывает врагов в %s блоках, отмечая их.",
   "item.luminary.vestments.bound": "Принадлежит Люмину. Его нельзя отнять, и ни на чьи другие плечи оно не сядет.",
-  "item.luminary.vestments.unbound": "Свободное облачение: никому не принадлежит."
+  "item.luminary.vestments.unbound": "Свободное облачение: никому не принадлежит.",
+  "item.luminary.vestments.rune.dawn": "[ Руна Зари ]",
+  "item.luminary.vestments.rune.dawn.text": "+%s к максимальному здоровью за часть.",
+  "item.luminary.vestments.rune.cinders": "[ Адская руна Углей ]",
+  "item.luminary.vestments.rune.cinders.text": "Кто ударит вас, загорается на %s с за каждую часть."
 }

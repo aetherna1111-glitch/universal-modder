@@ -443,7 +443,8 @@ glance, a whisper, a warning, a fight or a return.
   (+1 luck; blindness, darkness, nausea shrugged off), the Cuirass of the Covenant (fire immunity; a 4-point ward of
   absorption renewed every 20 s), the Greaves of the Procession (+10 % speed; slowness shrugged off), the Sandals of
   the Pilgrim (+5 % speed; no fall damage). Set bonus, the Envoy's Light: below 30 % health, once per 60 s, heal 6,
-  Regeneration II, and every hostile thing within 5 blocks is hurled away, hurt 4 and marked. Blessings: Protection V,
+  Regeneration II, and every hostile thing within 5 blocks is hurled away, hurt 4 and marked. Runes in every piece's two sockets: the Rune of Dawn (+2 max health per piece) and the Netherfused Rune of Cinders
+  (whoever strikes the wearer burns 2 s per piece). Blessings: Protection V,
   Thorns III, Fire Protection III and Zenith's Berserker's Fury, Rebounding, Icy Thorns, Reflective Defenses III on
   every piece; Respiration III and Aqua Affinity on the diadem, Swift Sneak III on the greaves, Feather Falling IV,
   Depth Strider III and Soul Speed III on the sandals.

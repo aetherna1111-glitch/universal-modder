@@ -48,6 +48,13 @@ public final class LuminArmorItem extends ArmorItem {
 	public static final String NBT_OWNER = HolySwordItem.NBT_OWNER;
 	public static final String NBT_PREPARED = "LuminaryPrepared";
 	public static final String NBT_NOVA_AT = "LuminaryNovaAt";
+	/** Runes in the two sockets of every piece. Dawn (runic): +{@value #DAWN_HEALTH} max health per piece. Cinders (netherfused): whoever strikes you burns, {@value #CINDER_SECONDS} s per piece. */
+	public static final String NBT_RUNE = HolySwordItem.NBT_RUNE;
+	public static final String NBT_NETHER_RUNE = HolySwordItem.NBT_NETHER_RUNE;
+	public static final String RUNE_DAWN = "dawn";
+	public static final String RUNE_CINDERS = "cinders";
+	public static final double DAWN_HEALTH = 2.0;
+	public static final int CINDER_SECONDS = 2;
 	public static final int WARD_PERIOD_TICKS = 400;
 	public static final float WARD_ABSORPTION = 4.0f;
 	public static final double SPEED_BONUS = 0.10;
@@ -109,10 +116,16 @@ public final class LuminArmorItem extends ArmorItem {
 		}
 		nbt.putBoolean(NBT_PREPARED, true);
 		nbt.putBoolean("Unbreakable", true);
+		nbt.putString(NBT_RUNE, RUNE_DAWN);
+		nbt.putString(NBT_NETHER_RUNE, RUNE_CINDERS);
 		EquipmentSlot slot = armor.getSlotType();
 		nbt.remove("AttributeModifiers");
 		for (var e : armor.getAttributeModifiers(slot).entries()) {
 			stack.addAttributeModifier(e.getKey(), e.getValue(), slot);
+		}
+		if (hasRune(stack, RUNE_DAWN)) {
+			stack.addAttributeModifier(EntityAttributes.GENERIC_MAX_HEALTH, new EntityAttributeModifier(UUID.nameUUIDFromBytes(("luminary:dawn/" + slot.getName()).getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+					"Rune of Dawn", DAWN_HEALTH, EntityAttributeModifier.Operation.ADDITION), slot);
 		}
 		switch (slot) {
 			case HEAD -> stack.addAttributeModifier(EntityAttributes.GENERIC_LUCK, new EntityAttributeModifier(LUCK_ID, "Diadem of Insight", 1.0, EntityAttributeModifier.Operation.ADDITION), slot);
@@ -130,6 +143,30 @@ public final class LuminArmorItem extends ArmorItem {
 		List<String> all = new java.util.ArrayList<>(BLESSINGS_ALL);
 		all.addAll(extra);
 		HolySwordItem.blessWith(stack, all);
+	}
+
+	public static boolean hasRune(ItemStack stack, String rune) {
+		NbtCompound nbt = stack.getNbt();
+		return nbt != null && (rune.equals(nbt.getString(NBT_RUNE)) || rune.equals(nbt.getString(NBT_NETHER_RUNE)));
+	}
+
+	/** Pieces with the Rune of Cinders worn by {@code e}. */
+	public static int cinderPieces(LivingEntity e) {
+		int n = 0;
+		for (EquipmentSlot slot : new EquipmentSlot[] {EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET}) {
+			if (isVestment(e.getEquippedStack(slot)) && hasRune(e.getEquippedStack(slot), RUNE_CINDERS)) {
+				n++;
+			}
+		}
+		return n;
+	}
+
+	/** Rune of Cinders: a living attacker catches fire (hooked from {@code ServerLivingEntityEvents.ALLOW_DAMAGE}). */
+	public static void cinders(LivingEntity victim, net.minecraft.entity.damage.DamageSource source) {
+		int pieces = cinderPieces(victim);
+		if (pieces > 0 && source.getAttacker() instanceof LivingEntity attacker && attacker != victim && !attacker.isFireImmune()) {
+			attacker.setOnFireFor(CINDER_SECONDS * pieces);
+		}
 	}
 
 	// ------------------------------------------------------------------ worn effects
@@ -257,6 +294,18 @@ public final class LuminArmorItem extends ArmorItem {
 		tooltip.add(Text.translatable(k + "set.title").formatted(Formatting.GREEN));
 		tooltip.add(Text.translatable(k + "set.text", (int) (NOVA_HEALTH_FRACTION * 100), (int) NOVA_HEAL, (int) NOVA_RADIUS).formatted(Formatting.GRAY));
 		tooltip.add(Text.literal("⌛ " + NOVA_COOLDOWN_TICKS / 20 + "s").formatted(Formatting.GOLD, Formatting.ITALIC));
+		tooltip.add(Text.empty());
+		NbtCompound nbt = stack.getNbt();
+		String rune = nbt == null ? "" : nbt.getString(NBT_RUNE);
+		String nether = nbt == null ? "" : nbt.getString(NBT_NETHER_RUNE);
+		tooltip.add((rune.isEmpty() ? Text.translatable("item.luminary.holy_sword_of_lumin.socket.rune.empty") : Text.translatable(k + "rune." + rune)).formatted(Formatting.LIGHT_PURPLE));
+		if (!rune.isEmpty()) {
+			tooltip.add(Text.translatable(k + "rune." + rune + ".text", (int) DAWN_HEALTH).formatted(Formatting.DARK_GRAY));
+		}
+		tooltip.add((nether.isEmpty() ? Text.translatable("item.luminary.holy_sword_of_lumin.socket.nether.empty") : Text.translatable(k + "rune." + nether)).formatted(Formatting.RED));
+		if (!nether.isEmpty()) {
+			tooltip.add(Text.translatable(k + "rune." + nether + ".text", CINDER_SECONDS).formatted(Formatting.DARK_GRAY));
+		}
 		tooltip.add(Text.empty());
 		tooltip.add(Text.translatable(isBound(stack) ? k + "bound" : k + "unbound").formatted(Formatting.DARK_PURPLE));
 	}

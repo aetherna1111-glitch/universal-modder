@@ -36,7 +36,12 @@ public final class LuminaryItems {
 				entries.add(LuminArmorItem.unbound(piece));
 			}
 		});
-		net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) ->
-				!(source.isOf(net.minecraft.entity.damage.DamageTypes.FALL) && LuminArmorItem.refusesFall(entity)));
+		net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) -> {
+			if (source.isOf(net.minecraft.entity.damage.DamageTypes.FALL) && LuminArmorItem.refusesFall(entity)) {
+				return false;
+			}
+			LuminArmorItem.cinders(entity, source);
+			return true;
+		});
 	}
 }
