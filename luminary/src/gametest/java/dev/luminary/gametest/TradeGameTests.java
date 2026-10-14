@@ -228,6 +228,14 @@ public final class TradeGameTests implements FabricGameTest {
 		expect(trade.donate(ID, player).ok(), "alms accepted");
 		TradeManager.almsEffects(npc().body(ID).orElseThrow());   // the bell and the light: must not throw on a server world
 		expect(Math.abs(b.karmaOf(player.getUuid()) - before - 5) < 0.01 && count(player, net.minecraft.item.Items.EMERALD) == 2, "+5 karma for 10 emeralds: " + b.karmaOf(player.getUuid()) + ", emeralds left " + count(player, net.minecraft.item.Items.EMERALD));
+		// good karma: the same librarian asks less
+		record.relationships().setKarma(player.getUuid(), 100, npc().now(), npc().roster().rules().relationship());
+		net.minecraft.entity.passive.VillagerEntity kind = ctx.spawnEntity(EntityType.VILLAGER, new BlockPos(12, FLOOR_Y + 1, 12));
+		kind.setVillagerData(kind.getVillagerData().withProfession(net.minecraft.village.VillagerProfession.LIBRARIAN).withLevel(1));
+		kind.interact(player, net.minecraft.util.Hand.MAIN_HAND);
+		net.minecraft.village.TradeOffer cheap = kind.getOffers().get(0);
+		expect(cheap.getSpecialPrice() < 0 && cheap.getAdjustedFirstBuyItem().getCount() < cheap.getOriginalFirstBuyItem().getCount(), "karma +100 is a discount: special=" + cheap.getSpecialPrice());
+		record.relationships().setKarma(player.getUuid(), karma, npc().now(), npc().roster().rules().relationship());
 		// the ledger reset does not forgive: karma is the relationship, not the trade
 		trade.reset(ID, player);
 		expect(b.karmaOf(player.getUuid()) < 0, "a wiped ledger keeps the karma");

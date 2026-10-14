@@ -27,6 +27,14 @@ class KarmaEffectsTest {
 		assertEquals(0, KarmaEffects.extraPrice(10, 0));
 		assertEquals(1, KarmaEffects.extraPrice(1, 0.1), "any markup costs at least one");
 		assertEquals(8, KarmaEffects.extraPrice(10, 0.75));
+		assertEquals(0.0, KarmaEffects.discount(9), "a little good will: no discount yet");
+		assertEquals(0.15, KarmaEffects.discount(50), 1e-9);
+		assertEquals(0.30, KarmaEffects.discount(100), 1e-9);
+		assertEquals(-0.30, KarmaEffects.priceShift(100), 1e-9);
+		assertEquals(0.375, KarmaEffects.priceShift(-50), 1e-9);
+		assertEquals(3, KarmaEffects.priceOff(10, 0.3));
+		assertEquals(1, KarmaEffects.priceOff(2, 0.3), "at least one off once there is a discount");
+		assertEquals(0, KarmaEffects.priceOff(1, 0.3), "never the whole price");
 	}
 
 	@Test

@@ -340,7 +340,7 @@ public final class TradeManager {
 		buf.writeString(npc.behaviour().standing(id, player.getUuid()).name(), 32);
 		buf.writeBoolean(npc.behaviour().worthy(id, player.getUuid()));
 		buf.writeDouble(dev.luminary.core.npc.relationship.KarmaEffects.luck(karma));
-		buf.writeDouble(dev.luminary.core.npc.relationship.KarmaEffects.markup(karma));
+		buf.writeDouble(dev.luminary.core.npc.relationship.KarmaEffects.priceShift(karma));
 		buf.writeVarInt(offers.size());
 		for (ShopOffer o : offers) {
 			Item it = item(o).orElseThrow();

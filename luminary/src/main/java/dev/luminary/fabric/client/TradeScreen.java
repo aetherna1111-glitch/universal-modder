@@ -274,7 +274,8 @@ public final class TradeScreen extends Screen {
 		out.add(Text.translatable("screen.luminary.trade.karma.trust", (int) Math.round(snap.trust), (int) Math.round(snap.threat)).formatted(Formatting.GRAY));
 		String luck = (snap.luck > 0 ? "+" : "") + (snap.luck == Math.floor(snap.luck) ? Integer.toString((int) snap.luck) : Double.toString(snap.luck));
 		out.add(Text.translatable("screen.luminary.trade.karma.luck", luck).formatted(snap.luck < 0 ? Formatting.RED : snap.luck > 0 ? Formatting.GREEN : Formatting.GRAY));
-		out.add(Text.translatable("screen.luminary.trade.karma.prices", (int) Math.round(snap.markup * 100)).formatted(snap.markup > 0 ? Formatting.RED : Formatting.GRAY));
+		int shift = (int) Math.round(snap.markup * 100);
+		out.add(Text.translatable("screen.luminary.trade.karma.prices", (shift > 0 ? "+" : shift < 0 ? "−" : "") + Math.abs(shift)).formatted(shift > 0 ? Formatting.RED : shift < 0 ? Formatting.GREEN : Formatting.GRAY));
 		out.add(Text.empty());
 		out.add(Text.translatable(snap.worthy ? "screen.luminary.trade.karma.worthy" : "screen.luminary.trade.karma.unworthy").formatted(snap.worthy ? Formatting.GREEN : Formatting.RED));
 		out.add(Text.translatable("screen.luminary.trade.karma.how").formatted(Formatting.DARK_GRAY, Formatting.ITALIC));
