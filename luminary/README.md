@@ -429,6 +429,11 @@ glance, a whisper, a warning, a fight or a return.
   marks in a 12-block beam of light through everything in line for 3 + 2 × marks damage (undead ×1.5 and set on
   fire), everything struck glows 10 s; 6 s cooldown. **Sanctuary** (sneak + use, 3 marks) plants an 8 s circle of
   light, radius 5: players and Lumin inside regenerate and resist, hostile mobs weaken and glow; 30 s cooldown.
+  **Blessings:** every sword the custody mints carries `weapon.blessings` (default: Sharpness VI, Smite VII,
+  Looting IV, Sweeping Edge III, Fire Aspect II, Knockback I; from MC Dungeons Weapons Smiting III, Radiance III,
+  Thundering III, Committed III, Phantom's Mark III, Leeching III, Swirling III, Guarding Strike III, Echo II; from
+  Zenith Scavenger III and Capturing III); ids of mods that are not installed are skipped, so the list is safe on
+  any server and the pack's Unrestricted Enchanting keeps the levels.
   In Lumin's own hands the melee blow is the configured half of the target's health, and an opponent who keeps out
   of reach but within 10 blocks is judged by the beam every 6 s instead of being chased. Identity: indestructible,
   bound to its NPC and to a *custody instance id*. The server's

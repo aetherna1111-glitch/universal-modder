@@ -69,6 +69,49 @@ public final class HolySwordItem extends Item {
 	public static final double SANCTUARY_RADIUS = 5.0;
 	public static final int SANCTUARY_COOLDOWN = 600;
 
+	/**
+	 * The blessings: enchantments written onto every sword the custody mints, as {@code namespace:path:level}. Ids of
+	 * mods that are not installed are skipped silently, so the same list serves a bare server and the full pack
+	 * (vanilla, MC Dungeons Weapons, Zenith). Configurable through {@code weapon.blessings}.
+	 */
+	public static final List<String> DEFAULT_BLESSINGS = List.of(
+			"minecraft:sharpness:6", "minecraft:smite:7", "minecraft:looting:4", "minecraft:sweeping:3", "minecraft:fire_aspect:2", "minecraft:knockback:1",
+			"mcdw:smiting:3", "mcdw:radiance:3", "mcdw:thundering:3", "mcdw:committed:3", "mcdw:phantoms_mark:3", "mcdw:leeching:3",
+			"mcdw:swirling:3", "mcdw:guarding_strike:3", "mcdw:echo:2",
+			"zenith:scavenger:3", "zenith:capturing:3");
+	private static volatile List<String> blessings = DEFAULT_BLESSINGS;
+
+	public static void setBlessings(List<String> list) {
+		blessings = List.copyOf(list);
+	}
+
+	public static List<String> blessings() {
+		return blessings;
+	}
+
+	/** Writes the configured blessings onto the stack; returns how many were applied (installed mods only). */
+	public static int bless(ItemStack stack) {
+		int applied = 0;
+		for (String spec : blessings) {
+			int colon = spec.lastIndexOf(':');
+			if (colon <= 0) {
+				continue;
+			}
+			try {
+				net.minecraft.util.Identifier id = new net.minecraft.util.Identifier(spec.substring(0, colon));
+				int level = Integer.parseInt(spec.substring(colon + 1).trim());
+				Optional<net.minecraft.enchantment.Enchantment> ench = net.minecraft.registry.Registries.ENCHANTMENT.getOrEmpty(id);
+				if (ench.isPresent() && level > 0) {
+					stack.addEnchantment(ench.get(), level);
+					applied++;
+				}
+			} catch (RuntimeException ignored) {
+				// a malformed entry never breaks the sword
+			}
+		}
+		return applied;
+	}
+
 	public HolySwordItem(Settings settings) {
 		super(settings);
 	}
@@ -82,6 +125,7 @@ public final class HolySwordItem extends Item {
 		nbt.putString(NBT_OWNER, npc.toString());
 		nbt.putUuid(NBT_INSTANCE, instance);
 		writeAttributes(stack, 0);
+		bless(stack);
 		return stack;
 	}
 

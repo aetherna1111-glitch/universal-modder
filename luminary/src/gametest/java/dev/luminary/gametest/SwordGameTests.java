@@ -40,6 +40,14 @@ public final class SwordGameTests implements FabricGameTest {
 		ItemStack sword = HolySwordItem.bound(LuminaryItems.LUMIN_BLADE, LuminaryId.parse("luminary:npc/lumin"), UUID.randomUUID());
 		expect(Math.abs(attackDamage(sword) - HolySwordItem.BASE_DAMAGE) < 0.01, "9 damage with an empty ledger: " + attackDamage(sword));
 		expect(!sword.isDamageable() && sword.getMaxDamage() == 0, "unbreakable");
+		expect(net.minecraft.enchantment.EnchantmentHelper.getLevel(net.minecraft.enchantment.Enchantments.SHARPNESS, sword) == 6
+				&& net.minecraft.enchantment.EnchantmentHelper.getLevel(net.minecraft.enchantment.Enchantments.SMITE, sword) == 7
+				&& net.minecraft.enchantment.EnchantmentHelper.getLevel(net.minecraft.enchantment.Enchantments.LOOTING, sword) == 4, "the vanilla blessings are minted onto the sword: " + sword.getEnchantments());
+		expect(sword.getEnchantments().size() == 6, "on a bare server only the 6 vanilla blessings apply; modded ids are skipped: " + sword.getEnchantments().size());
+		HolySwordItem.setBlessings(java.util.List.of("minecraft:sharpness:2", "nope", "nosuchmod:thing:3", "minecraft:unbreaking:x"));
+		ItemStack custom = HolySwordItem.bound(LuminaryItems.LUMIN_BLADE, LuminaryId.parse("luminary:npc/lumin"), UUID.randomUUID());
+		expect(custom.getEnchantments().size() == 1 && net.minecraft.enchantment.EnchantmentHelper.getLevel(net.minecraft.enchantment.Enchantments.SHARPNESS, custom) == 2, "configured blessings, malformed entries ignored");
+		HolySwordItem.setBlessings(HolySwordItem.DEFAULT_BLESSINGS);
 		PlayerEntity player = ctx.createMockSurvivalPlayer();
 		Vec3d at = ctx.getAbsolute(new Vec3d(4.5, FLOOR_Y + 1, 8.5));
 		player.refreshPositionAndAngles(at.x, at.y, at.z, -90f, 0f);   // looking +X

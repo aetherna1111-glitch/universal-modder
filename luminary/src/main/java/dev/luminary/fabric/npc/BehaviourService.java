@@ -84,6 +84,7 @@ public final class BehaviourService {
 	public void configure(LuminaryConfig.Behaviour behaviour) {
 		this.config = behaviour;
 		state.roster().setRules(behaviour.rosterRules());
+		HolySwordItem.setBlessings(behaviour.blessings());
 	}
 
 	public LuminaryConfig.Behaviour config() {

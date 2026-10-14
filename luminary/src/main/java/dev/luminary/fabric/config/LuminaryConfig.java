@@ -58,14 +58,23 @@ public record LuminaryConfig(String dialogueProvider, String intentPlanner, LlmC
 	 *             "recoverySeconds": 30, "weaponDamageFraction": 0.5, "strikeReach": 3.5, "holdGroundRadius": 6.0,
 	 *             "knockoutMinutes": 5, "helpShortensBySeconds": 60, "duelConsentSeconds": 90, "shieldFirst": true }
 	 * relationship: { "threatHalfLifeMinutes": 10, "karmaRecoveryPerDay": 2.0, "hostileThreat": 60, "waryThreat": 25, "friendKarma": 20, "friendTrust": 30 }
-	 * weapon:   { "theftDurationMinutes": 60 }
+	 * weapon:   { "theftDurationMinutes": 60, "blessings": ["minecraft:sharpness:6", "mcdw:smiting:3", ...] }  (enchantments minted onto the sword; unknown ids skipped)
 	 * routine:  { "enabled": true }
 	 * </pre>
 	 */
 	public record Behaviour(String language, GazeTracker.Rules gaze, MutterChannel.Rules mutter, CombatRules combat, RelationshipRules relationship,
-							Duration theftDuration, boolean routineEnabled) {
+							Duration theftDuration, boolean routineEnabled, java.util.List<String> blessings) {
 		public static final Behaviour DEFAULTS = new Behaviour("en", GazeTracker.Rules.DEFAULTS, MutterChannel.Rules.DEFAULTS, CombatRules.DEFAULTS,
-				RelationshipRules.DEFAULTS, WeaponCustody.DEFAULT_THEFT_DURATION, true);
+				RelationshipRules.DEFAULTS, WeaponCustody.DEFAULT_THEFT_DURATION, true, dev.luminary.fabric.npc.HolySwordItem.DEFAULT_BLESSINGS);
+
+		public Behaviour(String language, GazeTracker.Rules gaze, MutterChannel.Rules mutter, CombatRules combat, RelationshipRules relationship,
+						 Duration theftDuration, boolean routineEnabled) {
+			this(language, gaze, mutter, combat, relationship, theftDuration, routineEnabled, dev.luminary.fabric.npc.HolySwordItem.DEFAULT_BLESSINGS);
+		}
+
+		public Behaviour {
+			blessings = java.util.List.copyOf(blessings);
+		}
 
 		public NpcRoster.Rules rosterRules() {
 			return new NpcRoster.Rules(gaze, mutter, combat, relationship);
@@ -202,16 +211,24 @@ public record LuminaryConfig(String dialogueProvider, String intentPlanner, LlmC
 					r.has("friendTrust") ? r.get("friendTrust").getAsInt() : x.friendTrust());
 		}
 		Duration theft = d.theftDuration();
+		java.util.List<String> blessings = d.blessings();
 		if (o.has("weapon") && o.get("weapon").isJsonObject()) {
 			JsonObject w = o.getAsJsonObject("weapon");
 			theft = w.has("theftDurationMinutes") ? Duration.ofMinutes(w.get("theftDurationMinutes").getAsLong()) : theft;
+			if (w.has("blessings") && w.get("blessings").isJsonArray()) {
+				java.util.List<String> list = new java.util.ArrayList<>();
+				for (var el : w.getAsJsonArray("blessings")) {
+					list.add(el.getAsString());
+				}
+				blessings = list;
+			}
 		}
 		boolean routine = d.routineEnabled();
 		if (o.has("routine") && o.get("routine").isJsonObject()) {
 			JsonObject r = o.getAsJsonObject("routine");
 			routine = !r.has("enabled") || r.get("enabled").getAsBoolean();
 		}
-		return new Behaviour(language, gaze, mutter, combat, relationship, theft, routine);
+		return new Behaviour(language, gaze, mutter, combat, relationship, theft, routine, blessings);
 	}
 
 	private static Duration seconds(JsonObject o, String key, Duration fallback) {
@@ -284,6 +301,9 @@ public record LuminaryConfig(String dialogueProvider, String intentPlanner, LlmC
 			o.add("relationship", relationship);
 			JsonObject weapon = new JsonObject();
 			weapon.addProperty("theftDurationMinutes", b.theftDuration().toMinutes());
+			JsonArray blessings = new JsonArray();
+			b.blessings().forEach(blessings::add);
+			weapon.add("blessings", blessings);
 			o.add("weapon", weapon);
 			JsonObject routine = new JsonObject();
 			routine.addProperty("enabled", b.routineEnabled());
