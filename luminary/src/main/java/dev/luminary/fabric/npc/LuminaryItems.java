@@ -15,11 +15,28 @@ public final class LuminaryItems {
 	/** The Holy Sword of Lumin; in the NPC's hands the hit is the configured fraction of the target's health, see {@link HolySwordItem}. */
 	public static final HolySwordItem LUMIN_BLADE = new HolySwordItem(new Item.Settings().maxCount(1).rarity(Rarity.EPIC).fireproof());
 
+	public static final LuminArmorItem VESTMENT_HELMET = new LuminArmorItem(net.minecraft.item.ArmorItem.Type.HELMET, new Item.Settings().maxCount(1).rarity(Rarity.EPIC).fireproof());
+	public static final LuminArmorItem VESTMENT_CHESTPLATE = new LuminArmorItem(net.minecraft.item.ArmorItem.Type.CHESTPLATE, new Item.Settings().maxCount(1).rarity(Rarity.EPIC).fireproof());
+	public static final LuminArmorItem VESTMENT_LEGGINGS = new LuminArmorItem(net.minecraft.item.ArmorItem.Type.LEGGINGS, new Item.Settings().maxCount(1).rarity(Rarity.EPIC).fireproof());
+	public static final LuminArmorItem VESTMENT_BOOTS = new LuminArmorItem(net.minecraft.item.ArmorItem.Type.BOOTS, new Item.Settings().maxCount(1).rarity(Rarity.EPIC).fireproof());
+	public static final java.util.List<LuminArmorItem> VESTMENTS = java.util.List.of(VESTMENT_HELMET, VESTMENT_CHESTPLATE, VESTMENT_LEGGINGS, VESTMENT_BOOTS);
+
 	private LuminaryItems() {
 	}
 
 	public static void register() {
 		Registry.register(Registries.ITEM, BLADE_ID, LUMIN_BLADE);
-		ItemGroupEvents.modifyEntriesEvent(ItemGroups.COMBAT).register(entries -> entries.add(HolySwordItem.unbound(LUMIN_BLADE)));   // a free blade, fully prepared
+		Registry.register(Registries.ITEM, new Identifier(Luminary.MOD_ID, "vestment_helmet"), VESTMENT_HELMET);
+		Registry.register(Registries.ITEM, new Identifier(Luminary.MOD_ID, "vestment_chestplate"), VESTMENT_CHESTPLATE);
+		Registry.register(Registries.ITEM, new Identifier(Luminary.MOD_ID, "vestment_leggings"), VESTMENT_LEGGINGS);
+		Registry.register(Registries.ITEM, new Identifier(Luminary.MOD_ID, "vestment_boots"), VESTMENT_BOOTS);
+		ItemGroupEvents.modifyEntriesEvent(ItemGroups.COMBAT).register(entries -> {
+			entries.add(HolySwordItem.unbound(LUMIN_BLADE));   // a free blade, fully prepared
+			for (LuminArmorItem piece : VESTMENTS) {
+				entries.add(LuminArmorItem.unbound(piece));
+			}
+		});
+		net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) ->
+				!(source.isOf(net.minecraft.entity.damage.DamageTypes.FALL) && LuminArmorItem.refusesFall(entity)));
 	}
 }

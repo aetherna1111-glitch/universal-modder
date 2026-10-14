@@ -107,8 +107,12 @@ public final class HolySwordItem extends Item {
 
 	/** Writes the configured blessings onto the stack; returns how many were applied (installed mods only). */
 	public static int bless(ItemStack stack) {
+		return blessWith(stack, blessings);
+	}
+
+	public static int blessWith(ItemStack stack, List<String> specs) {
 		int applied = 0;
-		for (String spec : blessings) {
+		for (String spec : specs) {
 			int colon = spec.lastIndexOf(':');
 			if (colon <= 0) {
 				continue;
@@ -446,7 +450,11 @@ public final class HolySwordItem extends Item {
 
 	@Override
 	public Text getName(ItemStack stack) {
-		String name = net.minecraft.util.Language.getInstance().get(getTranslationKey(stack));
+		return shimmer(net.minecraft.util.Language.getInstance().get(getTranslationKey(stack)));
+	}
+
+	/** Per-character gold–white–sky colouring that moves with time; shared with the vestments. */
+	public static Text shimmer(String name) {
 		double phase = (System.currentTimeMillis() % 2400L) / 2400.0 * SHIMMER.length;
 		net.minecraft.text.MutableText out = Text.empty();
 		int i = 0;

@@ -435,6 +435,18 @@ glance, a whisper, a warning, a fight or a return.
   every 2 s and glow. **Runes** in the two sockets: the Rune of Clarity (+1 Luck, marks fade twice as slowly) and the
   Netherfused Rune of Embers (every hit kindles 4 s; a hit on a burning target heals 1). The tooltip follows the
   pack's unique-weapon layout: tier, parameters, unique effect, right-click and sneak abilities with ⌛ cooldowns, sockets.
+- **The Vestments of the Envoy.** Four pieces (`luminary:vestment_helmet|chestplate|leggings|boots`): 24 armour in
+  total (netherite is 20), toughness 4, knockback resistance 0.15 each, unbreakable, Godlike tier, shimmering names,
+  their own worn textures and icons. Lumin (`"vestments": true` in his definition) wears a bound set that nothing
+  takes: no armour ever replaces a piece, a knocked-out Lumin is not looted of it, a missing piece is restored
+  within a second. A free set sits in the creative Combat tab. Unique parameters and effects: the Diadem of Insight
+  (+1 luck; blindness, darkness, nausea shrugged off), the Cuirass of the Covenant (fire immunity; a 4-point ward of
+  absorption renewed every 20 s), the Greaves of the Procession (+10 % speed; slowness shrugged off), the Sandals of
+  the Pilgrim (+5 % speed; no fall damage). Set bonus, the Envoy's Light: below 30 % health, once per 60 s, heal 6,
+  Regeneration II, and every hostile thing within 5 blocks is hurled away, hurt 4 and marked. Blessings: Protection V,
+  Thorns III, Fire Protection III and Zenith's Berserker's Fury, Rebounding, Icy Thorns, Reflective Defenses III on
+  every piece; Respiration III and Aqua Affinity on the diadem, Swift Sneak III on the greaves, Feather Falling IV,
+  Depth Strider III and Soul Speed III on the sandals.
   **Blessings:** every sword the custody mints carries `weapon.blessings` (default: Sharpness VI, Smite VII,
   Looting IV, Sweeping Edge III, Fire Aspect II, Knockback I; from MC Dungeons Weapons Smiting III, Radiance III,
   Thundering III, Committed III, Phantom's Mark III, Leeching III, Swirling III, Guarding Strike III, Echo II; from

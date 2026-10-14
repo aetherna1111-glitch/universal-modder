@@ -164,6 +164,7 @@ public class LuminaryNpcEntity extends PathAwareEntity {
 			LuminaryRuntime.get().ifPresent(rt -> {
 				rt.npc().behaviour().tickKnockout(this);
 				rt.npc().behaviour().tickWeapon(this);
+				rt.npc().behaviour().tickVestments(this);
 			});
 		}
 	}

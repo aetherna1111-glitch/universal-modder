@@ -191,6 +191,29 @@ public final class BehaviourService {
 
 	// ------------------------------------------------------------------ whispers
 
+	/** The NPC's own vestments: equipped when missing (every second), their worn effects ticked (mobs do not tick armour). */
+	public void tickVestments(LuminaryNpcEntity body) {
+		if (body.npcId().isEmpty() || !(body.getWorld() instanceof ServerWorld world)) {
+			return;
+		}
+		LuminaryId id = body.npcId().get();
+		if (dialogue.definitions().npc(id).map(d -> !d.vestments()).orElse(true)) {
+			return;
+		}
+		for (LuminArmorItem piece : LuminaryItems.VESTMENTS) {
+			net.minecraft.entity.EquipmentSlot slot = piece.getSlotType();
+			ItemStack worn = body.getEquippedStack(slot);
+			if (body.age % 20 == 0 && !(worn.getItem() == piece && LuminArmorItem.owner(worn).filter(id::equals).isPresent())) {
+				body.equipStack(slot, LuminArmorItem.bound(piece, id));
+				body.setEquipmentDropChance(slot, 0.0f);
+				worn = body.getEquippedStack(slot);
+			}
+			if (worn.getItem() == piece) {
+				piece.wornTick(worn, world, body);
+			}
+		}
+	}
+
 	/** Every second: derive what the NPC is doing and maybe whisper it to whoever stands close. */
 	public void tickPresence(LuminaryNpcEntity body) {
 		if (body.age % 20 != 0) {

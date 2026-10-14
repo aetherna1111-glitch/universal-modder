@@ -10,9 +10,15 @@ import java.util.Objects;
  * A named, unique NPC. One definition = at most one living entity per world (enforced by {@link NpcRoster}).
  * {@code dialogue} names the {@link DialogueScript} the NPC speaks from; {@code persona} is authored character text
  * (identity, voice, boundaries) given to a model-backed provider; {@code character} is the versioned
- * {@link CharacterSheet} with the authored lines of the deterministic channels. All of it is data, never generated.
+ * {@link CharacterSheet} with the authored lines of the deterministic channels; {@code vestments} marks the NPC that
+ * wears the bound Vestments of the Envoy. All of it is data, never generated.
  */
-public record NpcDefinition(LuminaryId id, String nameKey, LuminaryId dialogue, List<String> persona, List<String> aliases, CharacterSheet character) {
+public record NpcDefinition(LuminaryId id, String nameKey, LuminaryId dialogue, List<String> persona, List<String> aliases, CharacterSheet character, boolean vestments) {
+	/** Without the vestments flag: an ordinary NPC that wears whatever it is handed. */
+	public NpcDefinition(LuminaryId id, String nameKey, LuminaryId dialogue, List<String> persona, List<String> aliases, CharacterSheet character) {
+		this(id, nameKey, dialogue, persona, aliases, character, false);
+	}
+
 	public NpcDefinition {
 		Objects.requireNonNull(id, "id");
 		Objects.requireNonNull(character, "character");

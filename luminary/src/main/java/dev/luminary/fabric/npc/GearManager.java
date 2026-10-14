@@ -41,8 +41,8 @@ public final class GearManager {
 	public static Offer offer(LuminaryNpcEntity npc, PlayerEntity player, ItemStack inHand) {
 		if (isArmor(inHand)) {
 			EquipmentSlot slot = ((ArmorItem) inHand.getItem()).getSlotType();
-			if (!npc.getEquippedStack(slot).isEmpty()) {
-				return Offer.ARMOR_INTACT;
+			if (!npc.getEquippedStack(slot).isEmpty() || LuminArmorItem.isVestment(npc.getEquippedStack(slot))) {
+				return Offer.ARMOR_INTACT;   // the vestments never break, so nothing ever replaces them
 			}
 			ItemStack one = inHand.copyWithCount(1);
 			npc.equipStack(slot, one);

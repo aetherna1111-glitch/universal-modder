@@ -197,7 +197,8 @@ public final class DefinitionsReloadListener implements SimpleSynchronousResourc
 		if (json.has("character") && json.get("character").isJsonObject()) {
 			character = parseCharacter(json.getAsJsonObject("character"));
 		}
-		return new NpcDefinition(id, nameKey, LuminaryId.parse(require(json, "dialogue", file).getAsString()), persona, aliases, character);
+		boolean vestments = json.has("vestments") && json.get("vestments").getAsBoolean();
+		return new NpcDefinition(id, nameKey, LuminaryId.parse(require(json, "dialogue", file).getAsString()), persona, aliases, character, vestments);
 	}
 
 	/**
