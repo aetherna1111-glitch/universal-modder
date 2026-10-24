@@ -1,0 +1,18 @@
+--- a/XSystemServer.cpp
++++ b/XSystemServer.cpp
+@@ -14,6 +14,7 @@
+ //////////////////////////////////////////////////////////////////////
+ 
+ #include "stdafx.h"
++#include "Coop.h"
+ #include "XSystemServer.h"
+ #include "XPlayer.h"
+ #include "WeaponSystemEx.h"
+@@ -96,6 +97,7 @@
+ 
+ 	m_pGame->m_bMapLoadedFromCheckpoint=false;
+ 	m_pGame->m_pServer->m_bIsLoadingLevel=false;
++	Coop::OnServerLevelLoaded();
+ 	return true;
+ }
+ 

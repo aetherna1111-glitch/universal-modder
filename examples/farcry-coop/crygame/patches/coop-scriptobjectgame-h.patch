@@ -1,0 +1,12 @@
+--- a/ScriptObjectGame.h
++++ b/ScriptObjectGame.h
+@@ -166,6 +166,9 @@
+ 	int SetViewAngles(IFunctionHandler *pH);
+ 	int DumpEntities(IFunctionHandler *pH);
+ 	int TouchCheckPoint(IFunctionHandler *pH);
++	int CoopGetRespawnAnchor(IFunctionHandler *pH);
++	int CoopIsActive(IFunctionHandler *pH);
++	int CoopStatus(IFunctionHandler *pH);
+ 
+ 	int GetSaveGameList(IFunctionHandler *pH);
+ 	int ToggleMenu(IFunctionHandler *pH);

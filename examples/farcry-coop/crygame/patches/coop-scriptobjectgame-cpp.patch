@@ -1,0 +1,54 @@
+--- a/ScriptObjectGame.cpp
++++ b/ScriptObjectGame.cpp
+@@ -17,6 +17,7 @@
+ //////////////////////////////////////////////////////////////////////
+ 
+ #include "stdafx.h"
++#include "Coop.h"
+ #if defined LINUX
+ #include <sys/io.h>
+ #else
+@@ -279,6 +280,9 @@
+ 	REG_FUNC(CScriptObjectGame,SetViewAngles);
+ 	REG_FUNC(CScriptObjectGame,DumpEntities);
+ 	REG_FUNC(CScriptObjectGame,TouchCheckPoint);
++	REG_FUNC(CScriptObjectGame,CoopGetRespawnAnchor);
++	REG_FUNC(CScriptObjectGame,CoopIsActive);
++	REG_FUNC(CScriptObjectGame,CoopStatus);
+ 	REG_FUNC(CScriptObjectGame,LoadLatestCheckPoint);
+ 	REG_FUNC(CScriptObjectGame,ShowSaveGameMenu);
+ 	REG_FUNC(CScriptObjectGame,GetSaveGameList);
+@@ -1620,6 +1624,12 @@
+     _VERIFY(tangles->GetValue("z", za));
+     Vec3 pos(x, y, z);
+     Vec3 angles(xa, ya, za);
++	{
++		// FarCryCoop: in a co-op session a checkpoint moves the shared respawn point instead of saving.
++		float coopPos[3] = { x, y, z }, coopAngles[3] = { xa, ya, za };
++		if (Coop::OnTouchCheckPoint(cp, coopPos, coopAngles))
++			return pH->EndFunction();
++	}
+ 	char buf[1024];
+ 	if (m_pGame->m_pServer)
+ 	{
+@@ -3838,3 +3848,20 @@
+ 	
+ 	return pH->EndFunction(GetISystem()->GetINetwork()->GetUBIGameServerIP(true));
+ }
++
++//////////////////////////////////////////////////////////////////////
++// FarCryCoop script functions (see Coop.h)
++int CScriptObjectGame::CoopGetRespawnAnchor(IFunctionHandler *pH)
++{
++	return Coop::Script_GetRespawnAnchor(pH, m_pScriptSystem);
++}
++
++int CScriptObjectGame::CoopIsActive(IFunctionHandler *pH)
++{
++	return Coop::Script_IsActive(pH);
++}
++
++int CScriptObjectGame::CoopStatus(IFunctionHandler *pH)
++{
++	return Coop::Script_Status(pH);
++}

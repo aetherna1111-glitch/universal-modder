@@ -172,6 +172,12 @@ audio, both PowerShell with embedded C#.
   - Minecraft's colour + depth are depth-composited into GTA's frame.
   - Minecraft TNT, arrows and fireworks become GTA explosions and bullets, and Minecraft mobs fight the
     police.
+- **[examples/farcry-coop](examples/farcry-coop)**: *FarCryCoop* for Far Cry (2004). In progress: built and
+  tested under Wine, not yet run in the game.
+  - A `CryGame.dll` rebuilt from the CryENGINE MOD SDK 1.4 with co-op hooks: server-side AI, replicated
+    enemies, players as AI targets, checkpoints as shared respawn points.
+  - A `Coop` game type on top of the campaign's own rules, and a launcher with LAN discovery.
+  - Cross-compiled on Linux with clang-cl, lld-link and xwin.
 
 Each has a field note with every non-obvious lesson: [knowledge/INDEX.md](knowledge/INDEX.md).
 

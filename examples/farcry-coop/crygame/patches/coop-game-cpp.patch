@@ -1,0 +1,35 @@
+--- a/Game.cpp
++++ b/Game.cpp
+@@ -17,6 +17,7 @@
+ //////////////////////////////////////////////////////////////////////
+  
+ #include "stdafx.h"
++#include "Coop.h"
+ #include <IStreamEngine.h>
+ #include <ICryPak.h>
+ #include "Game.h"
+@@ -207,6 +208,7 @@
+ //!destructor
+ CXGame::~CXGame()
+ {
++	Coop::Shutdown();
+ 	m_pScriptSystem->BeginCall("Shutdown");
+ 	m_pScriptSystem->PushFuncParam(0);
+ 	m_pScriptSystem->EndCall();
+@@ -631,6 +633,7 @@
+ 	m_pScriptSystem->SetGlobalValue("ENTITYTYPE_OWNTEAM", ENTITYTYPE_OWNTEAM);
+ 
+ 	InitConsoleVars();
++	Coop::Init(this);
+ 
+ 	if (szGameMod && szGameMod[0])
+ 	{
+@@ -881,6 +884,8 @@
+ 	if (!m_pSystem->Update(IsMultiplayer() ? ESYSUPDATE_MULTIPLAYER:0, nPauseMode)) //Update returns false when quitting
+ 		return (false);
+ 
++	Coop::PostSystemUpdate();
++
+ 	if (IsMultiplayer()) {
+ 		pe_params_flags pf; pf.flagsAND = ~pef_update;
+ 		for(ListOfPlayers::iterator	pl=m_DeadPlayers.begin(); pl!=m_DeadPlayers.end(); pl++)

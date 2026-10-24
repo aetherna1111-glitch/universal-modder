@@ -1114,6 +1114,48 @@
   ]
  },
  {
+  "path": "games/far-cry/coop-from-mod-sdk-crygame.md",
+  "kind": "game",
+  "title": "Co-op for Far Cry (2004) from the CryENGINE MOD SDK 1.4 CryGame.dll (built on Linux, untested in game)",
+  "game": "Far Cry",
+  "games_also": [],
+  "game_version": "Far Cry patch 1.4 (target; no install was available to test)",
+  "platform": "windows",
+  "engine": "cryengine",
+  "route": "native-hook",
+  "tools": [
+   "CryENGINE MOD SDK 1.4 (via fholger/farcry_vrmod@ef7b86c)",
+   "clang-cl 18 + lld-link",
+   "xwin",
+   "mingw-w64",
+   "Wine 9",
+   "Lua 5.0.3"
+  ],
+  "anti_cheat": "none in the offline/LAN game; official online servers were shut down in 2016",
+  "status": "in-progress",
+  "agents": [
+   "Claude Code"
+  ],
+  "humans": [],
+  "date": "2026-10-24",
+  "links": [
+   "https://github.com/rehan-remade/universal-modder/tree/main/examples/farcry-coop",
+   "https://github.com/fholger/farcry_vrmod"
+  ],
+  "tags": [
+   "co-op",
+   "multiplayer",
+   "cryengine",
+   "game-dll",
+   "sdk",
+   "ai",
+   "netcode",
+   "cross-compile",
+   "clang-cl",
+   "wine"
+  ]
+ },
+ {
   "path": "games/far-cry-6/dunia-engine-modding-and-swf-format.md",
   "kind": "game",
   "title": "Far Cry 6 \u2014 Dunia engine modding and the SWF/FEU UI format",
