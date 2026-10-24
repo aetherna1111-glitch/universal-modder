@@ -74,6 +74,20 @@ mkdir -p "$WORK/game13/Mods"; cp -r "$WORK/game/Mods/FarCryCoop" "$WORK/game13/M
 [ "$(run --game "$G13" --host pier --dry-run)" = 1 ] && grep -q "needs Far Cry patch 1.4" "$LOG" && ok "refuses a 1.3 FarCry.exe" || bad "version gate"
 [ "$(run --game "$G13" --host pier --dry-run --ignore-version)" = 0 ] && ok "--ignore-version overrides the gate" || bad "ignore-version"
 
+# single-file distribution: only FarCryCoop.exe, mod files embedded in it
+mkdir -p "$WORK/solo" "$WORK/game3/Bin32" "$WORK/game3/Levels/pier"
+cp "$BUILD/FarCryCoop.exe" "$WORK/solo/"; cp "$WORK/game/Bin32/FarCry.exe" "$WORK/game3/Bin32/"
+touch "$WORK/game3/Levels/pier/LevelData.xml"
+G3="$(winepath -w "$WORK/game3")"; SAVED_LOG=$LOG; LOG="$WORK/solo/FarCryCoop.log"; : > "$LOG"
+(cd "$WORK/solo" && timeout 60 wine FarCryCoop.exe --game "$G3" --install >/dev/null 2>&1); R=$?
+[ $R = 0 ] && cmp -s "$BUILD/coop/CryGame.dll" "$WORK/game3/Mods/FarCryCoop/Bin32/CryGame.dll" \
+  && cmp -s "$HERE/../mod/FarCryCoop/Scripts/Coop/GameRules.lua" "$WORK/game3/Mods/FarCryCoop/Scripts/Coop/GameRules.lua" \
+  && [ -s "$WORK/game3/Mods/FarCryCoop/EULA.txt" ] && [ -f "$WORK/game3/Mods/FarCryCoop/ModDesc.txt" ] \
+  && ok "FarCryCoop.exe alone installs the embedded mod (byte-identical)" || bad "embedded install (exit $R)"
+: > "$LOG"; (cd "$WORK/solo" && timeout 60 wine FarCryCoop.exe --game "$G3" --check >/dev/null 2>&1); R=$?
+[ $R = 0 ] && ! grep -q "differs from the installed copy" "$LOG" && ok "embedded package build matches the installed build" || bad "embedded check (exit $R)"
+LOG=$SAVED_LOG
+
 # LAN discovery: one launcher answers, another discovers (loopback)
 : > "$LOG"
 (cd "$WORK/pkg" && timeout 30 wine FarCryCoop.exe --lobby-serve 6 --name "LAN Test" --map pier --port 49001 --max 4 --build abc123 >/dev/null 2>&1) &

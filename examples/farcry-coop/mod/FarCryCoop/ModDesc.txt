@@ -1,6 +1,6 @@
 _Title_= "FarCryCoop"
 _Author_= "FarCryCoop contributors (unofficial, built with AI assistance)"
-_Version_= "0.1.0"
+_Version_= "0.2.0"
 _Website_= "https://github.com/rehan-remade/universal-modder/tree/main/examples/farcry-coop"
 _Description_= "Experimental co-op for the Far Cry campaign: a 'Coop' multiplayer game type where the server runs the enemies and every player gets their own character. Start it with FarCryCoop.exe (host or join). Needs patch 1.4. Unofficial; not affiliated with Crytek or Ubisoft."
 

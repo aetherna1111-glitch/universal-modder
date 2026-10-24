@@ -70,5 +70,12 @@ to lift, not a new netcode. The original game files are never touched.
 - `Game:LoadLevel` forces `g_GameType=Default` and a non-listen server: campaign level transitions end a
   co-op session (known issue).
 
+- 0.2.0: `Game:LoadLevel` during a co-op session now changes level on the server like MP map rotation
+  (`LoadLevelCS(true, map, mission, true)`, what `Game:LoadLevelMPServer` calls); a pure client ignores it.
+  Stock behaviour is unchanged outside co-op. Unverified in game.
+- 0.2.0: FarCryCoop.exe embeds the mod files (RCDATA + manifest with per-file SHA-256) and extracts them to
+  `%TEMP%\FarCryCoop-<hash>` when no `mod\FarCryCoop` folder sits next to it. Tested under wine: the
+  installed files are byte-identical to the build.
+
 ## Next
 - The in-game test plan in README.md, on one campaign level, by someone with the game.

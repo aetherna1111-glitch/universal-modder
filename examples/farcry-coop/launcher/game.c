@@ -241,10 +241,121 @@ int game_list_levels(const GameInfo *g, char names[][LEVEL_NAME_MAX], int max)
 	return n;
 }
 
+/* ---- mod files embedded in FarCryCoop.exe ---------------------------------------------------------------
+ * build.sh embeds every mod file as an RCDATA resource and a manifest (RCDATA 99) of "id|relative\\path" lines.
+ * Without a mod\\FarCryCoop folder next to the launcher they are extracted to %TEMP%\\FarCryCoop-<hash>. */
+
+#define MANIFEST_ID 99
+
+static int write_resource(int id, const char *path)
+{
+	HRSRC r = FindResourceA(NULL, MAKEINTRESOURCEA(id), (LPCSTR)RT_RCDATA);
+	HGLOBAL g;
+	const void *data;
+	DWORD len;
+	FILE *f;
+	size_t written;
+	if (!r || !(g = LoadResource(NULL, r)) || !(data = LockResource(g)))
+		return 0;
+	len = SizeofResource(NULL, r);
+	f = fopen(path, "wb");
+	if (!f)
+		return 0;
+	written = fwrite(data, 1, len, f);
+	fclose(f);
+	return written == len;
+}
+
+static int make_dirs(const char *path)
+{
+	char tmp[FCC_PATH];
+	char *p;
+	strncpy(tmp, path, sizeof(tmp) - 1);
+	tmp[sizeof(tmp) - 1] = 0;
+	for (p = tmp + 3; *p; ++p)
+	{
+		if (*p == '\\')
+		{
+			*p = 0;
+			CreateDirectoryA(tmp, NULL);
+			*p = '\\';
+		}
+	}
+	return CreateDirectoryA(tmp, NULL) || GetLastError() == ERROR_ALREADY_EXISTS;
+}
+
+int mod_embedded(void)
+{
+	return FindResourceA(NULL, MAKEINTRESOURCEA(MANIFEST_ID), (LPCSTR)RT_RCDATA) != NULL;
+}
+
+static int extract_embedded(char *out, size_t size)
+{
+	HRSRC r = FindResourceA(NULL, MAKEINTRESOURCEA(MANIFEST_ID), (LPCSTR)RT_RCDATA);
+	HGLOBAL g;
+	const char *manifest;
+	DWORD len, i;
+	char *text, *line, *next, tempDir[FCC_PATH], base[FCC_PATH];
+	unsigned long h = 2166136261UL;
+	int files = 0, ok = 1;
+
+	if (!r || !(g = LoadResource(NULL, r)) || !(manifest = (const char *)LockResource(g)))
+		return 0;
+	len = SizeofResource(NULL, r);
+	text = (char *)malloc(len + 1);
+	memcpy(text, manifest, len);
+	text[len] = 0;
+	for (i = 0; i < len; ++i)
+		h = (h ^ (unsigned char)text[i]) * 16777619UL;   /* manifest holds the per-file build ids */
+
+	GetTempPathA(sizeof(tempDir), tempDir);
+	_snprintf(base, sizeof(base), "%sFarCryCoop-%08lx\\mod\\" MOD_NAME, tempDir, h);
+	base[sizeof(base) - 1] = 0;
+	for (line = text; line && *line; line = next)
+	{
+		char *bar, full[FCC_PATH], dir[FCC_PATH];
+		int id;
+		next = strchr(line, '\n');
+		if (next)
+			*next++ = 0;
+		if (line[0] == '#' || !(bar = strchr(line, '|')))
+			continue;
+		*bar = 0;
+		id = atoi(line);
+		if (strstr(bar + 1, "..") || strchr(bar + 1, ':'))
+			continue;
+		path_join(full, sizeof(full), base, bar + 1);
+		strcpy(dir, full);
+		*strrchr(dir, '\\') = 0;
+		if (!make_dirs(dir) || !write_resource(id, full))
+		{
+			log_msg("ERROR: cannot extract embedded file %s", full);
+			ok = 0;
+			break;
+		}
+		++files;
+	}
+	free(text);
+	if (!ok || !files)
+		return 0;
+	_snprintf(out, size, "%s", base);
+	out[size - 1] = 0;
+	return 1;
+}
+
 int mod_source_dir(char *out, size_t size)
 {
+	static char cached[FCC_PATH];
 	path_join(out, size, exe_dir(), "mod\\" MOD_NAME);
-	return dir_exists(out);
+	if (dir_exists(out))
+		return 1;
+	if (!cached[0] && mod_embedded() && !extract_embedded(cached, sizeof(cached)))
+		cached[0] = 0;
+	if (!cached[0])
+		return 0;
+	strncpy(out, cached, size - 1);
+	out[size - 1] = 0;
+	return 1;
 }
 
 /* ---- build id ---------------------------------------------------------------------------------------- */

@@ -34,8 +34,12 @@ void game_save_setting(const char *root);
 /* Level folders under root\Levels with usable names. Returns the count. */
 int game_list_levels(const GameInfo *g, char names[][LEVEL_NAME_MAX], int max);
 
-/* Mod files shipped with the launcher: <launcher dir>\mod\FarCryCoop. */
+/* Mod files shipped with the launcher: <launcher dir>\mod\FarCryCoop if that folder exists, otherwise the
+ * copy embedded in FarCryCoop.exe (extracted to %TEMP%\FarCryCoop-<hash>\mod\FarCryCoop). */
 int mod_source_dir(char *out, size_t size);
+
+/* 1 if this FarCryCoop.exe carries the mod files inside. */
+int mod_embedded(void);
 
 /* 64-bit FNV-1a over every file (relative path + bytes) under dir, as 16 hex chars. Returns 0 if empty. */
 int mod_build_id(const char *dir, char hex[17]);

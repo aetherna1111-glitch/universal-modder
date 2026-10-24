@@ -1,4 +1,4 @@
-FarCryCoop 0.1.0 - experimental co-op for Far Cry (2004), patch 1.4
+FarCryCoop 0.2.0 - experimental co-op for Far Cry (2004), patch 1.4
 ====================================================================
 
 This folder is installed by FarCryCoop.exe into <Far Cry>\Mods\FarCryCoop. It contains:

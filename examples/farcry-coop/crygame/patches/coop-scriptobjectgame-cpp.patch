@@ -18,7 +18,26 @@
  	REG_FUNC(CScriptObjectGame,LoadLatestCheckPoint);
  	REG_FUNC(CScriptObjectGame,ShowSaveGameMenu);
  	REG_FUNC(CScriptObjectGame,GetSaveGameList);
-@@ -1620,6 +1624,12 @@
+@@ -1143,6 +1147,18 @@
+ 	const char *szMapName;
+ 	const char *szMissionName = "";
+ 
++	{
++		// FarCryCoop: in a co-op session the server changes level for everyone and keeps the clients.
++		const char *szCoopMap = 0, *szCoopMission = "";
++		if (pH->GetParamCount() >= 1 && pH->GetParam(1, szCoopMap) && szCoopMap)
++		{
++			if (pH->GetParamCount() >= 2)
++				pH->GetParam(2, szCoopMission);
++			if (Coop::OnScriptLoadLevel(szCoopMap, szCoopMission ? szCoopMission : ""))
++				return pH->EndFunction();
++		}
++	}
++
+ 	if(m_pGame->m_bDedicatedServer)
+ 		return pH->EndFunction();
+ 
+@@ -1620,6 +1636,12 @@
      _VERIFY(tangles->GetValue("z", za));
      Vec3 pos(x, y, z);
      Vec3 angles(xa, ya, za);
@@ -31,7 +50,7 @@
  	char buf[1024];
  	if (m_pGame->m_pServer)
  	{
-@@ -3838,3 +3848,20 @@
+@@ -3838,3 +3860,20 @@
  	
  	return pH->EndFunction(GetISystem()->GetINetwork()->GetUBIGameServerIP(true));
  }

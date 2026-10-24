@@ -9,7 +9,8 @@ stays on your machine (default: farcry_coop_audit.md in the current folder).
 
 The hazards come from reading the CryENGINE MOD SDK 1.4 source (see MODLOG.md):
 - `_localplayer` is set per process to that machine's own player, so on the server it is only the host;
-- `Game:LoadLevel` resets g_GameType to "Default" and starts a non-listen server, which ends a co-op session;
+- `Game:LoadLevel` resets g_GameType to "Default" in stock code; the FarCryCoop DLL turns it into a server-side
+  level change that keeps clients connected (unverified in game, so these are the spots to watch);
 - `Game:Save` / `Game:Load*` do nothing or desync in multiplayer;
 - `Game:TouchCheckPoint` is turned into the co-op respawn point by the FarCryCoop CryGame.dll;
 - `Game:IsMultiplayer()` branches change behaviour now that the campaign runs as multiplayer;
@@ -24,7 +25,7 @@ import zipfile
 
 HAZARDS = [
     ("level-transition", re.compile(r"Game:LoadLevel\s*\("),
-     "ends the co-op session (forces g_GameType=Default, non-listen server); needs a co-op aware map change"),
+     "handled by FarCryCoop: the server changes level and clients stay connected (watch these in testing)"),
     ("local-player", re.compile(r"\b_localplayer\b"),
      "only the host on the server; triggers/objectives keyed to it ignore other players"),
     ("save-load", re.compile(r"Game:(Save|Load|LoadLatestCheckPoint)\s*\("),

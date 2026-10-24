@@ -36,6 +36,10 @@ namespace Coop
 	//! End of CXSystemServer::LoadLevel (after the level and its entities are loaded).
 	void OnServerLevelLoaded();
 
+	//! Game:LoadLevel from campaign scripts. Returns true when co-op handled it: the server changes level
+	//! for everyone like a multiplayer map change (clients stay connected), a pure client ignores it.
+	bool OnScriptLoadLevel(const char *szMap, const char *szMission);
+
 	//! Game:TouchCheckPoint. Returns true when co-op handled it (no single-player save must happen).
 	bool OnTouchCheckPoint(int nCheckPoint, const float *pos, const float *angles);
 

@@ -31,7 +31,7 @@
 #include "lobby_proto.h"
 #include "lobby_net.h"
 
-#define FCC_VERSION "0.1.0"
+#define FCC_VERSION "0.2.0"
 #define DEFAULT_GAME_PORT 49001
 
 /* ------------------------------------------------------------------------------------------------------ */

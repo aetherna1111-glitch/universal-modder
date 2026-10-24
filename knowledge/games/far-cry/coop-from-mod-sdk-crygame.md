@@ -97,7 +97,9 @@ cleanly) and memory patching (the source is available and redistributable under 
 4. **Include case and backslashes** (`#include ".\game.h"`, `"Util\GuidUtil.h"`) break on Linux. Fix:
    rewrite the include lines and add case symlinks in the build copy.
 5. **`Game:LoadLevel` ends multiplayer.** It forces `g_GameType=Default` and a non-listen server, so a
-   campaign level transition drops co-op. Use `LoadLevelMPServer` for a co-op aware transition.
+   campaign level transition drops co-op. Fix (in the example, unverified in game): during co-op, the server
+   calls `LoadLevelCS(true, map, mission, true)` instead, the same call `Game:LoadLevelMPServer` makes, and a
+   pure client ignores the call.
 6. **`Game:TouchCheckPoint` dereferences `GetMyPlayer()` without a NULL check.** A checkpoint on a
    dedicated server would crash. Co-op handles checkpoints before that code runs.
 7. **`BasicPlayer:IsAlive()` returns a boolean** (state == "Alive"), not 1. And `_time` is not a script

@@ -15,11 +15,18 @@ netcode. There's no second game engine and no external simulation.
 
 | File | What it is |
 |---|---|
-| `FarCryCoop.exe` | Windows launcher (32-bit, no runtime needed). It finds the game, installs the mod with a backup, then hosts, joins and finds LAN games. It also has a command-line mode. |
-| `mod/FarCryCoop/Bin32/CryGame.dll` | Far Cry's game DLL rebuilt from the official CryENGINE MOD SDK 1.4 source, plus the co-op hooks. Far Cry 1.4 loads it only while `-MOD:FarCryCoop` is active. |
-| `mod/FarCryCoop/Scripts/Coop/GameRules.lua` | The `Coop` game type. It gives each client a player and handles respawning, leaving and friendly fire, on top of your own single-player rules. |
-| `mod/FarCryCoop/EULA.txt` | The CryENGINE MOD SDK license that covers the DLL. It must ship with it. |
+| `FarCryCoop.exe` | Windows launcher (32-bit, no runtime needed) **with the whole mod embedded**. It finds the game, installs the mod with a backup, then hosts, joins and finds LAN games. It also has a command-line mode. This one file is enough. |
+| `EULA.txt` | The CryENGINE MOD SDK license that covers the DLL. It must ship with it; it is also installed next to the DLL. |
+| `README_RU.txt` | Short guide in Russian. |
 | `tools/audit_scripts.py` | Scans your own `Scripts.pak` and level paks for single-player assumptions (campaign compatibility report). |
+
+Installed into `<Far Cry>\Mods\FarCryCoop`:
+
+| File | What it is |
+|---|---|
+| `Bin32/CryGame.dll` | Far Cry's game DLL rebuilt from the official CryENGINE MOD SDK 1.4 source, plus the co-op hooks. Far Cry 1.4 loads it only while `-MOD:FarCryCoop` is active. |
+| `Scripts/Coop/GameRules.lua` | The `Coop` game type. It gives each client a player and handles respawning, leaving and friendly fire, on top of your own single-player rules. |
+| `EULA.txt`, `ModDesc.txt`, `README.txt` | License, Mods-menu text, short readme. |
 
 No original game file is included or changed. You need your own Far Cry, updated to 1.4. The Far Cry VR mod
 has the same 1.4 requirement and installs straight onto the Steam and GOG releases. The launcher reads
@@ -35,7 +42,8 @@ needs a real game session.
 | CryGame.dll compiles from the SDK 1.4 source (clang-cl, MSVC ABI, i686) | Verified: builds, exports `CreateGameInstance` and `CryModuleGetMemoryInfo`, imports only system DLLs |
 | CryGame.dll loads on Windows, binds to CrySystem's allocator, constructs the game object | Verified under Wine with a stub CrySystem.dll (stock and co-op builds) |
 | The co-op DLL behaves like stock outside `g_GameType=Coop` | By construction: every hook returns early unless co-op is active. Not tested in game |
-| Launcher: install detection, 1.4 version gate, level list, install with backup, start the game in `Bin32` | Verified under Wine against a fake install (24 checks) |
+| Launcher: install detection, 1.4 version gate, level list, install with backup, start the game in `Bin32` | Verified under Wine against a fake install (26 checks) |
+| Single-file `FarCryCoop.exe` installs the embedded mod byte for byte | Verified under Wine |
 | LAN discovery between launchers, with a mod build check | Verified under Wine on loopback. Real LAN broadcast is unverified |
 | Launch request parser (`-coophost:` / `-coopjoin:`), injection-safe | Verified (26 checks) |
 | Lobby protocol validation (malformed, oversize, non-ASCII, wrong nonce) | Verified (29 checks, plus 200k fuzzed datagrams under ASan/UBSan) |
@@ -48,7 +56,7 @@ needs a real game session.
 | Doors, switches, alarms and other entity state | Stock entity-state replication. Unverified per level |
 | Checkpoints become the shared respawn point instead of saving | Unverified |
 | Internet play | Not tested. Far Cry's server uses UDP 49001, and the host must forward it |
-| Campaign level transitions | Not supported yet. `Game:LoadLevel` ends the co-op session, see known issues |
+| Campaign level transitions keep the session (the server changes level, clients stay connected) | Implemented in the DLL. Unverified in game |
 
 ## How it works
 
@@ -74,13 +82,16 @@ that design:
      stops moving.
    - On pure clients, the local copies of AI agents are disabled; the server drives them.
    - `Game:TouchCheckPoint` moves the shared respawn point instead of saving.
+   - `Game:LoadLevel` from campaign scripts changes level on the server the way MP map rotation does
+     (`LoadLevelCS` keeping the clients, listen server), instead of dropping back to single player. A pure
+     client ignores the call, because the server drives it.
    - The launcher's request is read from the command line and executed once the main menu is up.
 
 ## Install
 
 1. Update Far Cry to **patch 1.4**.
-2. Extract `FarCryCoop-0.1.0.zip` anywhere and keep the folder together: `FarCryCoop.exe` needs `mod\` next
-   to it.
+2. Extract `FarCryCoop-0.2.0.zip` anywhere. `FarCryCoop.exe` carries the mod inside. A `mod\FarCryCoop`
+   folder next to it, if present, is used instead (for development).
 3. Run `FarCryCoop.exe`. It looks for the game next to itself, then in Steam libraries, GOG and the Windows
    uninstall list. If it doesn't find it, click **Browse...** and pick the folder that contains
    `Bin32\FarCry.exe`.
@@ -163,9 +174,9 @@ Stock netcode settings work as usual: `sv_maxplayers`, `sv_password`, `sv_timeou
 
 - **Untested in game.** The co-op behaviour of the DLL and rules is designed from the SDK source but has not
   run. See the in-game test plan.
-- **Level transitions end the session.** Campaign scripts call `Game:LoadLevel`, which forces
-  `g_GameType=Default` and a non-listen server. Workaround: the host starts the next level from the launcher,
-  and clients rejoin.
+- **Level transitions are new and untested.** The DLL keeps the session across `Game:LoadLevel`, and players
+  respawn at the next level's start. Weapons don't carry over; each level gives its mission loadout. If a
+  transition misbehaves, the host can start the next level from the launcher and clients rejoin.
 - **`_localplayer` on the server is the host.** Mission triggers and objectives written for "the player" may
   only react to the host. `audit_scripts.py` lists them per level.
 - Cutscenes, HUD messages and input changes from server scripts only show on the host.
@@ -186,7 +197,7 @@ STOCK=1 crygame/build.sh   # unmodified SDK DLL, the baseline
 crygame/build.sh           # co-op DLL -> dist/build/coop/CryGame.dll
 launcher/build.sh          # -> dist/build/FarCryCoop.exe
 tests/run_all.sh           # every automated test (needs wine for the Windows parts)
-tools/package.sh           # -> dist/FarCryCoop-0.1.0.zip (+ .sha256)
+tools/package.sh           # -> dist/FarCryCoop-0.2.0.zip (+ .sha256)
 ```
 
 `crygame/build.sh` fetches the SDK 1.4 CryGame source from `github.com/fholger/farcry_vrmod` at commit
@@ -216,8 +227,10 @@ with two windowed instances may work if the game allows a second instance (untes
 6. **AI targets both players.** Enemies notice and attack the client, not only the host.
 7. **Damage and death.** Enemies die from either player's fire. A dead player respawns after the delay.
 8. **Checkpoint.** Reaching a checkpoint prints "Checkpoint reached" and later respawns happen there.
-9. **Disconnect.** A client quits. The host continues, and the client's body is removed.
-10. **Soak.** Play 30 minutes. Note `sv_netstats 1` bandwidth, ping (scoreboard) and any desync.
+9. **Level end.** Finish the level. Everyone sees "Level complete: loading ...", `log.txt` shows
+   `[coop] level transition`, and the client stays connected into the next level.
+10. **Disconnect.** A client quits. The host continues, and the client's body is removed.
+11. **Soak.** Play 30 minutes. Note `sv_netstats 1` bandwidth, ping (scoreboard) and any desync.
 
 Record the results in the compatibility table and in the knowledge base note
 (`knowledge/games/far-cry/`).
@@ -225,14 +238,12 @@ Record the results in the compatibility table and in the knowledge base note
 ## Next steps
 
 1. Run the in-game test plan on one campaign level and fix what breaks.
-2. Co-op aware level transitions: intercept `Game:LoadLevel` on the server, use `Game:LoadLevelMPServer`
-   with the same game type, and keep clients connected.
-3. Make mission triggers react to any player: a `_localplayer` shim that points server-side scripts to the
+2. Make mission triggers react to any player: a `_localplayer` shim that points server-side scripts to the
    nearest or triggering player.
-4. Sync objectives and HUD messages to all clients (`ServerSlot:SendCommand`).
-5. Interpolation and animation check for AI actors on clients, and tuning of `sv_maxrate_lan` and snapshot
+3. Sync objectives and HUD messages to all clients (`ServerSlot:SendCommand`).
+4. Interpolation and animation check for AI actors on clients, and tuning of `sv_maxrate_lan` and snapshot
    rate for many AI.
-6. A Visual Studio build in CI to compare with the clang-cl DLL.
+5. A Visual Studio build in CI to compare with the clang-cl DLL.
 
 ## Credits and legal
 

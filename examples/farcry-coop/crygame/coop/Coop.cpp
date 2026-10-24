@@ -414,6 +414,32 @@ void Coop::OnServerLevelLoaded()
 	Log()->Log("[coop] server loaded level '%s' mission '%s'", g_pGame->m_currentLevel.c_str(), g_pGame->m_currentMission.c_str());
 }
 
+bool Coop::OnScriptLoadLevel(const char *szMap, const char *szMission)
+{
+	if (!IsActive())
+		return false;
+	if (!szMap || !szMap[0] || strlen(szMap) > 200 || (szMission && strlen(szMission) > 200))
+	{
+		Log()->Log("[coop] ignoring Game:LoadLevel with an invalid level name");
+		return true;
+	}
+	if (!g_pGame->m_pServer)
+	{
+		Log()->Log("[coop] client: ignoring Game:LoadLevel(%s), the server changes the level", szMap);
+		return true;
+	}
+	char msg[300];
+	_snprintf(msg, sizeof(msg), "Level complete: loading %s", szMap);
+	msg[sizeof(msg) - 1] = 0;
+	g_pGame->m_pServer->BroadcastText(msg);
+	Log()->Log("[coop] level transition to '%s' mission '%s': changing level on the co-op server, clients stay connected",
+		szMap, szMission ? szMission : "");
+	// Same call as Game:LoadLevelMPServer (keep the server and its clients, listen server), g_GameType stays Coop.
+	string map = szMap, mission = szMission ? szMission : "";
+	g_pGame->LoadLevelCS(true, map.c_str(), mission.c_str(), true);
+	return true;
+}
+
 bool Coop::OnTouchCheckPoint(int nCheckPoint, const float *pos, const float *angles)
 {
 	if (!IsActive())
